@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. Import Riverpod
+import '../providers/user_data_provider.dart'; // Import Provider
 import 'app_home_screen.dart';
-import 'goal_selection_screen.dart'; // 👈 สำคัญ: ต้อง import เพื่อให้รู้จัก GoalOption
 
-class TargetWeightScreen extends StatefulWidget {
-  // 1. รับค่าเป้าหมายที่เลือกมาจากหน้าก่อนหน้า
+
+// 2. เปลี่ยนเป็น ConsumerStatefulWidget
+class TargetWeightScreen extends ConsumerStatefulWidget {
   final GoalOption selectedGoal;
 
   const TargetWeightScreen({
-    super.key, 
-    required this.selectedGoal, // บังคับให้ส่งค่ามา
+    super.key,
+    required this.selectedGoal,
   });
 
   @override
-  State<TargetWeightScreen> createState() => _TargetWeightScreenState();
+  ConsumerState<TargetWeightScreen> createState() => _TargetWeightScreenState();
 }
 
-class _TargetWeightScreenState extends State<TargetWeightScreen> {
+class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
   final TextEditingController _targetWeightController = TextEditingController();
   final TextEditingController _durationController = TextEditingController();
 
@@ -28,28 +30,26 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 2. กำหนดตัวแปรสำหรับข้อมูลที่จะเปลี่ยนไปตามเป้าหมาย
+    // กำหนดตัวแปรสำหรับ UI (เหมือนเดิม)
     String titleText = '';
-    String subTitleText = '';
     Color subTitleColor = Colors.black;
     String imageUrl = '';
 
-    // 3. เช็คว่าเลือกอะไรมา แล้วเปลี่ยนข้อมูลตามนั้น
     switch (widget.selectedGoal) {
       case GoalOption.loseWeight:
         titleText = 'การลดน้ำหนัก ควบคุมแคลอรี่';
-        subTitleColor = const Color(0xFFD76A3C); // สีส้ม
-        imageUrl = 'https://api.builder.io/api/v1/image/assets/TEMP/2b36cbc83f6282347dd67152d454841cc595df15'; // รูปไฟ
+        subTitleColor = const Color(0xFFD76A3C);
+        imageUrl = 'https://api.builder.io/api/v1/image/assets/TEMP/2b36cbc83f6282347dd67152d454841cc595df15';
         break;
       case GoalOption.maintainWeight:
-        titleText = 'รักษาน้ำหนัก รักษาสมดุล'; // หรือข้อความที่คุณต้องการ
-        subTitleColor = const Color(0xFF2D58B6); // สีน้ำเงิน
-        imageUrl = 'https://api.builder.io/api/v1/image/assets/TEMP/caa3690bf64691cf18159ea72b5ec46944c37e66'; // รูปอาหาร
+        titleText = 'รักษาน้ำหนัก รักษาสมดุล';
+        subTitleColor = const Color(0xFF2D58B6);
+        imageUrl = 'https://api.builder.io/api/v1/image/assets/TEMP/caa3690bf64691cf18159ea72b5ec46944c37e66';
         break;
       case GoalOption.buildMuscle:
         titleText = 'เพิ่มกล้ามเนื้อ ลดไขมัน';
-        subTitleColor = const Color(0xFFB4AC15); // สีเหลืองทอง
-        imageUrl = 'https://api.builder.io/api/v1/image/assets/TEMP/3ac072bc08b89b53ec34785b4a25b0021535bdd8'; // รูปกล้าม
+        subTitleColor = const Color(0xFFB4AC15);
+        imageUrl = 'https://api.builder.io/api/v1/image/assets/TEMP/3ac072bc08b89b53ec34785b4a25b0021535bdd8';
         break;
     }
 
@@ -81,7 +81,7 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
 
                 const SizedBox(height: 20),
 
-                // Title (คงที่)
+                // Title
                 const Text(
                   'เป้าหมายของคุณคือ',
                   style: TextStyle(
@@ -95,16 +95,16 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
 
                 const SizedBox(height: 10),
 
-                // Subtitle (เปลี่ยนตามเป้าหมาย)
+                // Subtitle (Dynamic)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
-                    titleText, // 👈 ใช้ตัวแปรที่กำหนดไว้ข้างบน
+                    titleText,
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontSize: 20, // ปรับขนาดให้เด่นขึ้นนิดนึง
+                      fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: subTitleColor, // 👈 เปลี่ยนสีตามเป้าหมาย
+                      color: subTitleColor,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -112,7 +112,7 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
 
                 const SizedBox(height: 40),
 
-                // Image Circle (เปลี่ยนรูปตามเป้าหมาย)
+                // Image Circle
                 Container(
                   width: 150,
                   height: 150,
@@ -120,9 +120,9 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
                     color: Colors.white,
                     shape: BoxShape.circle,
                   ),
-                  padding: const EdgeInsets.all(25), // เว้นระยะให้รูปข้างในสวยงาม
+                  padding: const EdgeInsets.all(25),
                   child: Image.network(
-                    imageUrl, // 👈 ใช้ URL ตามเป้าหมาย
+                    imageUrl,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) =>
                         const Icon(Icons.image_not_supported, size: 50),
@@ -137,14 +137,14 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
                   child: Column(
                     children: [
                       _buildFormField(
-                        label: 'เป้าหมายน้ำหนัก', // แก้คำให้ตรงกับรูป
+                        label: 'เป้าหมายน้ำหนัก',
                         controller: _targetWeightController,
-                        hintText: 'กรอกข้อมูล', // แก้ hint ให้ตรงกับรูป
+                        hintText: 'กรอกข้อมูล',
                         isNumber: true,
                       ),
                       const SizedBox(height: 30),
                       _buildFormField(
-                        label: 'ระยะเวลาที่ต้องการ', // แก้คำให้ตรงกับรูป
+                        label: 'ระยะเวลาที่ต้องการ',
                         controller: _durationController,
                         hintText: 'กรอกข้อมูล',
                         isNumber: true,
@@ -155,9 +155,39 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
 
                 const SizedBox(height: 60),
 
-                // Confirm Button
+                // --- Confirm Button (ส่วนสำคัญ) ---
                 GestureDetector(
                   onTap: () {
+                    // 1. ตรวจสอบข้อมูลว่ากรอกครบไหม
+                    if (_targetWeightController.text.isEmpty || _durationController.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('กรุณากรอกข้อมูลให้ครบถ้วน'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    // 2. แปลงค่าเป็นตัวเลข
+                    double targetW = double.tryParse(_targetWeightController.text) ?? 0.0;
+                    int dur = int.tryParse(_durationController.text) ?? 0;
+
+                    // 3. บันทึกลง Provider
+                    ref.read(userDataProvider.notifier).setGoalInfo(
+                          targetWeight: targetW,
+                          duration: dur,
+                        );
+
+                    // 4. (Optional) เช็คข้อมูลทั้งหมดใน Console ก่อนจบ
+                    final allData = ref.read(userDataProvider);
+                    print("--- Registration Complete ---");
+                    print("Name: ${allData.name}");
+                    print("Goal: ${allData.goal}");
+                    print("Target Weight: ${allData.targetWeight}");
+                    print("Duration: ${allData.duration} weeks");
+
+                    // 5. ไปหน้า Home (จบ Flow สมัครสมาชิก)
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
@@ -170,7 +200,7 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
                     width: 259,
                     height: 54,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF435D17), // ปรับสีปุ่มให้เขียวเข้มขึ้นตามรูป
+                      color: const Color(0xFF435D17),
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
@@ -182,7 +212,7 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
                     ),
                     child: const Center(
                       child: Text(
-                        'ถัดไป', // แก้คำให้ตรงกับรูป
+                        'ถัดไป',
                         style: TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 20,
@@ -212,7 +242,7 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
     return Row(
       children: [
         SizedBox(
-          width: 150, // ปรับความกว้างให้พอดีกับข้อความภาษาไทยยาวๆ
+          width: 150,
           child: Text(
             label,
             style: const TextStyle(
@@ -228,8 +258,8 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
           child: Container(
             height: 40,
             decoration: BoxDecoration(
-              color: Colors.white, // เปลี่ยนพื้นหลังช่องกรอกเป็นสีขาวตามรูป
-              borderRadius: BorderRadius.circular(20), // ปรับความมน
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
             ),
             child: TextField(
               controller: controller,
