@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
-import 'target_weight_screen.dart'; // 👈 อย่าลืม import หน้าใหม่ตรงนี้
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. import riverpod
+import '../providers/user_data_provider.dart'; // import provider
+import 'target_weight_screen.dart';
 
-enum GoalOption {
-  loseWeight,
-  maintainWeight,
-  buildMuscle,
-}
 
-class GoalSelectionScreen extends StatefulWidget {
+
+// 2. เปลี่ยนเป็น ConsumerStatefulWidget
+class GoalSelectionScreen extends ConsumerStatefulWidget {
   const GoalSelectionScreen({super.key});
 
   @override
-  State<GoalSelectionScreen> createState() => _GoalSelectionScreenState();
+  ConsumerState<GoalSelectionScreen> createState() => _GoalSelectionScreenState();
 }
 
-class _GoalSelectionScreenState extends State<GoalSelectionScreen> {
+class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
   GoalOption? selectedGoal = GoalOption.loseWeight;
 
   @override
@@ -44,7 +43,6 @@ class _GoalSelectionScreenState extends State<GoalSelectionScreen> {
 
                 const SizedBox(height: 37),
 
-                // Title
                 const Padding(
                   padding: EdgeInsets.only(left: 33),
                   child: Text(
@@ -60,7 +58,6 @@ class _GoalSelectionScreenState extends State<GoalSelectionScreen> {
 
                 const SizedBox(height: 20),
 
-                // Subtitle
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 50),
                   child: Text(
@@ -74,59 +71,43 @@ class _GoalSelectionScreenState extends State<GoalSelectionScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 40), // ปรับระยะห่างนิดหน่อย
+                const SizedBox(height: 67),
 
                 // Goal Options
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 17),
                   child: Column(
                     children: [
-                      // Lose Weight Option
                       _buildGoalOption(
                         goal: GoalOption.loseWeight,
                         title: 'ลดน้ำหนัก',
                         subtitle: 'ควบคุมแคลอรี่',
-                        iconUrl:
-                            'https://api.builder.io/api/v1/image/assets/TEMP/2b36cbc83f6282347dd67152d454841cc595df15',
-                        defaultGradient: const LinearGradient(
-                          colors: [Colors.white, Colors.white],
-                        ),
-                        selectedGradient: const LinearGradient(
-                          colors: [Color(0xFFDBA979), Color(0xFFD76A3C)],
-                        ),
+                        iconUrl: 'https://api.builder.io/api/v1/image/assets/TEMP/2b36cbc83f6282347dd67152d454841cc595df15',
+                        defaultGradient: const LinearGradient(colors: [Colors.white, Colors.white]),
+                        selectedGradient: const LinearGradient(colors: [Color(0xFFDBA979), Color(0xFFD76A3C)]),
                       ),
-
-                      const SizedBox(height: 20),
-
-                      // Maintain Weight Option
+                      const SizedBox(height: 36),
                       _buildGoalOption(
                         goal: GoalOption.maintainWeight,
                         title: 'รักษาน้ำหนัก',
                         subtitle: 'รักษาสมดุล สุขภาพดี',
-                        iconUrl:
-                            'https://api.builder.io/api/v1/image/assets/TEMP/caa3690bf64691cf18159ea72b5ec46944c37e66',
-                        defaultGradient: const LinearGradient(
-                          colors: [Colors.white, Colors.white],
-                        ),
+                        iconUrl: 'https://api.builder.io/api/v1/image/assets/TEMP/caa3690bf64691cf18159ea72b5ec46944c37e66',
+                        defaultGradient: const LinearGradient(colors: [Colors.white, Colors.white]),
                         selectedGradient: const LinearGradient(
                           colors: [Color(0xFF10337F), Color(0xFF2D58B6), Color(0xFF497CEA)],
+                          stops: [0.0, 0.36, 1.0],
                         ),
                       ),
-
-                      const SizedBox(height: 20),
-
-                      // Build Muscle Option
+                      const SizedBox(height: 36),
                       _buildGoalOption(
                         goal: GoalOption.buildMuscle,
                         title: 'เพิ่มกล้ามเนื้อ',
                         subtitle: 'ลดไขมัน',
-                        iconUrl:
-                            'https://api.builder.io/api/v1/image/assets/TEMP/3ac072bc08b89b53ec34785b4a25b0021535bdd8',
-                        defaultGradient: const LinearGradient(
-                          colors: [Colors.white, Colors.white],
-                        ),
+                        iconUrl: 'https://api.builder.io/api/v1/image/assets/TEMP/3ac072bc08b89b53ec34785b4a25b0021535bdd8',
+                        defaultGradient: const LinearGradient(colors: [Colors.white, Colors.white]),
                         selectedGradient: const LinearGradient(
                           colors: [Color(0xFFB4AC15), Color(0xFFFFEA4B), Color(0xFFFAFC83)],
+                          stops: [0.0, 0.63, 1.0],
                         ),
                       ),
                     ],
@@ -135,22 +116,27 @@ class _GoalSelectionScreenState extends State<GoalSelectionScreen> {
 
                 const SizedBox(height: 40),
 
-                // --- ส่วนที่เพิ่มปุ่มถัดไป ---
+                // --- ปุ่มถัดไป ---
                 Center(
                   child: GestureDetector(
-  onTap: () {
-    if (selectedGoal != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          
-          builder: (context) => TargetWeightScreen(
-            selectedGoal: selectedGoal!, // ส่งค่าตรงนี้ และเอา const ออก
-          ),
-        ),
-      );
-    }
-  },
+                    onTap: () {
+                      if (selectedGoal != null) {
+                        // 1. บันทึกข้อมูลลง Provider (ถังกลาง)
+                        // หมายเหตุ: ต้องไปเพิ่มฟังก์ชัน setGoal ใน UserDataNotifier ก่อนนะ
+                        // ถ้ายังไม่ได้เพิ่ม ให้ comment บรรทัดข้างล่างนี้ไว้ก่อน
+                         ref.read(userDataProvider.notifier).setGoal(selectedGoal!); 
+
+                        // 2. ไปหน้าถัดไป (ส่งค่า goal ไปด้วยเพื่อใช้แสดงผล UI)
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TargetWeightScreen(
+                              selectedGoal: selectedGoal!,
+                            ),
+                          ),
+                        );
+                      }
+                    },
                     child: Container(
                       width: 259,
                       height: 54,
@@ -179,8 +165,7 @@ class _GoalSelectionScreenState extends State<GoalSelectionScreen> {
                     ),
                   ),
                 ),
-                // --- จบส่วนปุ่ม ---
-
+                
                 const SizedBox(height: 50),
               ],
             ),
@@ -228,19 +213,12 @@ class _GoalSelectionScreenState extends State<GoalSelectionScreen> {
               child: Container(
                 width: 59,
                 height: 58,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                 child: Center(
                   child: Image.network(
                     iconUrl,
-                    width: 43,
-                    height: 43,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(Icons.fitness_center, size: 43);
-                    },
+                    width: 43, height: 43, fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.fitness_center, size: 43),
                   ),
                 ),
               ),
@@ -251,43 +229,19 @@ class _GoalSelectionScreenState extends State<GoalSelectionScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: isSelected ? Colors.white : Colors.black,
-                    ),
-                  ),
+                  Text(title, style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : Colors.black)),
                   const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w300,
-                      color: isSelected ? Colors.white : Colors.black,
-                    ),
-                  ),
+                  Text(subtitle, style: TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w300, color: isSelected ? Colors.white : Colors.black)),
                 ],
               ),
             ),
             if (isSelected)
               Positioned(
-                right: 19,
-                top: 41,
+                right: 19, top: 41,
                 child: Container(
-                  width: 35,
-                  height: 35,
-                  decoration: const BoxDecoration(
-                    color: Colors.transparent,
-                  ),
-                  child: const Icon(
-                    Icons.check_circle,
-                    color: Colors.white,
-                    size: 29,
-                  ),
+                  width: 35, height: 35,
+                  decoration: const BoxDecoration(color: Colors.transparent),
+                  child: const Icon(Icons.check_circle, color: Colors.white, size: 29),
                 ),
               ),
           ],

@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. Import Riverpod
+import '../providers/user_data_provider.dart'; // 2. Import Provider
 import 'gender_selection_screen.dart';
-// ลบ import font_awesome ออก เพราะเราเปลี่ยนมาใช้รูปภาพธรรมดาแทนแล้ว
-// import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-class LoginScreen extends StatefulWidget {
+// 3. เปลี่ยนเป็น ConsumerStatefulWidget
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -24,11 +25,11 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-  body: Container(
-    width: double.infinity,
-    height: double.infinity,
-    color: const Color(0xFFE8EFCF), // 👈 พื้นหลังสีที่ต้องการ
-    child: SafeArea(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: const Color(0xFFE8EFCF), // 👈 พื้นหลังสีที่ต้องการ
+        child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 65),
@@ -212,10 +213,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   
                   const SizedBox(height: 16),
                   
-                  // Login Button
+                  // Login Button (ใช้สำหรับไปหน้าถัดไปใน Flow สมัคร)
                   GestureDetector(
                     onTap: () {
-                      // Navigate to gender selection screen after successful login
+                      // 1. ตรวจสอบว่ากรอกข้อมูลหรือยัง
+                      if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+                         ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('กรุณากรอก Email และ Password')),
+                        );
+                        return;
+                      }
+
+                      // 2. บันทึกข้อมูลลง Provider (ถังกลาง)
+                      ref.read(userDataProvider.notifier).setLoginInfo(
+                        _emailController.text, 
+                        _passwordController.text
+                      );
+
+                      // 3. ไปหน้าเลือกเพศ (GenderSelection)
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -315,9 +330,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               shape: BoxShape.circle,
                               color: Colors.white,
                             ),
-                            // --- แก้ไข: ใช้รูป Facebook จากเน็ตแทน FontAwesome ---
                             child: Padding(
-                              padding: const EdgeInsets.all(2.0), // จัดระยะห่างนิดนึง
+                              padding: const EdgeInsets.all(2.0), 
                               child: Image.network(
                                 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Facebook_Logo_%282019%29.png/600px-Facebook_Logo_%282019%29.png',
                                 fit: BoxFit.contain,
@@ -371,7 +385,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               shape: BoxShape.circle,
                               color: Colors.white,
                             ),
-                            // --- แก้ไข: ใช้รูป Google จากเน็ตแทน FontAwesome ---
                             child: Padding(
                               padding: const EdgeInsets.all(4.0),
                               child: Image.network(
@@ -399,7 +412,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   
                   // Create Account Button
                   GestureDetector(
-                    onTap: () {},
+                    onTap: () {
+                      // ถ้าต้องการให้ปุ่มนี้ทำหน้าที่สมัครสมาชิกด้วย ก็ใส่โค้ดเหมือนปุ่ม Login ข้างบน
+                    },
                     child: Container(
                       width: 259,
                       height: 54,
