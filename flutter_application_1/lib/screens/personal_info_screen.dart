@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'goal_selection_screen.dart';
 
 class PersonalInfoScreen extends StatefulWidget {
   const PersonalInfoScreen({super.key});
@@ -22,42 +23,62 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     super.dispose();
   }
 
+  // ฟังก์ชันเลือกวันที่
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2000), // ตั้งค่าเริ่มต้นปี 2000
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF4C6414), // สีหัวปฏิทิน
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        // แปลงวันที่เป็นรูปแบบ วว/ดด/ปปปป
+        _birthdayController.text = "${picked.day}/${picked.month}/${picked.year}";
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFE7DDD1),
-              Color(0xFFFFFFFF),
-              Color(0xFFE7DDD1),
-            ],
-            stops: [0.0, 0.5061, 1.0],
-          ),
-        ),
+        color: const Color(0xFFE8EFCF), // พื้นหลังสีที่ต้องการ
         child: SafeArea(
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Logo
+                // --- ส่วนที่แก้ไข: ปุ่มย้อนกลับ (แทนที่รูปภาพ logo) ---
                 Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: Alignment.topLeft,
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 9, top: 12),
-                    child: Image.network(
-                      'https://api.builder.io/api/v1/image/assets/TEMP/63b58034e129f3fabd1182d751daa5314f9c7bcb?width=154',
-                      width: 77,
-                      height: 73,
-                      fit: BoxFit.contain,
+                    padding: const EdgeInsets.only(left: 19, top: 12),
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(
+                        Icons.chevron_left,
+                        size: 40,
+                        color: Color(0xFF1D1B20),
+                      ),
                     ),
                   ),
                 ),
+                // ------------------------------------------------
 
                 const SizedBox(height: 14),
 
@@ -92,19 +113,21 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
 
                 const SizedBox(height: 44),
 
-                // Illustration
+                // Illustration (รูปกราฟิกตรงกลาง)
                 Center(
                   child: Image.network(
                     'https://api.builder.io/api/v1/image/assets/TEMP/1954e238a987282746e33d33deb711b2c911f3d3?width=554',
                     width: 277,
                     height: 150,
                     fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox(height: 150), // กัน Error ถ้ารูปไม่โหลด
                   ),
                 ),
 
                 const SizedBox(height: 47),
 
-                // Form Fields - Horizontal Layout
+                // Form Fields
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 50),
                   child: Column(
@@ -121,6 +144,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                         label: 'วันเกิด',
                         controller: _birthdayController,
                         hintText: 'วว/ดด/ปปปป',
+                        isDate: true, // เปิดโหมดเลือกวันที่
                       ),
 
                       const SizedBox(height: 28),
@@ -129,7 +153,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                         label: 'ส่วนสูง',
                         controller: _heightController,
                         hintText: 'กรอกข้อมูล',
-                        keyboardType: TextInputType.number,
+                        isNumber: true, // บังคับตัวเลข
                       ),
 
                       const SizedBox(height: 28),
@@ -138,7 +162,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                         label: 'นํ้าหนัก',
                         controller: _weightController,
                         hintText: 'กรอกข้อมูล',
-                        keyboardType: TextInputType.number,
+                        isNumber: true, // บังคับตัวเลข
                       ),
                     ],
                   ),
@@ -149,11 +173,12 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 // Next Button
                 GestureDetector(
                   onTap: () {
-                    // TODO: Navigate to next screen or save data
-                    print('Name: ${_nameController.text}');
-                    print('Birthday: ${_birthdayController.text}');
-                    print('Height: ${_heightController.text}');
-                    print('Weight: ${_weightController.text}');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const GoalSelectionScreen(),
+                      ),
+                    );
                   },
                   child: Container(
                     width: 259,
@@ -192,11 +217,13 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     );
   }
 
+  // ปรับปรุง Widget เพื่อรองรับโหมดวันที่และตัวเลข
   Widget _buildFormField({
     required String label,
     required TextEditingController controller,
     required String hintText,
-    TextInputType? keyboardType,
+    bool isNumber = false,
+    bool isDate = false,
   }) {
     return Row(
       children: [
@@ -222,7 +249,15 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
             ),
             child: TextField(
               controller: controller,
-              keyboardType: keyboardType,
+              // ถ้าเป็นช่องวันเกิด ให้กดแล้วเปิดปฏิทิน (readOnly: true)
+              readOnly: isDate, 
+              onTap: isDate ? () => _selectDate(context) : null,
+              
+              // ถ้าเป็นตัวเลข ให้ขึ้นแป้นตัวเลข
+              keyboardType: isNumber 
+                  ? const TextInputType.numberWithOptions(decimal: true) 
+                  : TextInputType.text,
+                  
               decoration: InputDecoration(
                 hintText: hintText,
                 hintStyle: const TextStyle(
@@ -232,7 +267,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   color: Color(0xB3000000),
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9), // ปรับ padding ให้ข้อความอยู่กลางแนวตั้ง
               ),
               style: const TextStyle(
                 fontFamily: 'Inter',
