@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'profile/profile_screen.dart'; // ตรวจสอบ path ให้ถูกต้อง
+import 'profile/subprofile_screen/setting_screen.dart';
+import 'profile/subprofile_screen/article_screen.dart';
 
 class AppHomeScreen extends StatefulWidget {
   const AppHomeScreen({super.key});
@@ -92,7 +94,8 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.black, size: 30), // ปรับปุ่มปิดให้ใหญ่ขึ้น
+                  icon: const Icon(Icons.close,
+                      color: Colors.black, size: 30), // ปรับปุ่มปิดให้ใหญ่ขึ้น
                   onPressed: () => Navigator.pop(context),
                 ),
               ),
@@ -111,9 +114,30 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
               },
             ),
             const Divider(height: 1, color: Colors.black),
-            _buildDrawerItem(Icons.settings_outlined, "ตั้งค่า"),
+            _buildDrawerItem(
+              Icons.settings_outlined,
+              "ตั้งค่า",
+              onTap: () {
+                Navigator.pop(context); // ปิด Drawer ก่อน
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const SettingsScreen()),
+                );
+              },
+            ),
             const Divider(height: 1, color: Colors.black),
-            _buildDrawerItem(Icons.article_outlined, "บทความ"),
+            _buildDrawerItem(
+  Icons.article_outlined, 
+  "บทความ",
+  onTap: () {
+    Navigator.pop(context); // ปิด Drawer ก่อน
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ArticleScreen()),
+    );
+  },
+),
             const Divider(height: 1, color: Colors.black),
           ],
         ),
@@ -127,7 +151,8 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
           Container(
             height: 98,
             color: const Color(0xFF628141),
-            padding: const EdgeInsets.only(top: 10, left: 20, right: 20, bottom: 10),
+            padding:
+                const EdgeInsets.only(top: 10, left: 20, right: 20, bottom: 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -178,7 +203,8 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
                 // Menu Icon
                 IconButton(
                   onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
-                  icon: const Icon(Icons.menu, color: Colors.white, size: 32), // ✅ ปรับขนาดเป็น 32
+                  icon: const Icon(Icons.menu,
+                      color: Colors.white, size: 32), // ✅ ปรับขนาดเป็น 32
                 ),
               ],
             ),
@@ -252,28 +278,34 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
                             ],
                           ),
                         ),
-                        
+
                         const SizedBox(width: 15),
-                        
+
                         // รายการสารอาหาร
                         Expanded(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               _buildNutrientRow(
-                                "โปรตีน", 50, 111,
+                                "โปรตีน",
+                                50,
+                                111,
                                 "https://cdn-icons-png.flaticon.com/512/1046/1046751.png",
                                 Colors.redAccent,
                               ),
                               const SizedBox(height: 15),
                               _buildNutrientRow(
-                                "คาร์บ", 80, 104,
+                                "คาร์บ",
+                                80,
+                                104,
                                 "https://cdn-icons-png.flaticon.com/512/2619/2619567.png",
                                 Colors.blueAccent,
                               ),
                               const SizedBox(height: 15),
                               _buildNutrientRow(
-                                "ไขมัน", 10, 41,
+                                "ไขมัน",
+                                10,
+                                41,
                                 "https://cdn-icons-png.flaticon.com/512/2553/2553591.png",
                                 Colors.amber,
                               ),
@@ -300,24 +332,41 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
                                 const Text(
                                   'เป้าหมายน้ำหนักตัว',
                                   style: TextStyle(
-                                      fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w500),
+                                      fontFamily: 'Inter',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500),
                                 ),
                                 const SizedBox(height: 5),
                                 Row(
-                                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.baseline,
                                   textBaseline: TextBaseline.alphabetic,
                                   children: [
-                                    const Text('70', style: TextStyle(fontFamily: 'Inter', fontSize: 32, fontWeight: FontWeight.w500)),
+                                    const Text('70',
+                                        style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.w500)),
                                     const SizedBox(width: 4),
-                                    const Text('/', style: TextStyle(fontFamily: 'Inter', fontSize: 16)),
+                                    const Text('/',
+                                        style: TextStyle(
+                                            fontFamily: 'Inter', fontSize: 16)),
                                     const SizedBox(width: 4),
-                                    Text('60 กก.', style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black.withOpacity(0.7))),
+                                    Text('60 กก.',
+                                        style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 16,
+                                            color:
+                                                Colors.black.withOpacity(0.7))),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 const Text(
                                   'เหลือ 10 กก.',
-                                  style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500),
+                                  style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500),
                                 ),
                               ],
                             ),
@@ -330,17 +379,30 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text('BMI 25.7', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
+                                const Text('BMI 25.7',
+                                    style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500)),
                                 const SizedBox(height: 4),
-                                const Text('น้ำหนักเกิน', style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
+                                const Text('น้ำหนักเกิน',
+                                    style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500)),
                                 const SizedBox(height: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: const Text('ต้องลดอีก 2.7', style: TextStyle(fontFamily: 'Inter', fontSize: 10, color: Colors.black)),
+                                  child: const Text('ต้องลดอีก 2.7',
+                                      style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 10,
+                                          color: Colors.black)),
                                 )
                               ],
                             ),
@@ -351,22 +413,37 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
                           child: Container(
                             decoration: const BoxDecoration(
                               color: Color(0xFFECCA9C),
-                              border: Border(left: BorderSide(color: Colors.white30, width: 1)),
+                              border: Border(
+                                  left: BorderSide(
+                                      color: Colors.white30, width: 1)),
                             ),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text('30%', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
+                                const Text('30%',
+                                    style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500)),
                                 const SizedBox(height: 4),
-                                const Text('ความคืบหน้า', style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
+                                const Text('ความคืบหน้า',
+                                    style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500)),
                                 const SizedBox(height: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: const Text('เหลืออีก 70%', style: TextStyle(fontFamily: 'Inter', fontSize: 10, color: Colors.black)),
+                                  child: const Text('เหลืออีก 70%',
+                                      style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 10,
+                                          color: Colors.black)),
                                 )
                               ],
                             ),
@@ -383,10 +460,14 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           child: const Text(
                             'มื้ออาหารที่ทานวันนี้',
-                            style: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 20,
+                                fontWeight: FontWeight.w500),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -401,15 +482,35 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
-                              Text('มื้อเช้า : สลัดอกไก่', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
+                              Text('มื้อเช้า : สลัดอกไก่',
+                                  style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500)),
                               SizedBox(height: 8),
-                              Text('อาหารว่าง : -', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
+                              Text('อาหารว่าง : -',
+                                  style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500)),
                               SizedBox(height: 8),
-                              Text('มื้อเที่ยง : -', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
+                              Text('มื้อเที่ยง : -',
+                                  style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500)),
                               SizedBox(height: 8),
-                              Text('อาหารว่าง : -', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
+                              Text('อาหารว่าง : -',
+                                  style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500)),
                               SizedBox(height: 8),
-                              Text('มื้อเย็น : -', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
+                              Text('มื้อเย็น : -',
+                                  style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500)),
                             ],
                           ),
                         )
@@ -443,7 +544,8 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
   }
 
   // --- Widget ย่อย: สร้างแถบเมนูด้านล่าง ---
-  Widget _buildBottomNavItem(IconData icon, String label, int index, {bool isActive = false}) {
+  Widget _buildBottomNavItem(IconData icon, String label, int index,
+      {bool isActive = false}) {
     Color color = isActive ? const Color(0xFF4C6414) : const Color(0xFF8F8F8F);
     return GestureDetector(
       onTap: () => setState(() => _selectedIndex = index),
@@ -467,7 +569,8 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
   }
 
   // --- Widget ย่อย: สร้างแถบสารอาหาร (Nutrients) ---
-  Widget _buildNutrientRow(String label, int current, int total, String iconUrl, Color progressColor) {
+  Widget _buildNutrientRow(String label, int current, int total, String iconUrl,
+      Color progressColor) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -477,7 +580,8 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
           height: 40, // ✅ ปรับจาก 25 เป็น 40
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            image: DecorationImage(image: NetworkImage(iconUrl), fit: BoxFit.cover),
+            image: DecorationImage(
+                image: NetworkImage(iconUrl), fit: BoxFit.cover),
           ),
         ),
         const SizedBox(width: 12),
@@ -485,7 +589,11 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)), // เพิ่มขนาดฟอนต์นิดหน่อย
+              Text(label,
+                  style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500)), // เพิ่มขนาดฟอนต์นิดหน่อย
               const SizedBox(height: 4),
               Stack(
                 children: [
@@ -513,8 +621,12 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('${current}g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12)),
-                  Text('${total}g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12)),
+                  Text('${current}g',
+                      style:
+                          const TextStyle(fontFamily: 'Inter', fontSize: 12)),
+                  Text('${total}g',
+                      style:
+                          const TextStyle(fontFamily: 'Inter', fontSize: 12)),
                 ],
               )
             ],
@@ -527,7 +639,8 @@ class _AppHomeScreenState extends State<AppHomeScreen> {
   // --- Widget ย่อย: รายการใน Drawer ---
   Widget _buildDrawerItem(IconData icon, String title, {VoidCallback? onTap}) {
     return ListTile(
-      leading: Icon(icon, color: Colors.black, size: 30), // ✅ ปรับขนาดไอคอน Drawer เป็น 30
+      leading: Icon(icon,
+          color: Colors.black, size: 30), // ✅ ปรับขนาดไอคอน Drawer เป็น 30
       title: Text(
         title,
         style: const TextStyle(

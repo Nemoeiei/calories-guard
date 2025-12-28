@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. import riverpod
-import '../providers/user_data_provider.dart'; // import provider
+import '../../providers/user_data_provider.dart'; // import provider
 import 'target_weight_screen.dart';
 
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. Import Riverpod
-import '../providers/user_data_provider.dart'; // 2. Import Provider ที่เราสร้าง
+import '../../providers/user_data_provider.dart'; // 2. Import Provider ที่เราสร้าง
 import 'goal_selection_screen.dart';
 
 // 3. เปลี่ยนเป็น ConsumerStatefulWidget
