@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. Import Riverpod
-import '../providers/user_data_provider.dart'; // Import Provider
-import '../screens/app_home_screen.dart';
+import '../../providers/user_data_provider.dart'; // Import Provider
+import '../../screens/app_home_screen.dart';
 
 
 // 2. เปลี่ยนเป็น ConsumerStatefulWidget
