@@ -7,11 +7,11 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-  body: Container(
-    width: double.infinity,
-    height: double.infinity,
-    color: const Color(0xFFE8EFCF), // 👈 พื้นหลังสีที่ต้องการ
-    child: SafeArea(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: const Color(0xFFE8EFCF), // 👈 พื้นหลังสีที่ต้องการ
+        child: SafeArea(
           // 1. ใส่ ScrollView เพื่อให้หน้าจอเลื่อนได้ถ้าเครื่องมีขนาดเล็ก กันแอปเด้ง
           child: SingleChildScrollView(
             child: SizedBox(
