@@ -16,46 +16,49 @@ class ArticleScreen extends StatelessWidget {
             // --- Header ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-                    onPressed: () => Navigator.pop(context),
+                  // ปุ่มย้อนกลับ (ซ้ายสุด)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                   ),
-                  const Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: 40),
-                      child: Text(
-                        'บทความ',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 24,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.black,
-                        ),
-                      ),
+                  // ชื่อหน้า (ตรงกลาง)
+                  const Text(
+                    'บทความ',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.black,
                     ),
                   ),
                 ],
               ),
             ),
 
-            // --- ปุ่ม "ทั้งหมด" ---
+            // --- ปุ่ม "ทั้งหมด" (ขวาบน) ---
             Align(
               alignment: Alignment.centerRight,
               child: Container(
                 margin: const EdgeInsets.only(right: 20, top: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                width: 72,
+                height: 28,
                 decoration: BoxDecoration(
                   color: const Color(0xFF4C6414), // สีเขียวเข้ม
                   borderRadius: BorderRadius.circular(30),
                 ),
+                alignment: Alignment.center,
                 child: const Text(
                   'ทั้งหมด',
                   style: TextStyle(
                     fontFamily: 'Inter',
-                    fontSize: 16,
+                    fontSize: 16, // ปรับลดลงนิดนึงให้ใส่พอดี
                     fontWeight: FontWeight.w400,
                     color: Colors.white,
                   ),
@@ -69,13 +72,11 @@ class ArticleScreen extends StatelessWidget {
             _buildSectionHeader('การกิน'),
             _buildHorizontalList([
               _buildArticleCard(
-                // ใช้รูปสลัดจากเน็ต
-                imageUrl: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500', 
+                imagePath: 'assets/images/article/20อาหารคลีนที่คนนิยมบริโภค.png', 
                 title: '20 อาหารคลีนที่คนนิยมบริโภค',
               ),
               _buildArticleCard(
-                // รูปอาหารดอง
-                imageUrl: 'https://images.unsplash.com/photo-1626343729937-2e228964522a?w=500',
+                imagePath: 'assets/images/article/อาหารดองมีผลเสียอะไรหรือไม่.png',
                 title: 'อาหารดองมีผลเสียอะไรหรือไม่',
               ),
             ]),
@@ -86,14 +87,12 @@ class ArticleScreen extends StatelessWidget {
             _buildSectionHeader('การออกกำลังกาย'),
             _buildHorizontalList([
               _buildArticleCard(
-                // รูปคนวิ่ง
-                imageUrl: 'https://images.unsplash.com/photo-1552674605-469523f70091?w=500',
+                imagePath: 'assets/images/article/ประโยชน์ของการเดินตอนเช้า.png',
                 title: 'ประโยชน์ของการเดินตอนเช้า',
               ),
               _buildArticleCard(
-                // รูปโยคะ
-                imageUrl: 'https://images.unsplash.com/photo-1544367563-12123d8959bd?w=500',
-                title: 'โยคะช่วยอะไร???',
+                imagePath: 'assets/images/article/โยคะช่วยอะไร.png',
+                title: 'โยคะช่วยอะไร???', // ใส่เครื่องหมาย ? ตาม CSS
               ),
             ]),
 
@@ -103,13 +102,11 @@ class ArticleScreen extends StatelessWidget {
             _buildSectionHeader('อื่นๆ'),
             _buildHorizontalList([
               _buildArticleCard(
-                // รูปคนทำงานออฟฟิศ
-                imageUrl: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=500',
+                imagePath: 'assets/images/article/สาเหตุของอาการออฟฟิศซินโดรม.png',
                 title: 'สาเหตุของอาการออฟฟิศซินโดรม',
               ),
               _buildArticleCard(
-                // รูปการแพทย์
-                imageUrl: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=500',
+                imagePath: 'assets/images/article/การตรวจเบาหวาน.png',
                 title: 'การตรวจเบาหวาน',
               ),
             ]),
@@ -153,23 +150,22 @@ class ArticleScreen extends StatelessWidget {
     );
   }
 
-  // --- Helper: การ์ดบทความ ---
-  Widget _buildArticleCard({required String imageUrl, required String title}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  // --- Helper: การ์ดบทความ (แก้ไขให้เหมือน CSS) ---
+  Widget _buildArticleCard({required String imagePath, required String title}) {
+    return Stack(
+      alignment: Alignment.bottomCenter,
       children: [
         // กล่องรูปภาพ
         Container(
-          width: 224,
-          height: 150,
+          width: 224, // ตาม CSS
+          height: 150, // ตาม CSS
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(30), // ตาม CSS
             image: DecorationImage(
-              // ใช้ NetworkImage เพื่อดึงรูปจากลิ้งค์
-              image: NetworkImage(imageUrl), 
+              image: AssetImage(imagePath), // ใช้รูปในเครื่อง
               fit: BoxFit.cover,
             ),
-            boxShadow: [
+            boxShadow: [ // (Optional) ใส่เงาให้นิดนึงจะสวยขึ้น
               BoxShadow(
                 color: Colors.black.withOpacity(0.1),
                 blurRadius: 5,
@@ -178,24 +174,31 @@ class ArticleScreen extends StatelessWidget {
             ],
           ),
         ),
-        // แถบชื่อเรื่อง
-        Container(
-          width: 224,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-          ),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Colors.black,
+        
+        // แถบชื่อเรื่อง (ทับด้านล่าง)
+        Positioned(
+          bottom: 25, // ขยับขึ้นมาจากขอบล่างนิดนึงตามรูปตัวอย่าง (หรือปรับเป็น 0 ถ้าอยากให้ติดขอบ)
+          child: Container(
+            width: 224,
+            height: 35, // กำหนดความสูงให้พอดีข้อความ
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              // ทำให้ขอบล่างมนเท่ากับรูป
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)), 
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 14, // ลดขนาดนิดนึงให้แสดงผลไม่ล้น (CSS บอก 16)
+                fontWeight: FontWeight.w400,
+                color: Colors.black,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
       ],

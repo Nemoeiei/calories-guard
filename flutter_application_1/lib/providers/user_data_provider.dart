@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+// Enum สำหรับเป้าหมาย
 enum GoalOption {
   loseWeight,
   maintainWeight,
@@ -7,26 +8,28 @@ enum GoalOption {
 }
 
 class UserData {
-  // ... (ตัวแปรเดิม Login / Personal Info / Goal) ...
+  // --- 1. ส่วนข้อมูลพื้นฐาน (Login & Profile) ---
   final String email;
   final String password;
   final String name;
-  final String gender;
+  final String gender; // 'male' or 'female'
   final DateTime? birthDate;
   final double height;
   final double weight;
+
+  // --- 2. ส่วนเป้าหมาย (Goal) ---
   final GoalOption? goal;
   final double targetWeight;
   final int duration;
-  final String activityLevel;
+  final String activityLevel; // ระดับกิจกรรม
 
-  // --- ข้อมูลโภชนาการ (ตัวเลข) ---
+  // --- 3. ส่วนข้อมูลโภชนาการรายวัน (Nutrition) ---
   final int consumedCalories;
   final int consumedProtein;
   final int consumedCarbs;
   final int consumedFat;
 
-  // --- 🔥 เพิ่มใหม่: ชื่อเมนูอาหาร (String) ---
+  // --- 4. ส่วนชื่อเมนูอาหาร (Food Menu Names) ---
   final String breakfastMenu;
   final String lunchMenu;
   final String dinnerMenu;
@@ -44,20 +47,21 @@ class UserData {
     this.targetWeight = 0.0,
     this.duration = 0,
     this.activityLevel = 'ไม่ออกกำลังกายเลย',
+    // Default values เริ่มต้นเป็น 0
     this.consumedCalories = 0,
     this.consumedProtein = 0,
     this.consumedCarbs = 0,
     this.consumedFat = 0,
-    // Default เมนูเป็นว่าง
+    // Default ชื่อเมนูเป็นค่าว่าง
     this.breakfastMenu = '',
     this.lunchMenu = '',
     this.dinnerMenu = '',
     this.snackMenu = '',
   });
 
-  // ... (Getters: age, bmr, tdee, targetCalories เหมือนเดิม ไม่ต้องแก้) ...
+  // --- 🧮 Logic 1: คำนวณอายุ ---
   int get age {
-    if (birthDate == null) return 20;
+    if (birthDate == null) return 20; // Default age
     final now = DateTime.now();
     int age = now.year - birthDate!.year;
     if (now.month < birthDate!.month ||
@@ -67,28 +71,52 @@ class UserData {
     return age;
   }
 
+  // --- 🔥 Logic 2: คำนวณ BMR (พลังงานพื้นฐาน) ---
+  // สูตร Mifflin-St Jeor Equation
   double get bmr {
-    if (weight == 0 || height == 0) return 1500;
+    if (weight == 0 || height == 0) return 1500; // ค่ากัน Error
+    
+    // สูตร: (10 × weight in kg) + (6.25 × height in cm) - (5 × age in years) + s
     double base = (10 * weight) + (6.25 * height) - (5 * age);
-    return (gender == 'male') ? base + 5 : base - 161;
+    
+    if (gender == 'male') {
+      return base + 5;
+    } else {
+      return base - 161;
+    }
   }
 
+  // --- 🏃‍♂️ Logic 3: คำนวณ TDEE (พลังงานรวมกิจกรรม) ---
   double get tdee {
-    double activityMultiplier = 1.2;
-    if (activityLevel.contains('เบาๆ')) activityMultiplier = 1.375;
-    else if (activityLevel.contains('ปานกลาง')) activityMultiplier = 1.55;
-    else if (activityLevel.contains('หนัก')) activityMultiplier = 1.725;
-    else if (activityLevel.contains('หนักมาก')) activityMultiplier = 1.9;
+    double activityMultiplier = 1.2; // Default: ไม่ออกกำลังกายเลย
+
+    if (activityLevel.contains('เบาๆ')) {
+      activityMultiplier = 1.375;
+    } else if (activityLevel.contains('ปานกลาง')) {
+      activityMultiplier = 1.55;
+    } else if (activityLevel.contains('หนัก')) {
+      activityMultiplier = 1.725; // 6-7 ครั้ง
+    } else if (activityLevel.contains('หนักมาก')) {
+      activityMultiplier = 1.9; // ทุกวันเช้าเย็น
+    }
+
     return bmr * activityMultiplier;
   }
 
+  // --- 🎯 Logic 4: คำนวณแคลอรี่เป้าหมาย ---
   double get targetCalories {
     double maintenance = tdee;
-    if (goal == GoalOption.loseWeight) return maintenance - 500;
-    else if (goal == GoalOption.buildMuscle) return maintenance + 300;
-    return maintenance;
+    
+    if (goal == GoalOption.loseWeight) {
+      return maintenance - 500; // ลดน้ำหนัก: กินน้อยกว่าใช้ 500 kcal
+    } else if (goal == GoalOption.buildMuscle) {
+      return maintenance + 300; // เพิ่มกล้าม: กินมากกว่าใช้ 300 kcal
+    }
+    
+    return maintenance; // รักษาน้ำหนัก
   }
 
+  // --- CopyWith: ฟังก์ชันสำหรับอัปเดตค่า ---
   UserData copyWith({
     String? email,
     String? password,
@@ -126,7 +154,6 @@ class UserData {
       consumedProtein: consumedProtein ?? this.consumedProtein,
       consumedCarbs: consumedCarbs ?? this.consumedCarbs,
       consumedFat: consumedFat ?? this.consumedFat,
-      // Update Menu Names
       breakfastMenu: breakfastMenu ?? this.breakfastMenu,
       lunchMenu: lunchMenu ?? this.lunchMenu,
       dinnerMenu: dinnerMenu ?? this.dinnerMenu,
@@ -135,30 +162,51 @@ class UserData {
   }
 }
 
+// --- Notifier: ตัวจัดการ State ---
 class UserDataNotifier extends StateNotifier<UserData> {
   UserDataNotifier() : super(UserData());
 
-  // ... (Functions เดิม setLoginInfo...setGoalInfo...setActivityLevel) ...
+  // อัปเดตข้อมูล Login
   void setLoginInfo(String email, String password) {
     state = state.copyWith(email: email, password: password);
   }
+
+  // อัปเดตเพศ
   void setGender(String gender) {
     state = state.copyWith(gender: gender);
   }
-  void setPersonalInfo({required String name, required DateTime birthDate, required double height, required double weight}) {
-    state = state.copyWith(name: name, birthDate: birthDate, height: height, weight: weight);
+
+  // อัปเดตข้อมูลส่วนตัว
+  void setPersonalInfo({
+    required String name,
+    required DateTime birthDate,
+    required double height,
+    required double weight,
+  }) {
+    state = state.copyWith(
+      name: name,
+      birthDate: birthDate,
+      height: height,
+      weight: weight,
+    );
   }
+
+  // อัปเดตเป้าหมายหลัก
   void setGoal(GoalOption goal) {
     state = state.copyWith(goal: goal);
   }
+
+  // อัปเดตรายละเอียดเป้าหมาย
   void setGoalInfo({required double targetWeight, required int duration}) {
     state = state.copyWith(targetWeight: targetWeight, duration: duration);
   }
+  
+  // อัปเดตระดับกิจกรรม
   void setActivityLevel(String level) {
     state = state.copyWith(activityLevel: level);
   }
 
-  // 🔥 อัปเดตทั้งแคลอรี่และชื่อเมนู
+  // 🔥 อัปเดตข้อมูลอาหารรายวัน (ทั้งแคลอรี่และชื่อเมนู)
   void updateDailyFood({
     required int cal, 
     required int protein, 
@@ -180,8 +228,23 @@ class UserDataNotifier extends StateNotifier<UserData> {
       snackMenu: snack,
     );
   }
+  
+  // ล้างค่าเมื่อขึ้นวันใหม่ (Reset)
+  void resetDailyFood() {
+    state = state.copyWith(
+      consumedCalories: 0,
+      consumedProtein: 0,
+      consumedCarbs: 0,
+      consumedFat: 0,
+      breakfastMenu: '',
+      lunchMenu: '',
+      dinnerMenu: '',
+      snackMenu: '',
+    );
+  }
 }
 
+// --- Provider: ตัวกลางสำหรับเรียกใช้ทั่วแอป ---
 final userDataProvider = StateNotifierProvider<UserDataNotifier, UserData>((ref) {
   return UserDataNotifier();
 });

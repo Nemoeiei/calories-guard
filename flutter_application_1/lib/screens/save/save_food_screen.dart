@@ -10,7 +10,6 @@ class FoodLoggingScreen extends ConsumerStatefulWidget {
 }
 
 class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
-  // ตัวแปรเก็บค่าที่เลือกจาก Dropdown/พิมพ์
   String _breakfast = '';
   String _lunch = '';
   String _dinner = '';
@@ -26,8 +25,6 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     'ออกกำลังกายหนักมาก (ทุกวันเช้า-เย็น)',
   ];
 
-  // 🔥 ฐานข้อมูลอาหารจำลอง (Mock Data)
-  // คุณสามารถเพิ่มเมนูตรงนี้ได้เรื่อยๆ
   final List<Map<String, dynamic>> _foodDatabase = [
     {'name': 'ข้าวมันไก่', 'cal': 600, 'p': 20, 'c': 60, 'f': 25},
     {'name': 'ข้าวผัดกระเพราหมูสับ', 'cal': 550, 'p': 25, 'c': 50, 'f': 20},
@@ -40,60 +37,44 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     {'name': 'ไข่ต้ม', 'cal': 75, 'p': 7, 'c': 0, 'f': 5},
     {'name': 'นมอัลมอนด์', 'cal': 60, 'p': 1, 'c': 3, 'f': 2},
     {'name': 'กาแฟดำ', 'cal': 5, 'p': 0, 'c': 1, 'f': 0},
+    {'name': 'ผัดไทย', 'cal': 500, 'p': 15, 'c': 70, 'f': 20},
+    {'name': 'แกงเขียวหวานไก่', 'cal': 450, 'p': 20, 'c': 15, 'f': 35},
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE8EFCF),
+      backgroundColor: Colors.white,
       body: SingleChildScrollView(
         child: Column(
           children: [
-            const SizedBox(height: 36),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Center(
-                child: Text(
-                  'บันทึกข้อมูลรายวัน',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
 
-            // --- Header 1 ---
+            // Header
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 32),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF628141),
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: const Center(
-                child: Text(
-                  'ข้อมูลการทานอาหารวันนี้',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white,
-                  ),
+              width: double.infinity,
+              height: 34,
+              color: const Color(0xFF628141),
+              alignment: Alignment.center,
+              child: const Text(
+                'บันทึกข้อมูลการทานอาหารวันนี้',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
                 ),
               ),
             ),
 
+            const SizedBox(height: 40),
+
+            // Form Container
             Container(
-              margin: const EdgeInsets.only(left: 30, right: 30, top: 10),
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+              width: 330,
+              padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
               decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: Colors.black),
+                color: const Color(0xFFE8EFCF),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -113,31 +94,34 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
 
             const SizedBox(height: 30),
 
-            // --- Header 2 ---
+            // Header กิจกรรม
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 32),
-              padding: const EdgeInsets.all(10),
+              width: double.infinity,
+              height: 34,
+              margin: const EdgeInsets.symmetric(horizontal: 30),
               decoration: BoxDecoration(
                 color: const Color(0xFF628141),
                 borderRadius: BorderRadius.circular(5),
               ),
-              child: const Center(
-                child: Text(
-                  'กิจกรรมที่ทำวันนี้',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white,
-                  ),
+              alignment: Alignment.center,
+              child: const Text(
+                'กิจกรรมที่ทำวันนี้',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
                 ),
               ),
             ),
 
+            const SizedBox(height: 10),
+
+            // Dropdown
             Container(
-              margin: const EdgeInsets.only(left: 32, right: 32, top: 10),
+              width: 330,
+              height: 50,
               padding: const EdgeInsets.symmetric(horizontal: 15),
-              height: 60,
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border.all(color: Colors.black),
@@ -150,7 +134,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
                   icon: const Icon(Icons.keyboard_arrow_down),
                   style: const TextStyle(
                     fontFamily: 'Inter',
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
                   ),
@@ -169,9 +153,9 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
               ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 40),
 
-            // --- ปุ่มบันทึก ---
+            // Save Button
             GestureDetector(
               onTap: _calculateAndSave,
               child: Container(
@@ -181,7 +165,10 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
                   color: const Color(0xFF4C6414),
                   borderRadius: BorderRadius.circular(25),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5, offset: const Offset(0, 3)),
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 5,
+                        offset: const Offset(0, 3)),
                   ],
                 ),
                 child: const Center(
@@ -198,17 +185,19 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
               ),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 120),
           ],
         ),
       ),
     );
   }
 
-  // 🔥 Helper Function: สร้างช่องค้นหาอาหาร (Autocomplete)
+  // --- 🔥 ส่วนที่แก้ไขให้สวยงามและตรงปก ---
   Widget _buildSearchableFoodRow(String label, Function(String) onSaved) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      // ✅ ใช้ spaceBetween เพื่อดันช่องกรอกไปขวาสุด (ให้ตรงกันทุกแถว)
+      mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
           label,
@@ -219,20 +208,21 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
             color: Colors.black,
           ),
         ),
+        
         Container(
-          width: 160, // กว้างขึ้นนิดนึงเพื่อให้เห็นชื่อชัด
-          height: 35,
+          width: 143,
+          height: 23,
           decoration: BoxDecoration(
-            color: const Color(0xFFEEEDED),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(100),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.center, // จัดกลางแนวตั้งและนอน
           child: Autocomplete<String>(
             optionsBuilder: (TextEditingValue textEditingValue) {
               if (textEditingValue.text == '') {
                 return const Iterable<String>.empty();
               }
-              // ค้นหาชื่อเมนูที่มีคำที่พิมพ์
               return _foodDatabase
                   .where((food) => food['name']
                       .toString()
@@ -240,11 +230,9 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
                   .map((food) => food['name'].toString());
             },
             onSelected: (String selection) {
-              onSaved(selection); // บันทึกค่าเมื่อเลือก
+              onSaved(selection);
             },
-            // Custom UI ช่องกรอก
             fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
-              // Hack: บันทึกค่าเมื่อพิมพ์เองด้วย (เผื่อไม่กดเลือก)
               textController.addListener(() {
                 onSaved(textController.text);
               });
@@ -252,23 +240,29 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
               return TextField(
                 controller: textController,
                 focusNode: focusNode,
-                decoration: const InputDecoration(
-                  hintText: 'ค้นหา/กรอกเมนู',
-                  hintStyle: TextStyle(fontSize: 10, color: Color(0xFF979797)),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.only(bottom: 12),
+                textAlignVertical: TextAlignVertical.center, // ✅ จัดข้อความให้อยู่กลางบรรทัด
+                style: const TextStyle(
+                  fontSize: 10, 
+                  fontFamily: 'Inter', 
+                  color: Colors.black, 
+                  height: 1.0 // ✅ Fix line height ให้พอดีกับกล่องเล็ก
                 ),
-                style: const TextStyle(fontSize: 12, fontFamily: 'Inter'),
+                decoration: const InputDecoration(
+                  hintText: 'กรอกเมนูอาหารที่ทาน',
+                  hintStyle: TextStyle(fontSize: 10, color: Color(0xFF979797), fontFamily: 'Inter'),
+                  border: InputBorder.none,
+                  isDense: true, // ✅ ลดระยะ Padding ของ TextField
+                  contentPadding: EdgeInsets.zero, // ✅ ลบ Padding ออกให้หมดเพื่อให้จัดกลางได้เอง
+                ),
               );
             },
-            // Custom UI รายการที่เด้งขึ้นมา
             optionsViewBuilder: (context, onSelected, options) {
               return Align(
                 alignment: Alignment.topLeft,
                 child: Material(
                   elevation: 4,
                   child: Container(
-                    width: 160,
+                    width: 143,
                     color: Colors.white,
                     child: ListView.builder(
                       padding: EdgeInsets.zero,
@@ -279,7 +273,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
                         return InkWell(
                           onTap: () => onSelected(option),
                           child: Padding(
-                            padding: const EdgeInsets.all(10.0),
+                            padding: const EdgeInsets.all(8.0),
                             child: Text(option, style: const TextStyle(fontSize: 12)),
                           ),
                         );
@@ -295,23 +289,18 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     );
   }
 
-  // ฟังก์ชันคำนวณแคลอรี่และบันทึก
   void _calculateAndSave() {
     int totalCal = 0;
     int totalP = 0;
     int totalC = 0;
     int totalF = 0;
 
-    // Helper ในการหาแคลอรี่จากชื่อ
     void addNutrients(String menuName) {
       if (menuName.isEmpty) return;
-      
-      // ค้นหาใน DB
       final food = _foodDatabase.firstWhere(
         (f) => f['name'] == menuName,
-        orElse: () => {'cal': 300, 'p': 10, 'c': 30, 'f': 10}, // ค่า Default ถ้าหาไม่เจอ
+        orElse: () => {'cal': 300, 'p': 10, 'c': 30, 'f': 10}, 
       );
-      
       totalCal += (food['cal'] as int);
       totalP += (food['p'] as int);
       totalC += (food['c'] as int);
@@ -324,10 +313,8 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     addNutrients(_snack1);
     addNutrients(_snack2);
 
-    // รวมชื่อมื้อว่าง
     String combinedSnacks = [_snack1, _snack2].where((s) => s.isNotEmpty).join(", ");
 
-    // บันทึกลง Provider
     ref.read(userDataProvider.notifier).updateDailyFood(
       cal: totalCal, 
       protein: totalP, 
@@ -339,7 +326,6 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
       snack: combinedSnacks
     );
     
-    // อัปเดตกิจกรรม
     ref.read(userDataProvider.notifier).setActivityLevel(_selectedActivity);
 
     ScaffoldMessenger.of(context).showSnackBar(
