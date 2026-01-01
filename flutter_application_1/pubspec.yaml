@@ -65,8 +65,46 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
+   # profile
    - assets/images/profile/profile.png
+   # icon
    - assets/images/icon/icon.png
+   - assets/images/icon/body_fat.png
+   - assets/images/icon/fire.png
+   - assets/images/icon/homeinfo.png
+   - assets/images/icon/meat.png
+   - assets/images/icon/muscle.png
+   - assets/images/icon/oil.png
+   - assets/images/icon/rice.png
+   - assets/images/icon/saveweight.png
+   - assets/images/icon/target.png
+   # picture
+   - assets/images/picture/welcome.png
+   - assets/images/picture/girl.png
+   - assets/images/picture/boy.png
+   - assets/images/picture/info.png
+   # food
+   - assets/images/food/กระเพราหมูสับไข่ดาว.png
+   - assets/images/food/นํ้ามะม่วงสมูทตี้.png
+   - assets/images/food/นํ้าสตอเบอรี่สมูทตี้.png
+   - assets/images/food/ผักหมูลวกจิ้มคลีน.png
+   - assets/images/food/มัจฉะลาเต้.png
+   - assets/images/food/มัจฉะลาเต้สตอเบอรี่.png
+   - assets/images/food/ลาบวุ้นเส้นคลีน.png
+   - assets/images/food/หมูพันเห็ดเข็มของคลีน.png
+   # exercise
+   - assets/images/exercise/ex_cardio.png
+   - assets/images/exercise/ex_belly.png
+   - assets/images/exercise/video_cardio_20min.png
+   - assets/images/exercise/exercise1.png
+   - assets/images/exercise/exercise2.png
+   # article
+   - assets/images/article/20อาหารคลีนที่คนนิยมบริโภค.png
+   - assets/images/article/การตรวจเบาหวาน.png
+   - assets/images/article/ประโยชน์ของการเดินตอนเช้า.png
+   - assets/images/article/โยคะช่วยอะไร.png
+   - assets/images/article/สาเหตุของอาการออฟฟิศซินโดรม.png
+   - assets/images/article/อาหารดองมีผลเสียอะไรหรือไม่.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

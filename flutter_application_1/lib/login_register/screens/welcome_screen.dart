@@ -52,9 +52,7 @@ class WelcomeScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       image: const DecorationImage(
                         // หมายเหตุ: ถ้าภาพไม่ขึ้น แนะนำให้เปลี่ยนเป็น AssetImage ที่อยู่ในเครื่อง
-                        image: NetworkImage(
-                          'https://api.builder.io/api/v1/image/assets/TEMP/cbddba9ea704f1b9f5a791dd788f9759f828f206?width=438',
-                        ),
+                        image: AssetImage('assets/images/picture/welcome.png'),
                         fit: BoxFit.cover,
                       ),
                     ),

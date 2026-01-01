@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. Import Riverpod
-import '../../providers/user_data_provider.dart'; // 2. Import Provider
-import 'gender_selection_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/user_data_provider.dart';
+// 👇 Import หน้าที่ต้องใช้
+import 'register_screen.dart'; // หน้าสมัครสมาชิก
+import '/widget/bottom_bar.dart'; // หน้าหลัก (MainScreen)
 
-// 3. เปลี่ยนเป็น ConsumerStatefulWidget
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -28,7 +29,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        color: const Color(0xFFE8EFCF), // 👈 พื้นหลังสีที่ต้องการ
+        color: const Color(0xFFE8EFCF), // 👈 พื้นหลังสีเดิม
         child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
@@ -53,7 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   
                   const SizedBox(height: 50),
                   
-                  // Profile Image
+                  // Profile Image (วงกลมคน)
                   Center(
                     child: Container(
                       width: 120,
@@ -194,7 +195,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     alignment: Alignment.centerRight,
                     child: GestureDetector(
                       onTap: () {
-                        print('Forgot password tapped');
+                        // Logic ลืมรหัสผ่าน
                       },
                       child: Padding(
                         padding: const EdgeInsets.only(right: 0),
@@ -213,10 +214,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   
                   const SizedBox(height: 16),
                   
-                  // Login Button (ใช้สำหรับไปหน้าถัดไปใน Flow สมัคร)
+                  // --- Login Button (ปุ่มเขียว) ---
                   GestureDetector(
                     onTap: () {
-                      // 1. ตรวจสอบว่ากรอกข้อมูลหรือยัง
+                      // 1. ตรวจสอบข้อมูล (Validation)
                       if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
                          ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('กรุณากรอก Email และ Password')),
@@ -224,25 +225,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         return;
                       }
 
-                      // 2. บันทึกข้อมูลลง Provider (ถังกลาง)
+                      // 2. บันทึกข้อมูลลง Provider
                       ref.read(userDataProvider.notifier).setLoginInfo(
                         _emailController.text, 
                         _passwordController.text
                       );
 
-                      // 3. ไปหน้าเลือกเพศ (GenderSelection)
-                      Navigator.push(
+                      // 3. 🔥 ไปหน้า MainScreen (หน้าหลักมี Bottom Bar)
+                      Navigator.pushAndRemoveUntil(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const GenderSelectionScreen(),
-                        ),
+                        MaterialPageRoute(builder: (context) => const MainScreen()),
+                        (route) => false, // ลบหน้าเก่าทิ้ง
                       );
                     },
                     child: Container(
                       width: 259,
                       height: 54,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4C6414),
+                        color: const Color(0xFF4C6414), // สีเขียว
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
@@ -254,7 +254,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       child: const Center(
                         child: Text(
-                          'Login',
+                          'เข้าสู่ระบบ', // เปลี่ยนเป็นคำไทยให้เข้ากับธีม
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 20,
@@ -331,7 +331,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               color: Colors.white,
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(2.0), 
+                              padding: const EdgeInsets.all(2.0),
                               child: Image.network(
                                 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Facebook_Logo_%282019%29.png/600px-Facebook_Logo_%282019%29.png',
                                 fit: BoxFit.contain,
@@ -410,16 +410,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   
                   const SizedBox(height: 13),
                   
-                  // Create Account Button
+                  // --- Create Account Button (ปุ่มแดง) ---
                   GestureDetector(
                     onTap: () {
-                      // ถ้าต้องการให้ปุ่มนี้ทำหน้าที่สมัครสมาชิกด้วย ก็ใส่โค้ดเหมือนปุ่ม Login ข้างบน
+                      // 🔥 ไปหน้าสมัครสมาชิกใหม่ (RegisterScreen)
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterScreen(),
+                        ),
+                      );
                     },
                     child: Container(
                       width: 259,
                       height: 54,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF4D4D),
+                        color: const Color(0xFFFF4D4D), // สีแดง
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(

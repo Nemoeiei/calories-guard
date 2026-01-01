@@ -8,156 +8,224 @@ class RecommendedFoodScreen extends StatefulWidget {
 }
 
 class _RecommendedFoodScreenState extends State<RecommendedFoodScreen> {
+  // ✅ 1. แก้ไขข้อมูล: แยกชื่อ (name) และ แคลอรี่ (cal) ออกจากกัน
   final List<Map<String, String>> _foodMenu = [
     {
-      'title': 'เมนู หมูพันเห็ดเข็มทองคลีน',
-      'image': 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500', 
+      'name': 'เมนู หมูพันเห็ดเข็มทองคลีน', // แก้ชื่อผิดนิดหน่อย (เข็มทอง)
+      'cal': '120–150 kcal',
+      'image': 'assets/images/food/หมูพันเห็ดเข็มของคลีน.png', 
     },
     {
-      'title': 'เมนู ผักหมูลวกจิ้มคลีน',
-      'image': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500',
+      'name': 'เมนู ผักหมูลวกจิ้มคลีน',
+      'cal': '180–220 กิโลแคลอรี่',
+      'image': 'assets/images/food/ลาบวุ้นเส้นคลีน.png',
     },
     {
-      'title': 'เมนู ลาบวุ้นเส้นคลีน',
-      'image': 'https://images.unsplash.com/photo-1594998893017-3614795c3e45?w=500',
+      'name': 'เมนู ลาบวุ้นเส้นคลีน',
+      'cal': '230–280 kcal',
+      'image': 'assets/images/food/ผักหมูลวกจิ้มคลีน.png',
+    },
+    {
+      'name': 'เมนู กระเพราหมูสับไข่ดาว',
+      'cal': '550–650 kcal',
+      'image': 'assets/images/food/กระเพราหมูสับไข่ดาว.png',
+    },
+  ];
+
+  final List<Map<String, String>> _drinkMenu = [
+    {
+      'name': 'เมนู นํ้ามะม่วงสมูทตี้',
+      'cal': '180–250 kcal',
+      'image': 'assets/images/food/นํ้ามะม่วงสมูทตี้.png', 
+    },
+    {
+      'name': 'เมนู นํ้าสตอเบอรี่สมูทตี้',
+      'cal': '140–200 kcal',
+      'image': 'assets/images/food/นํ้าสตอเบอรี่สมูทตี้.png',
+    },
+    {
+      'name': 'เมนู มัจฉะลาเต้',
+      'cal': '180–250 kcal',
+      'image': 'assets/images/food/มัจฉะลาเต้.png',
+    },
+    {
+      'name': 'เมนู มัจฉะลาเต้สตอเบอรี่',
+      'cal': '220–300 kcal',
+      'image': 'assets/images/food/มัจฉะลาเต้สตอเบอรี่.png',
     },
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE8EFCF),
-      body: Column(
-        children: [
-          const SizedBox(height: 36), // SafeArea Top
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 30),
 
-          // --- Header (แก้ไข: ลบปุ่มกลับ + จัดกึ่งกลาง) ---
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Center(
-              child: Text(
-                'แนะนำอาหาร',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 24,
-                  fontWeight: FontWeight.w400,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-          ),
+            _buildSectionHeader('แนะนำอาหารสำหรับคุณ'),
+            const SizedBox(height: 15),
+            
+            _buildCategoryButtons(['ทั้งหมด', 'อาหารทั่วไป', 'อาหารคลีน']),
+            const SizedBox(height: 15),
 
-          const SizedBox(height: 20),
+            _buildGridMenu(_foodMenu),
+            
+            _buildSeeMoreButton(),
 
-          // --- 2. Green Banner ---
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            color: const Color(0xFF628141),
-            child: const Center(
-              child: Text(
-                'แนะนำอาหารสำหรับคุณ',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
+            const SizedBox(height: 30),
 
-          const SizedBox(height: 30),
+            _buildSectionHeader('แนะนำเครื่องดื่มสำหรับคุณ'),
+            const SizedBox(height: 15),
 
-          // --- 3. รายการอาหาร ---
-          SizedBox(
-            height: 260,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(left: 15, right: 15),
-              itemCount: _foodMenu.length,
-              itemBuilder: (context, index) {
-                return _buildFoodCard(_foodMenu[index]);
-              },
-            ),
-          ),
+            _buildCategoryButtons(['ทั้งหมด', 'น้ำผักผลไม้', 'ชา', 'กาแฟ']),
+            const SizedBox(height: 15),
 
-          // --- 4. ปุ่มลูกศร ---
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Icon(Icons.chevron_left, size: 30, color: Colors.black54),
-                Icon(Icons.chevron_right, size: 30, color: Colors.black54),
-              ],
-            ),
-          ),
+            _buildGridMenu(_drinkMenu),
 
-          const Spacer(),
-        ],
+            _buildSeeMoreButton(),
+
+            const SizedBox(height: 120),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildFoodCard(Map<String, String> item) {
+  // ... (Widget Header และ CategoryButtons เหมือนเดิม) ...
+  Widget _buildSectionHeader(String title) {
     return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 15),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 160,
-            height: 160,
+      width: double.infinity,
+      height: 34,
+      color: const Color(0xFF628141),
+      alignment: Alignment.center,
+      child: Text(title, style: const TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w500, color: Colors.white)),
+    );
+  }
+
+  Widget _buildCategoryButtons(List<String> categories) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 25),
+      child: Row(
+        children: categories.map((text) {
+          bool isFirst = text == categories.first;
+          return Container(
+            margin: const EdgeInsets.only(right: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              image: DecorationImage(
-                image: NetworkImage(item['image']!),
-                fit: BoxFit.cover,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              color: isFirst ? const Color(0xFFAFD198) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: isFirst ? null : Border.all(color: const Color(0xFF4C6414)),
+            ),
+            child: Text(text, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black)),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildGridMenu(List<Map<String, String>> menuList) {
+    return Container(
+      color: const Color(0xFFE8EFCF),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 25),
+      child: GridView.builder(
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 23,
+          mainAxisSpacing: 21,
+          childAspectRatio: 0.60, // 👈 ปรับสัดส่วนให้ยาวขึ้นนิดนึง เพื่อรองรับ 2 บรรทัด
+        ),
+        itemCount: menuList.length,
+        itemBuilder: (context, index) {
+          return _buildMenuCard(menuList[index]);
+        },
+      ),
+    );
+  }
+
+  // --- 2. ✅ แก้ไข Widget การ์ดเมนู ให้แสดง 2 บรรทัด ---
+  Widget _buildMenuCard(Map<String, String> item) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // รูปภาพ
+        Container(
+          width: 160,
+          height: 160,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            image: DecorationImage(
+              image: AssetImage(item['image']!), 
+              fit: BoxFit.cover,
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            item['title']!,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.black,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 8),
+        
+        // ชื่อเมนู (บรรทัดที่ 1)
+        Text(
+          item['name']!,
+          style: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 14,
+            fontWeight: FontWeight.w600, // หนาหน่อย
+            color: Colors.black,
+            height: 1.2,
           ),
-          const SizedBox(height: 8),
-          Container(
-            width: 80,
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFAFD198),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              'วิธีการทำ',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.black,
-              ),
-            ),
+          maxLines: 1, // บังคับ 1 บรรทัด
+          overflow: TextOverflow.ellipsis,
+        ),
+        
+        // แคลอรี่ (บรรทัดที่ 2)
+        Text(
+          item['cal']!,
+          style: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 12, // เล็กลงนิดนึง
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF4C6414), // ใส่สีเขียวให้ดูเด่นขึ้น (หรือใช้สีดำก็ได้)
           ),
-        ],
+        ),
+        
+        const SizedBox(height: 8),
+        
+        // ปุ่มวิธีการทำ
+        Container(
+          width: 71,
+          height: 25,
+          decoration: BoxDecoration(
+            color: const Color(0xFFAFD198),
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 4, offset: const Offset(0, 4)),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: const Text('วิธีการทำ', style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSeeMoreButton() {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 25, bottom: 20),
+      color: const Color(0xFFE8EFCF),
+      child: Container(
+        width: 60,
+        height: 24,
+        decoration: BoxDecoration(
+          color: const Color(0xFF628141),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 4, offset: const Offset(0, 4))],
+        ),
+        alignment: Alignment.center,
+        child: const Text('ดูเพิ่มเติม', style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w500, color: Colors.white)),
       ),
     );
   }

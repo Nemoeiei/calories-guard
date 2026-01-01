@@ -111,15 +111,11 @@ class _GenderSelectionScreenState extends State<GenderSelectionScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    'https://api.builder.io/api/v1/image/assets/TEMP/39033778d5536311cadcc3527d4d76f3a4dc0265?width=266',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return const Icon(Icons.female, size: 60, color: Colors.grey);
-                                    },
+                                  // image ต้องอยู่ข้างใน BoxDecoration (ก่อนวงเล็บปิด)
+                                  image: const DecorationImage(
+                                    image: AssetImage(
+                                        'assets/images/picture/girl.png'),
+                                    fit: BoxFit.cover, // กำหนด fit ตรงนี้
                                   ),
                                 ),
                               ),
@@ -173,15 +169,11 @@ class _GenderSelectionScreenState extends State<GenderSelectionScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    'https://api.builder.io/api/v1/image/assets/TEMP/df1d246a81b58a4c9e48085bb95048ea1241a078?width=266',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return const Icon(Icons.male, size: 60, color: Colors.grey);
-                                    },
+                                  // image ต้องอยู่ข้างใน BoxDecoration (ก่อนวงเล็บปิด)
+                                  image: const DecorationImage(
+                                    image: AssetImage(
+                                        'assets/images/picture/boy.png'),
+                                    fit: BoxFit.cover, // กำหนด fit ตรงนี้
                                   ),
                                 ),
                               ),
@@ -215,7 +207,8 @@ class _GenderSelectionScreenState extends State<GenderSelectionScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const PersonalInfoScreen(),
+                                builder: (context) =>
+                                    const PersonalInfoScreen(),
                               ),
                             );
                           }
