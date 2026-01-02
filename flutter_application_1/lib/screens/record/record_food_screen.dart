@@ -1,3 +1,5 @@
+import 'dart:convert'; // ✅ เพิ่ม: เพื่อแปลง JSON
+import 'package:http/http.dart' as http; // ✅ เพิ่ม: เพื่อยิง API
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart';
@@ -10,6 +12,7 @@ class FoodLoggingScreen extends ConsumerStatefulWidget {
 }
 
 class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
+  // ตัวแปรเก็บค่าที่กรอก
   String _breakfast = '';
   String _lunch = '';
   String _dinner = '';
@@ -25,24 +28,56 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     'ออกกำลังกายหนักมาก (ทุกวันเช้า-เย็น)',
   ];
 
-  final List<Map<String, dynamic>> _foodDatabase = [
-    {'name': 'ข้าวมันไก่', 'cal': 600, 'p': 20, 'c': 60, 'f': 25},
-    {'name': 'ข้าวผัดกระเพราหมูสับ', 'cal': 550, 'p': 25, 'c': 50, 'f': 20},
-    {'name': 'ข้าวไข่เจียว', 'cal': 450, 'p': 10, 'c': 40, 'f': 30},
-    {'name': 'สลัดอกไก่', 'cal': 150, 'p': 25, 'c': 10, 'f': 2},
-    {'name': 'ก๋วยเตี๋ยวเรือ', 'cal': 350, 'p': 15, 'c': 45, 'f': 10},
-    {'name': 'ส้มตำไทย', 'cal': 120, 'p': 3, 'c': 20, 'f': 1},
-    {'name': 'ต้มยำกุ้ง', 'cal': 180, 'p': 20, 'c': 10, 'f': 8},
-    {'name': 'ข้าวเปล่า', 'cal': 80, 'p': 2, 'c': 18, 'f': 0},
-    {'name': 'ไข่ต้ม', 'cal': 75, 'p': 7, 'c': 0, 'f': 5},
-    {'name': 'นมอัลมอนด์', 'cal': 60, 'p': 1, 'c': 3, 'f': 2},
-    {'name': 'กาแฟดำ', 'cal': 5, 'p': 0, 'c': 1, 'f': 0},
-    {'name': 'ผัดไทย', 'cal': 500, 'p': 15, 'c': 70, 'f': 20},
-    {'name': 'แกงเขียวหวานไก่', 'cal': 450, 'p': 20, 'c': 15, 'f': 35},
-  ];
+  // ✅ 1. ตัวแปรสำหรับเก็บข้อมูลจาก Database (เริ่มเป็น List ว่าง)
+  List<dynamic> _foodDatabase = [];
+  bool _isLoading = true; // เอาไว้เช็คว่าโหลดเสร็จยัง
+
+  // ✅ 2. สั่งให้ดึงข้อมูลทันทีที่เปิดหน้านี้
+  @override
+  void initState() {
+    super.initState();
+    _fetchFoodsFromApi();
+  }
+
+  // ✅ 3. ฟังก์ชันดึงข้อมูลจาก Python API
+  Future<void> _fetchFoodsFromApi() async {
+    // ⚠️ ถ้าใช้ Android Emulator ให้ใช้ 10.0.2.2
+    // ⚠️ ถ้าใช้ iOS Simulator ให้ใช้ 127.0.0.1
+    // ⚠️ ถ้าใช้เครื่องจริง ให้ใช้ IP ของคอม (เช่น 192.168.1.45)
+    final url = Uri.parse('http://10.0.2.2:8000/foods'); 
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        // แปลง JSON เป็น List
+        final List<dynamic> data = json.decode(response.body);
+        
+        setState(() {
+          _foodDatabase = data; // เอาข้อมูลจริงยัดใส่ตัวแปร
+          _isLoading = false;   // ปิดสถานะโหลด
+        });
+        print("โหลดเมนูสำเร็จ: ${_foodDatabase.length} รายการ");
+      } else {
+        print('Error: ${response.statusCode}');
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error fetching data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // ถ้ายังโหลดไม่เสร็จ ให้ขึ้นหมุนๆ
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
@@ -192,10 +227,9 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     );
   }
 
-  // --- 🔥 ส่วนที่แก้ไขให้สวยงามและตรงปก ---
+  // --- Search Row ---
   Widget _buildSearchableFoodRow(String label, Function(String) onSaved) {
     return Row(
-      // ✅ ใช้ spaceBetween เพื่อดันช่องกรอกไปขวาสุด (ให้ตรงกันทุกแถว)
       mainAxisAlignment: MainAxisAlignment.spaceBetween, 
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -217,16 +251,18 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
             borderRadius: BorderRadius.circular(100),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 10),
-          alignment: Alignment.center, // จัดกลางแนวตั้งและนอน
+          alignment: Alignment.center, 
           child: Autocomplete<String>(
             optionsBuilder: (TextEditingValue textEditingValue) {
               if (textEditingValue.text == '') {
                 return const Iterable<String>.empty();
               }
+              // ✅ กรองข้อมูลจาก _foodDatabase ที่โหลดมาจริง
               return _foodDatabase
                   .where((food) => food['name']
                       .toString()
-                      .contains(textEditingValue.text))
+                      .toLowerCase()
+                      .contains(textEditingValue.text.toLowerCase()))
                   .map((food) => food['name'].toString());
             },
             onSelected: (String selection) {
@@ -240,19 +276,19 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
               return TextField(
                 controller: textController,
                 focusNode: focusNode,
-                textAlignVertical: TextAlignVertical.center, // ✅ จัดข้อความให้อยู่กลางบรรทัด
+                textAlignVertical: TextAlignVertical.center,
                 style: const TextStyle(
                   fontSize: 10, 
                   fontFamily: 'Inter', 
                   color: Colors.black, 
-                  height: 1.0 // ✅ Fix line height ให้พอดีกับกล่องเล็ก
+                  height: 1.0 
                 ),
                 decoration: const InputDecoration(
                   hintText: 'กรอกเมนูอาหารที่ทาน',
                   hintStyle: TextStyle(fontSize: 10, color: Color(0xFF979797), fontFamily: 'Inter'),
                   border: InputBorder.none,
-                  isDense: true, // ✅ ลดระยะ Padding ของ TextField
-                  contentPadding: EdgeInsets.zero, // ✅ ลบ Padding ออกให้หมดเพื่อให้จัดกลางได้เอง
+                  isDense: true, 
+                  contentPadding: EdgeInsets.zero, 
                 ),
               );
             },
@@ -289,6 +325,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     );
   }
 
+  // --- Calculate Logic ---
   void _calculateAndSave() {
     int totalCal = 0;
     int totalP = 0;
@@ -297,14 +334,20 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
 
     void addNutrients(String menuName) {
       if (menuName.isEmpty) return;
+      
+      // ✅ ค้นหาเมนูในรายการที่โหลดมาจาก DB
       final food = _foodDatabase.firstWhere(
         (f) => f['name'] == menuName,
-        orElse: () => {'cal': 300, 'p': 10, 'c': 30, 'f': 10}, 
+        // ถ้าหาไม่เจอ ให้ใช้ค่า Default (อันนี้อาจจะต้องปรับปรุงในอนาคต)
+        orElse: () => {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0}, 
       );
-      totalCal += (food['cal'] as int);
-      totalP += (food['p'] as int);
-      totalC += (food['c'] as int);
-      totalF += (food['f'] as int);
+
+      // ✅ แก้ชื่อ Key ให้ตรงกับ Database (calories, protein, carbs, fat)
+      // และใช้ num เพื่อรองรับทศนิยมจาก Database
+      totalCal += (food['calories'] as num).toInt();
+      totalP += (food['protein'] as num).toInt();
+      totalC += (food['carbs'] as num).toInt();
+      totalF += (food['fat'] as num).toInt();
     }
 
     addNutrients(_breakfast);
