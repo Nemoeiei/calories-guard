@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. Import Riverpod
-import '../../providers/user_data_provider.dart'; // 2. Import Provider ที่เราสร้าง
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/user_data_provider.dart';
+import '../../services/auth_service.dart'; // ✅ Import Service
 import 'goal_selection_screen.dart';
 
-// 3. เปลี่ยนเป็น ConsumerStatefulWidget
 class PersonalInfoScreen extends ConsumerStatefulWidget {
   const PersonalInfoScreen({super.key});
 
@@ -12,24 +12,24 @@ class PersonalInfoScreen extends ConsumerStatefulWidget {
 }
 
 class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
-  final TextEditingController _nameController = TextEditingController();
+  // ❌ เอา _nameController ออกแล้ว
   final TextEditingController _birthdayController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
 
-  // ตัวแปรเก็บวันที่แบบ DateTime เพื่อส่งให้ Provider
+  final AuthService _authService = AuthService(); // ✅ สร้างตัวยิง API
+  bool _isLoading = false; // สถานะโหลด
+
   DateTime? _selectedDate;
 
   @override
   void dispose() {
-    _nameController.dispose();
     _birthdayController.dispose();
     _heightController.dispose();
     _weightController.dispose();
     super.dispose();
   }
 
-  // ฟังก์ชันเลือกวันที่
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -51,9 +51,73 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
     );
     if (picked != null) {
       setState(() {
-        _selectedDate = picked; // เก็บค่า DateTime จริง
-        _birthdayController.text = "${picked.day}/${picked.month}/${picked.year}"; // โชว์ข้อความ
+        _selectedDate = picked;
+        // แสดงผลแบบ วว/ดด/ปปปป
+        _birthdayController.text = "${picked.day}/${picked.month}/${picked.year}";
       });
+    }
+  }
+
+  // ✅ ฟังก์ชันบันทึกข้อมูลลง Database
+  void _saveAndNext() async {
+    // 1. ตรวจสอบข้อมูล
+    if (_selectedDate == null ||
+        _heightController.text.isEmpty ||
+        _weightController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณากรอกข้อมูลให้ครบถ้วน'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // 2. แปลงค่า
+    double heightVal = double.tryParse(_heightController.text) ?? 0.0;
+    double weightVal = double.tryParse(_weightController.text) ?? 0.0;
+    // แปลงวันที่เป็น String format YYYY-MM-DD เพื่อส่งให้ Python
+    String birthDateStr = "${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}";
+
+    // 3. ดึง ID จาก Provider
+    final userId = ref.read(userDataProvider).userId;
+
+    // 4. ยิง API Update
+    bool success = await _authService.updateProfile(userId, {
+      "birth_date": birthDateStr,
+      "height_cm": heightVal,
+      "current_weight_kg": weightVal,
+    });
+
+    setState(() => _isLoading = false);
+
+    if (success) {
+      // ✅ สำเร็จ: อัปเดต Provider แล้วไปหน้าถัดไป
+      
+      // หมายเหตุ: เราไม่ต้องส่ง name ไปอัปเดต เพราะ name ถูกเก็บตอน Register แล้ว
+      // แต่เราดึง name เก่าจาก Provider มาใส่กลับเข้าไปได้เพื่อให้ข้อมูลครบถ้วน
+      final currentName = ref.read(userDataProvider).name;
+
+      ref.read(userDataProvider.notifier).setPersonalInfo(
+        name: currentName, 
+        birthDate: _selectedDate!,
+        height: heightVal,
+        weight: weightVal,
+      );
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const GoalSelectionScreen(),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่')),
+        );
+      }
     }
   }
 
@@ -69,7 +133,6 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // ปุ่มย้อนกลับ
                 Align(
                   alignment: Alignment.topLeft,
                   child: Padding(
@@ -86,63 +149,40 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                 ),
 
                 const SizedBox(height: 14),
-
-                // Title
                 const Text(
                   'กรอกข้อมูลส่วนตัว',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 32,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.black,
-                  ),
+                  style: TextStyle(fontFamily: 'Inter', fontSize: 32, fontWeight: FontWeight.w400, color: Colors.black),
                   textAlign: TextAlign.center,
                 ),
 
                 const SizedBox(height: 20),
-
-                // Subtitle
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 50),
                   child: Text(
                     'เพื่อนำไปคำนวณแคลอรี่ที่เหมาะสมกับตัวบุคคล',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.black,
-                    ),
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w400, color: Colors.black),
                     textAlign: TextAlign.center,
                   ),
                 ),
 
                 const SizedBox(height: 44),
-
-                // Illustration
                 Center(
                   child: Image.network(
                     'https://api.builder.io/api/v1/image/assets/TEMP/1954e238a987282746e33d33deb711b2c911f3d3?width=554',
                     width: 277,
                     height: 150,
                     fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox(height: 150),
+                    errorBuilder: (context, error, stackTrace) => const SizedBox(height: 150),
                   ),
                 ),
 
                 const SizedBox(height: 47),
 
-                // Form Fields
+                // Form Fields (เอาช่องชื่อออกแล้ว)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 50),
                   child: Column(
                     children: [
-                      _buildFormField(
-                        label: 'ชื่อ',
-                        controller: _nameController,
-                        hintText: 'กรอกข้อมูล',
-                      ),
-                      const SizedBox(height: 28),
                       _buildFormField(
                         label: 'วันเกิด',
                         controller: _birthdayController,
@@ -153,14 +193,14 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                       _buildFormField(
                         label: 'ส่วนสูง',
                         controller: _heightController,
-                        hintText: 'กรอกข้อมูล',
+                        hintText: 'cm', // เปลี่ยน hint ให้สื่อความหมาย
                         isNumber: true,
                       ),
                       const SizedBox(height: 28),
                       _buildFormField(
                         label: 'นํ้าหนัก',
                         controller: _weightController,
-                        hintText: 'กรอกข้อมูล',
+                        hintText: 'kg', // เปลี่ยน hint ให้สื่อความหมาย
                         isNumber: true,
                       ),
                     ],
@@ -169,43 +209,9 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
 
                 const SizedBox(height: 60),
 
-                // --- ปุ่มถัดไป (ส่วนสำคัญ) ---
+                // ปุ่มถัดไป
                 GestureDetector(
-                  onTap: () {
-                    // 1. ตรวจสอบว่ากรอกข้อมูลครบไหม
-                    if (_nameController.text.isEmpty ||
-                        _selectedDate == null ||
-                        _heightController.text.isEmpty ||
-                        _weightController.text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('กรุณากรอกข้อมูลให้ครบถ้วน'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
-
-                    // 2. แปลงข้อมูลตัวเลข
-                    double heightVal = double.tryParse(_heightController.text) ?? 0.0;
-                    double weightVal = double.tryParse(_weightController.text) ?? 0.0;
-
-                    // 3. บันทึกข้อมูลลง Provider
-                    ref.read(userDataProvider.notifier).setPersonalInfo(
-                          name: _nameController.text,
-                          birthDate: _selectedDate!,
-                          height: heightVal,
-                          weight: weightVal,
-                        );
-
-                    // 4. ไปหน้าถัดไป
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const GoalSelectionScreen(),
-                      ),
-                    );
-                  },
+                  onTap: _isLoading ? null : _saveAndNext,
                   child: Container(
                     width: 259,
                     height: 54,
@@ -220,16 +226,13 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                         ),
                       ],
                     ),
-                    child: const Center(
-                      child: Text(
-                        'ถัดไป',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
+                    child: Center(
+                      child: _isLoading 
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'ถัดไป',
+                            style: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+                          ),
                     ),
                   ),
                 ),
@@ -256,12 +259,7 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
           width: 100,
           child: Text(
             label,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 24,
-              fontWeight: FontWeight.w500,
-              color: Colors.black,
-            ),
+            style: const TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w500, color: Colors.black),
           ),
         ),
         const SizedBox(width: 12),
@@ -281,21 +279,11 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                   : TextInputType.text,
               decoration: InputDecoration(
                 hintText: hintText,
-                hintStyle: const TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xB3000000),
-                ),
+                hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w400, color: Color(0xB3000000)),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9), // ปรับ padding ให้ข้อความอยู่กลาง
               ),
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: Colors.black,
-              ),
+              style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w400, color: Colors.black),
             ),
           ),
         ),
