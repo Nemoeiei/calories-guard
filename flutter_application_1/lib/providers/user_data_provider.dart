@@ -9,6 +9,7 @@ enum GoalOption {
 
 class UserData {
   // --- 1. ส่วนข้อมูลพื้นฐาน (Login & Profile) ---
+  final int userId;
   final String email;
   final String password;
   final String name;
@@ -36,6 +37,7 @@ class UserData {
   final String snackMenu; // รวมมื้อว่าง 1+2
 
   UserData({
+    this.userId = 0,
     this.email = '',
     this.password = '',
     this.name = 'User',
@@ -118,6 +120,7 @@ class UserData {
 
   // --- CopyWith: ฟังก์ชันสำหรับอัปเดตค่า ---
   UserData copyWith({
+    int? userId,
     String? email,
     String? password,
     String? name,
@@ -139,6 +142,7 @@ class UserData {
     String? snackMenu,
   }) {
     return UserData(
+      userId: userId ?? this.userId,
       email: email ?? this.email,
       password: password ?? this.password,
       name: name ?? this.name,
@@ -165,6 +169,9 @@ class UserData {
 // --- Notifier: ตัวจัดการ State ---
 class UserDataNotifier extends StateNotifier<UserData> {
   UserDataNotifier() : super(UserData());
+  void setUserId(int id) {
+    state = state.copyWith(userId: id);
+  }
 
   // อัปเดตข้อมูล Login
   void setLoginInfo(String email, String password) {

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../providers/user_data_provider.dart'; // Import Provider
-import 'gender_selection_screen.dart'; // ไปหน้าเลือกเพศต่อ
+import '../../providers/user_data_provider.dart'; 
+import 'gender_selection_screen.dart'; 
+import '../../services/auth_service.dart'; // ✅ 1. อย่าลืม Import Service นี้
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -16,6 +17,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
+  // ✅ 2. สร้างตัวแปร Service และ Loading
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -25,16 +30,76 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
+  // ✅ 3. ฟังก์ชันสมัครสมาชิก (เชื่อม Database)
+  void _handleRegister() async {
+    // --- Validation (ตรวจสอบความถูกต้อง) ---
+    if (_nameController.text.isEmpty || 
+        _emailController.text.isEmpty || 
+        _passwordController.text.isEmpty ||
+        _confirmPasswordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณากรอกข้อมูลให้ครบถ้วน')),
+      );
+      return;
+    }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน')),
+      );
+      return;
+    }
+
+    // --- เริ่มเชื่อมต่อ API ---
+    setState(() => _isLoading = true); // แสดง Loading
+
+    // เรียก API ไปที่ Python Backend
+    // ส่ง: username (ชื่อ), email, password
+    final result = await _authService.register(
+      _nameController.text, 
+      _emailController.text,
+      _passwordController.text,
+    );
+
+    setState(() => _isLoading = false); // หยุด Loading
+
+    if (result['success']) {
+  // 1. ดึง ID จาก JSON ที่ Backend ส่งกลับมา (อิงตามโครงสร้าง FastAPI ที่เราทำ)
+  final int newId = result['data']['user']['user_id'];
+  
+  // 2. สั่งให้ Provider บันทึก ID นี้ลงใน State ของแอป
+  ref.read(userDataProvider.notifier).setUserId(newId); 
+
+  // 3. ไปหน้าเลือกเพศต่อ
+  if (mounted) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const GenderSelectionScreen()),
+    );
+  }
+} else {
+      // ❌ สมัครไม่ผ่าน (เช่น อีเมลซ้ำ หรือ Server Error)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'สมัครสมาชิกไม่สำเร็จ'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE8EFCF), // พื้นหลังสีครีมเขียว
+      backgroundColor: const Color(0xFFE8EFCF),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- 1. Header (ปุ่มย้อนกลับ) ---
+              // --- Header ---
               Padding(
                 padding: const EdgeInsets.only(left: 19, top: 31),
                 child: IconButton(
@@ -45,7 +110,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
               const SizedBox(height: 20),
 
-              // --- 2. Title ---
+              // --- Title ---
               const Center(
                 child: Text(
                   'สร้างบัญชีผู้ใช้ใหม่',
@@ -60,34 +125,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
               const SizedBox(height: 50),
 
-              // --- 3. Form Fields ---
+              // --- Form Fields ---
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 62), // ตาม CSS (left: 62)
+                padding: const EdgeInsets.symmetric(horizontal: 62),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ชื่อ - นามสกุล
                     _buildLabel('ชื่อ - นามสกุล *'),
                     const SizedBox(height: 6),
                     _buildTextField(_nameController),
 
                     const SizedBox(height: 20),
 
-                    // E-mail
                     _buildLabel('E-mail *'),
                     const SizedBox(height: 6),
                     _buildTextField(_emailController),
 
                     const SizedBox(height: 20),
 
-                    // Password
                     _buildLabel('Password *'),
                     const SizedBox(height: 6),
                     _buildTextField(_passwordController, isPassword: true),
 
                     const SizedBox(height: 20),
 
-                    // Confirm password
                     _buildLabel('Confirm password *'),
                     const SizedBox(height: 6),
                     _buildTextField(_confirmPasswordController, isPassword: true),
@@ -97,15 +158,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
               const SizedBox(height: 80),
 
-              // --- 4. Submit Button (Login/Register) ---
+              // --- Submit Button (Done) ---
               Center(
                 child: GestureDetector(
-                  onTap: _handleRegister,
+                  onTap: _isLoading ? null : _handleRegister, // ถ้าโหลดอยู่กดไม่ได้
                   child: Container(
                     width: 259,
                     height: 54,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF628141), // สีเขียวเข้ม
+                      color: const Color(0xFF628141),
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
@@ -115,16 +176,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         ),
                       ],
                     ),
-                    child: const Center(
-                      child: Text(
-                        'Done', // ตามในรูปเขียนว่า Login (แต่บริบทคือ Register)
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
+                    child: Center(
+                      // ถ้าโหลดอยู่ให้โชว์หมุนๆ
+                      child: _isLoading 
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Done',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                     ),
                   ),
                 ),
@@ -138,7 +202,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  // Helper: สร้าง Label หัวข้อ
+  // --- Helper Widgets ---
   Widget _buildLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(left: 8),
@@ -154,7 +218,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  // Helper: สร้างช่องกรอก (กรอบขาวมน)
   Widget _buildTextField(TextEditingController controller, {bool isPassword = false}) {
     return Container(
       width: 266,
@@ -179,41 +242,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  // Logic การกดปุ่มสมัคร
-  void _handleRegister() {
-    // 1. Validate
-    if (_nameController.text.isEmpty || 
-        _emailController.text.isEmpty || 
-        _passwordController.text.isEmpty ||
-        _confirmPasswordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณากรอกข้อมูลให้ครบถ้วน')),
-      );
-      return;
-    }
-
-    if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน')),
-      );
-      return;
-    }
-
-    // 2. Save Data to Provider
-    // เก็บชื่อ (ไว้ใช้ทีหลังถ้าต้องการ) และ Login Info
-    ref.read(userDataProvider.notifier).setLoginInfo(
-      _emailController.text, 
-      _passwordController.text,
-    );
-    // (ถ้าอยากเก็บชื่อด้วย ต้องไปเพิ่ม field 'name' ใน setLoginInfo หรือแยกฟังก์ชัน setRegisterInfo)
-    
-    // 3. Go to Gender Selection (เริ่ม Flow เลือกเพศต่อ)
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const GenderSelectionScreen()),
     );
   }
 }
