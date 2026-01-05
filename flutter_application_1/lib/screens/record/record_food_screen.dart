@@ -1,5 +1,5 @@
-import 'dart:convert'; // ✅ เพิ่ม: เพื่อแปลง JSON
-import 'package:http/http.dart' as http; // ✅ เพิ่ม: เพื่อยิง API
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart';
@@ -31,6 +31,9 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
   // ✅ 1. ตัวแปรสำหรับเก็บข้อมูลจาก Database (เริ่มเป็น List ว่าง)
   List<dynamic> _foodDatabase = [];
   bool _isLoading = true; // เอาไว้เช็คว่าโหลดเสร็จยัง
+  
+  // ✅ เพิ่มตัวแปรวันที่ (Default คือวันนี้)
+  DateTime _selectedDate = DateTime.now(); 
 
   // ✅ 2. สั่งให้ดึงข้อมูลทันทีที่เปิดหน้านี้
   @override
@@ -41,9 +44,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
 
   // ✅ 3. ฟังก์ชันดึงข้อมูลจาก Python API
   Future<void> _fetchFoodsFromApi() async {
-    // ⚠️ ถ้าใช้ Android Emulator ให้ใช้ 10.0.2.2
-    // ⚠️ ถ้าใช้ iOS Simulator ให้ใช้ 127.0.0.1
-    // ⚠️ ถ้าใช้เครื่องจริง ให้ใช้ IP ของคอม (เช่น 192.168.1.45)
+    // ⚠️ อย่าลืมแก้ IP (Android: 10.0.2.2, iOS: 127.0.0.1)
     final url = Uri.parse('http://10.0.2.2:8000/foods'); 
 
     try {
@@ -59,12 +60,131 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
         });
         print("โหลดเมนูสำเร็จ: ${_foodDatabase.length} รายการ");
       } else {
-        print('Error: ${response.statusCode}');
+        print('Error fetching foods: ${response.statusCode}');
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error fetching data: $e');
+      print('Error fetching foods: $e');
       setState(() => _isLoading = false);
+    }
+  }
+
+  // ✅ 4. ฟังก์ชันบันทึกข้อมูลลง Database ผ่าน API
+  Future<void> _saveToDatabase(Map<String, dynamic> dailyData) async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) {
+      print("Error: User ID is 0");
+      return;
+    }
+    
+    // ✅ ใช้วันที่ที่เลือก แทน DateTime.now()
+    final dateStr = "${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
+
+    // ⚠️ แก้ IP ให้ตรง
+    final url = Uri.parse('http://10.0.2.2:8000/daily_logs/$userId'); 
+
+    // ข้อมูลที่จะส่งไป (ตรงกับ Model DailyLogUpdate ใน Python)
+    final body = jsonEncode({
+      "date": dateStr,
+      "calories": dailyData['calories'],
+      "protein": dailyData['protein'],
+      "carbs": dailyData['carbs'],
+      "fat": dailyData['fat'],
+      "breakfast_menu": _breakfast,
+      "lunch_menu": _lunch,
+      "dinner_menu": _dinner,
+      "snack_menu": dailyData['snack_menu'],
+    });
+
+    try {
+      final response = await http.put(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        print("บันทึก Database สำเร็จ");
+      } else {
+        print("บันทึก Database ล้มเหลว: ${response.body}");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('บันทึกไม่สำเร็จ: ${response.body}'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      print("Error saving to DB: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // --- Calculate Logic ---
+  void _calculateAndSave() async {
+    int totalCal = 0;
+    int totalP = 0;
+    int totalC = 0;
+    int totalF = 0;
+
+    void addNutrients(String menuName) {
+      if (menuName.isEmpty) return;
+      
+      // ✅ ค้นหาเมนูในรายการที่โหลดมาจาก DB
+      final food = _foodDatabase.firstWhere(
+        (f) => f['name'] == menuName,
+        // ถ้าหาไม่เจอ ให้ใช้ค่า Default (อันนี้อาจจะต้องปรับปรุงในอนาคต)
+        orElse: () => {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0}, 
+      );
+
+      // ✅ แก้ชื่อ Key ให้ตรงกับ Database (calories, protein, carbs, fat)
+      // และใช้ num เพื่อรองรับทศนิยมจาก Database
+      totalCal += (food['calories'] as num).toInt();
+      totalP += (food['protein'] as num).toInt();
+      totalC += (food['carbs'] as num).toInt();
+      totalF += (food['fat'] as num).toInt();
+    }
+
+    addNutrients(_breakfast);
+    addNutrients(_lunch);
+    addNutrients(_dinner);
+    addNutrients(_snack1);
+    addNutrients(_snack2);
+
+    String combinedSnacks = [_snack1, _snack2].where((s) => s.isNotEmpty).join(", ");
+
+    // 1. อัปเดต Provider (เพื่อให้หน้า Home เปลี่ยนทันที)
+    ref.read(userDataProvider.notifier).updateDailyFood(
+      cal: totalCal, 
+      protein: totalP, 
+      carbs: totalC, 
+      fat: totalF,
+      breakfast: _breakfast,
+      lunch: _lunch,
+      dinner: _dinner,
+      snack: combinedSnacks
+    );
+    
+    ref.read(userDataProvider.notifier).setActivityLevel(_selectedActivity);
+
+    // 2. ✅ บันทึกลง Database จริงๆ
+    await _saveToDatabase({
+      "calories": totalCal,
+      "protein": totalP,
+      "carbs": totalC,
+      "fat": totalF,
+      "snack_menu": combinedSnacks
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('บันทึกข้อมูลเรียบร้อย!'), backgroundColor: Colors.green),
+      );
+      // ถ้าอยากให้เด้งกลับหน้า Home ให้ uncomment บรรทัดล่าง
+      // Navigator.pop(context); 
     }
   }
 
@@ -88,17 +208,64 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
             // Header
             Container(
               width: double.infinity,
-              height: 34,
+              height: 50, // เพิ่มความสูงหน่อย
               color: const Color(0xFF628141),
-              alignment: Alignment.center,
-              child: const Text(
-                'บันทึกข้อมูลการทานอาหารวันนี้',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white,
-                ),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'บันทึกการกิน', // เปลี่ยนจาก 'บันทึกข้อมูลการทานอาหารวันนี้' ให้สั้นลง หรือใช้ Text เดิมก็ได้
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w500, color: Colors.white),
+                  ),
+                  
+                  // ✅ ปุ่มเลือกวันที่
+                  GestureDetector(
+                    onTap: () async {
+                      final DateTime? picked = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(), // ห้ามเลือกวันอนาคต
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: const ColorScheme.light(
+                                primary: Color(0xFF628141), // สีธีม
+                                onPrimary: Colors.white,
+                                onSurface: Colors.black,
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (picked != null && picked != _selectedDate) {
+                        setState(() {
+                          _selectedDate = picked;
+                        });
+                        // (Optional) ถ้าอยากให้โหลดข้อมูลเก่าของวันนั้นมาโชว์ด้วย ต้องเขียนเพิ่ม
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calendar_today, size: 16, color: Color(0xFF628141)),
+                          const SizedBox(width: 5),
+                          Text(
+                            "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year + 543}",
+                            style: const TextStyle(color: Color(0xFF628141), fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
 
@@ -322,57 +489,6 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  // --- Calculate Logic ---
-  void _calculateAndSave() {
-    int totalCal = 0;
-    int totalP = 0;
-    int totalC = 0;
-    int totalF = 0;
-
-    void addNutrients(String menuName) {
-      if (menuName.isEmpty) return;
-      
-      // ✅ ค้นหาเมนูในรายการที่โหลดมาจาก DB
-      final food = _foodDatabase.firstWhere(
-        (f) => f['name'] == menuName,
-        // ถ้าหาไม่เจอ ให้ใช้ค่า Default (อันนี้อาจจะต้องปรับปรุงในอนาคต)
-        orElse: () => {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0}, 
-      );
-
-      // ✅ แก้ชื่อ Key ให้ตรงกับ Database (calories, protein, carbs, fat)
-      // และใช้ num เพื่อรองรับทศนิยมจาก Database
-      totalCal += (food['calories'] as num).toInt();
-      totalP += (food['protein'] as num).toInt();
-      totalC += (food['carbs'] as num).toInt();
-      totalF += (food['fat'] as num).toInt();
-    }
-
-    addNutrients(_breakfast);
-    addNutrients(_lunch);
-    addNutrients(_dinner);
-    addNutrients(_snack1);
-    addNutrients(_snack2);
-
-    String combinedSnacks = [_snack1, _snack2].where((s) => s.isNotEmpty).join(", ");
-
-    ref.read(userDataProvider.notifier).updateDailyFood(
-      cal: totalCal, 
-      protein: totalP, 
-      carbs: totalC, 
-      fat: totalF,
-      breakfast: _breakfast,
-      lunch: _lunch,
-      dinner: _dinner,
-      snack: combinedSnacks
-    );
-    
-    ref.read(userDataProvider.notifier).setActivityLevel(_selectedActivity);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('บันทึกข้อมูลเรียบร้อย!'), backgroundColor: Colors.green),
     );
   }
 }
