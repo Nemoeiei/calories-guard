@@ -302,3 +302,41 @@ def get_user_profile(user_id: int):
         return user
     finally:
         if conn: conn.close()
+@app.get("/daily_logs/{user_id}/weekly")
+def get_weekly_logs(user_id: int):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # SQL: ดึงข้อมูล 7 วันล่าสุด เรียงตามวันที่
+        sql = """
+            SELECT date, calories, protein, carbs, fat
+            FROM daily_logs
+            WHERE user_id = %s 
+              AND date >= CURRENT_DATE - INTERVAL '6 days'
+            ORDER BY date ASC
+        """
+        cur.execute(sql, (user_id,))
+        logs = cur.fetchall()
+        
+        return logs # ส่งกลับเป็น List [{}, {}, ...]
+    finally:
+        conn.close()
+@app.get("/daily_logs/{user_id}/calendar")
+def get_calendar_logs(user_id: int, month: int, year: int):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # ดึงเฉพาะวันที่ ที่มีข้อมูล
+        sql = """
+            SELECT date, calories 
+            FROM daily_logs
+            WHERE user_id = %s 
+              AND EXTRACT(MONTH FROM date) = %s
+              AND EXTRACT(YEAR FROM date) = %s
+        """
+        cur.execute(sql, (user_id, month, year))
+        logs = cur.fetchall()
+        return logs # ส่งกลับเป็น List ของวันที่ที่มีข้อมูล
+    finally:
+        if conn: conn.close()
