@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'profile/subprofile_screen/progress_screen.dart';
 
+import '../services/notification_helper.dart';
+
 class AppHomeScreen extends ConsumerStatefulWidget {
   const AppHomeScreen({super.key});
 
@@ -131,7 +133,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     final userData = ref.watch(userDataProvider);
     int targetCal = userData.targetCalories.toInt() > 0 ? userData.targetCalories.toInt() : 1500;
     int currentCal = userData.consumedCalories; 
-    double progress = currentCal / targetCal;
+    double progress = (targetCal > 0) ? currentCal / targetCal : 0.0;
 
     // 🔥 แก้ Error: ใส่ ?? GoalOption.loseWeight เพื่อป้องกันค่า null
     final macroTargets = calculateMacroTargets(
@@ -157,7 +159,14 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
     if (isOverCalories && !_hasWarnedCalories) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ แจ้งเตือน: แคลอรี่เกินเป้าหมายแล้ว!'), backgroundColor: Colors.redAccent));
+        // 1. แสดงในแอป (SnackBar) - อันเดิม
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('⚠️ แจ้งเตือน: แคลอรี่เกินเป้าหมายแล้ว!'),
+            backgroundColor: Colors.redAccent));
+        
+        // ✅ 2. เพิ่มบรรทัดนี้ครับ! สั่งให้แจ้งเตือนเด้ง (Notification)
+        NotificationHelper.showCalorieAlert(currentCal, targetCal);
+
         setState(() => _hasWarnedCalories = true);
       });
     }
@@ -218,6 +227,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                                   ],
                                 ),
                               ),
+                              // ✅ ข้อความคำแนะนำ (Advice)
                               const SizedBox(height: 30),
                               Text(getAdvice(), style: TextStyle(color: calorieTextColor, fontWeight: FontWeight.bold, fontSize: 12)),
                             ],
@@ -225,7 +235,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                         ),
                         // รายการสารอาหารที่คำนวณเป้าหมายจริง
                         Positioned(left: 226, top: 41, child: _buildNutrientLabel('โปรตีน', userData.consumedProtein, targetP, 'assets/images/icon/meat.png')),
-                        Positioned(left: 226, top: 102, child: _buildNutrientLabel('คาร์โบไฮเดรต', userData.consumedCarbs, targetC, 'assets/images/icon/rice.png')),
+                        Positioned(left: 226, top: 102, child: _buildNutrientLabel('คาร์บ', userData.consumedCarbs, targetC, 'assets/images/icon/rice.png')),
                         Positioned(left: 226, top: 166, child: _buildNutrientLabel('ไขมัน', userData.consumedFat, targetF, 'assets/images/icon/oil.png')),
                       ],
                     ),
