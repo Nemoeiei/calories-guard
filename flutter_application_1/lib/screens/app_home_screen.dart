@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import './profile/stat/weekly_stats_screen.dart';
+import 'profile/subprofile_screen/progress_screen.dart';
 
 class AppHomeScreen extends ConsumerStatefulWidget {
   const AppHomeScreen({super.key});
@@ -14,17 +14,16 @@ class AppHomeScreen extends ConsumerStatefulWidget {
 
 class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   bool _isLoading = true;
+  bool _hasWarnedCalories = false; // ตัวแปรป้องกันการเด้งแจ้งเตือนซ้ำซ้อน
 
   @override
   void initState() {
     super.initState();
-    // ✅ ใช้ addPostFrameCallback เพื่อให้มั่นใจว่า Provider พร้อมใช้งานก่อนเรียกฟังก์ชัน
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchDailyData();
     });
   }
 
-  // ✅ ฟังก์ชันดึงข้อมูลจาก Database (หัวใจสำคัญ)
   Future<void> _fetchDailyData() async {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) {
@@ -32,53 +31,37 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
       return;
     }
 
-    // วันที่ปัจจุบัน
     final now = DateTime.now();
     final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
     
-    // URL
     final logUrl = Uri.parse('http://10.0.2.2:8000/daily_logs/$userId?date_query=$dateStr');
-    final userUrl = Uri.parse('http://10.0.2.2:8000/users/$userId'); // ✅ URL ใหม่สำหรับดึงโปรไฟล์
+    final userUrl = Uri.parse('http://10.0.2.2:8000/users/$userId'); 
 
     try {
-      // 1. ดึงข้อมูล User Profile (น้ำหนัก, ส่วนสูง, เป้าหมาย)
       final userResponse = await http.get(userUrl);
       if (userResponse.statusCode == 200) {
         final userData = jsonDecode(userResponse.body);
         
-        // แปลง Goal String กลับเป็น Enum
-        GoalOption goalEnum = GoalOption.loseWeight; // Default
+        GoalOption goalEnum = GoalOption.loseWeight;
         if (userData['goal_type'] == 'maintain_weight') goalEnum = GoalOption.maintainWeight;
         if (userData['goal_type'] == 'build_muscle') goalEnum = GoalOption.buildMuscle;
 
-        // อัปเดตข้อมูลส่วนตัวลง Provider
         ref.read(userDataProvider.notifier).setPersonalInfo(
           name: userData['username'] ?? 'User',
           birthDate: DateTime.parse(userData['birth_date'] ?? '2000-01-01'), 
           height: (userData['height_cm'] ?? 0).toDouble(),
           weight: (userData['current_weight_kg'] ?? 0).toDouble(),
         );
-        
-        // อัปเดตเป้าหมาย
         ref.read(userDataProvider.notifier).setGoal(goalEnum);
         ref.read(userDataProvider.notifier).setGoalInfo(
           targetWeight: (userData['target_weight_kg'] ?? 0).toDouble(), 
-          duration: 0 // (ถ้าไม่ได้เก็บ duration ใน DB ก็ปล่อย 0 หรือหาที่เก็บเพิ่ม)
+          duration: 0 
         );
-
-        // อัปเดตเป้าหมายแคลอรี่ (สำคัญ!)
-        if (userData['target_calories'] != null) {
-           // ⚠️ ต้องแน่ใจว่าคุณเพิ่ม setTargetCalories ใน Provider แล้ว
-           // ถ้ายัง ให้ใช้บรรทัดนี้แทนชั่วคราว:
-           // ref.read(userDataProvider.notifier).state = ref.read(userDataProvider).copyWith(targetCalories: userData['target_calories']);
-        }
       }
 
-      // 2. ดึงข้อมูล Daily Log (การกินวันนี้)
       final logResponse = await http.get(logUrl);
       if (logResponse.statusCode == 200) {
         final logData = jsonDecode(logResponse.body);
-        
         ref.read(userDataProvider.notifier).updateDailyFood(
           cal: logData['calories'] ?? 0,
           protein: logData['protein'] ?? 0,
@@ -90,7 +73,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           snack: logData['snack_menu'] ?? '',
         );
       }
-
     } catch (e) {
       print("Error fetching data: $e");
     } finally {
@@ -98,7 +80,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     }
   }
 
-  // --- Helper Functions (คำนวณ BMI) ---
   double calculateBMI(double weight, double heightInput) {
     if (heightInput <= 0) return 0;
     double heightM = (heightInput < 3.0) ? heightInput : heightInput / 100;
@@ -114,7 +95,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     return 'อ้วนมาก';
   }
 
-  // --- Widget: แถบสารอาหาร (Nutrient Label) ---
   Widget _buildNutrientLabel(String label, int current, int total, String imagePath) {
     return SizedBox(
       width: 150,
@@ -166,24 +146,40 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ดึงข้อมูลจาก Provider มาแสดง (ข้อมูลนี้ถูกอัปเดตจาก _fetchDailyData แล้ว)
     final userData = ref.watch(userDataProvider);
 
     int targetCal = userData.targetCalories.toInt();
-    if (targetCal <= 0) targetCal = 1500; // ค่า Default ถ้ายังไม่มีเป้าหมาย
+    if (targetCal <= 0) targetCal = 1500; 
 
     int currentCal = userData.consumedCalories; 
     double progress = (targetCal > 0) ? currentCal / targetCal : 0.0;
 
+    // 🔥 LOGIC: ตรวจสอบว่าแคลอรี่เกินหรือไม่
+    bool isOverCalories = currentCal > targetCal;
+    Color progressColor = isOverCalories ? Colors.red : const Color(0xFF628141);
+    Color textColor = isOverCalories ? Colors.red : Colors.black;
+
+    // 🔥 แจ้งเตือนเมื่อแคลอรี่เกิน (SnackBar)
+    if (isOverCalories && !_hasWarnedCalories) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ แจ้งเตือน: คุณกินแคลอรี่เกินเป้าหมายแล้ว!'),
+            backgroundColor: Colors.redAccent,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        setState(() => _hasWarnedCalories = true);
+      });
+    }
+
     double bmi = calculateBMI(userData.weight, userData.height);
     String bmiStatus = getBMIStatus(bmi);
-
     double weightDiff = (userData.weight - userData.targetWeight).abs();
     String weightAction = (userData.weight > userData.targetWeight) ? "ต้องลดอีก" : "ต้องเพิ่มอีก";
 
     return Scaffold(
       backgroundColor: Colors.white,
-      // แสดง Loading ถ้ากำลังดึงข้อมูล
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator()) 
         : SingleChildScrollView(
@@ -191,36 +187,95 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           children: [
             Container(height: 40, color: Colors.white),
 
-            // --- Dashboard (วงกลมแคลอรี่) ---
+            // --- Dashboard (กล่องสีเขียวรวม Header และ แคลอรี่) ---
             Container(
-              height: 250, width: double.infinity, color: const Color(0xFFE8EFCF),
-              child: Stack(
+              width: double.infinity,
+              color: const Color(0xFFE8EFCF),
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
                 children: [
-                  // วงกลมกราฟ
-                  Positioned(
-                    left: 21, top: 18,
-                    child: SizedBox(
-                      width: 170, height: 170,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(width: 150, height: 150, child: CircularProgressIndicator(value: 1.0, strokeWidth: 12, color: const Color(0xFF8BAE66))),
-                          SizedBox(width: 150, height: 150, child: CircularProgressIndicator(value: progress.clamp(0.0, 1.0), strokeWidth: 12, color: const Color(0xFF628141), strokeCap: StrokeCap.round)),
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text('$currentCal', style: const TextStyle(fontFamily: 'Inter', fontSize: 48, fontWeight: FontWeight.w500, color: Colors.black, height: 1)),
-                              Text('/ $targetCal KCAL', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black)),
-                            ],
+                  // ===== Header ย้ายเข้ามาในกล่องเขียว =====
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'ภาพรวมวันนี้',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
-                        ],
-                      ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFF628141), size: 32),
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProgressScreen())),
+                        ),
+                      ],
                     ),
                   ),
-                  // แถบสารอาหารด้านข้าง
-                  Positioned(left: 226, top: 41, child: _buildNutrientLabel('โปรตีน', userData.consumedProtein, 111, 'assets/images/icon/meat.png')),
-                  Positioned(left: 226, top: 102, child: _buildNutrientLabel('คาร์บ', userData.consumedCarbs, 104, 'assets/images/icon/rice.png')),
-                  Positioned(left: 226, top: 166, child: _buildNutrientLabel('ไขมัน', userData.consumedFat, 41, 'assets/images/icon/oil.png')),
+
+                  // ===== ส่วนกราฟวงกลม =====
+                  SizedBox(
+                    height: 200,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 21, top: 0,
+                          child: SizedBox(
+                            width: 170, height: 170,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 150, height: 150,
+                                  child: CircularProgressIndicator(
+                                    value: 1.0,
+                                    strokeWidth: 12,
+                                    color: const Color(0xFF8BAE66),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 150, height: 150,
+                                  child: CircularProgressIndicator(
+                                    value: progress.clamp(0.0, 1.0),
+                                    strokeWidth: 12,
+                                    color: progressColor, // ✅ สีเปลี่ยนตามแคลอรี่
+                                    strokeCap: StrokeCap.round,
+                                  ),
+                                ),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '$currentCal',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 48,
+                                        fontWeight: FontWeight.w500,
+                                        color: textColor, // ✅ สีตัวเลขเปลี่ยนตามแคลอรี่
+                                        height: 1,
+                                      ),
+                                    ),
+                                    Text(
+                                      '/ $targetCal KCAL',
+                                      style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // รายการสารอาหาร
+                        Positioned(left: 226, top: 15, child: _buildNutrientLabel('โปรตีน', userData.consumedProtein, 111, 'assets/images/icon/meat.png')),
+                        Positioned(left: 226, top: 75, child: _buildNutrientLabel('คาร์บ', userData.consumedCarbs, 104, 'assets/images/icon/rice.png')),
+                        Positioned(left: 226, top: 135, child: _buildNutrientLabel('ไขมัน', userData.consumedFat, 41, 'assets/images/icon/oil.png')),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -259,7 +314,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               ),
             ),
 
-            // --- Menu List (รายการอาหาร) ---
+            // --- Menu List ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               child: Column(
