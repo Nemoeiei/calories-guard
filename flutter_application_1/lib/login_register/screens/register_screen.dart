@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart'; 
 import 'gender_selection_screen.dart'; 
-import '../../services/auth_service.dart'; // ✅ 1. อย่าลืม Import Service นี้
+import '../../services/auth_service.dart'; 
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -17,7 +17,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
-  // ✅ 2. สร้างตัวแปร Service และ Loading
   final AuthService _authService = AuthService();
   bool _isLoading = false;
 
@@ -30,172 +29,231 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
-  // ✅ 3. ฟังก์ชันสมัครสมาชิก (เชื่อม Database)
-  void _handleRegister() async {
-    // --- Validation (ตรวจสอบความถูกต้อง) ---
-    if (_nameController.text.isEmpty || 
-        _emailController.text.isEmpty || 
-        _passwordController.text.isEmpty ||
-        _confirmPasswordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณากรอกข้อมูลให้ครบถ้วน')),
-      );
-      return;
-    }
-
-    if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน')),
-      );
-      return;
-    }
-
-    // --- เริ่มเชื่อมต่อ API ---
-    setState(() => _isLoading = true); // แสดง Loading
-
-    // เรียก API ไปที่ Python Backend
-    // ส่ง: username (ชื่อ), email, password
-    final result = await _authService.register(
-      _nameController.text, 
-      _emailController.text,
-      _passwordController.text,
-    );
-
-    setState(() => _isLoading = false); // หยุด Loading
-
-    if (result['success']) {
-  // 1. ดึง ID จาก JSON ที่ Backend ส่งกลับมา (อิงตามโครงสร้าง FastAPI ที่เราทำ)
-  final int newId = result['data']['user']['user_id'];
-  
-  // 2. สั่งให้ Provider บันทึก ID นี้ลงใน State ของแอป
-  ref.read(userDataProvider.notifier).setUserId(newId); 
-
-  // 3. ไปหน้าเลือกเพศต่อ
-  if (mounted) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const GenderSelectionScreen()),
+  // Helper สำหรับแสดง Error SnackBar
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
-} else {
-      // ❌ สมัครไม่ผ่าน (เช่น อีเมลซ้ำ หรือ Server Error)
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'สมัครสมาชิกไม่สำเร็จ'),
-            backgroundColor: Colors.red,
+
+  // ฟังก์ชันแสดง Popup เงื่อนไขรหัสผ่าน
+  void _showPasswordRules() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'เงื่อนไขรหัสผ่าน',
+            style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold),
           ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _RuleItem(text: 'ความยาวอย่างน้อย 8 ตัวอักษร'),
+              _RuleItem(text: 'มีตัวพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว'),
+              _RuleItem(text: 'มีอักขระพิเศษ (เช่น !, @, #) อย่างน้อย 1 ตัว'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('เข้าใจแล้ว', style: TextStyle(color: Color(0xFF628141), fontWeight: FontWeight.bold)),
+            ),
+          ],
         );
+      },
+    );
+  }
+
+  // ฟังก์ชันสมัครสมาชิก
+  void _handleRegister() async {
+    String name = _nameController.text.trim();
+    String email = _emailController.text.trim();
+    String password = _passwordController.text;
+    String confirmPassword = _confirmPasswordController.text;
+
+    // Validation
+    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      _showError('กรุณากรอกข้อมูลให้ครบถ้วน');
+      return;
+    }
+
+    if (name.length < 4) {
+      _showError('ชื่อผู้ใช้ต้องมีความยาวอย่างน้อย 4 ตัวอักษร');
+      return;
+    }
+
+    if (!email.endsWith('@gmail.com')) {
+      _showError('กรุณาใช้อีเมล @gmail.com เท่านั้น');
+      return;
+    }
+
+    if (password.length < 8) {
+      _showError('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร');
+      return;
+    }
+    if (!password.contains(RegExp(r'[A-Z]'))) {
+      _showError('รหัสผ่านต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว (A-Z)');
+      return;
+    }
+    if (!password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'))) {
+      _showError('รหัสผ่านต้องมีอักขระพิเศษอย่างน้อย 1 ตัว');
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showError('รหัสผ่านยืนยันไม่ตรงกัน');
+      return;
+    }
+
+    // Call API
+    setState(() => _isLoading = true); 
+
+    final result = await _authService.register(name, email, password);
+
+    setState(() => _isLoading = false); 
+
+    if (result['success']) {
+      final data = result['data']; 
+      final int newId = data['user']['user_id']; 
+      
+      ref.read(userDataProvider.notifier).setUserId(newId); 
+      ref.read(userDataProvider.notifier).setLoginInfo(email, password);
+      ref.read(userDataProvider.notifier).setPersonalInfo(
+          name: name, 
+          birthDate: DateTime.now(),
+          height: 0, 
+          weight: 0
+      );
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const GenderSelectionScreen()),
+        );
+      }
+    } else {
+      if (mounted) {
+        _showError(result['message'] ?? 'สมัครสมาชิกไม่สำเร็จ');
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE8EFCF),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- Header ---
-              Padding(
-                padding: const EdgeInsets.only(left: 19, top: 31),
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1D1B20)),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // --- Title ---
-              const Center(
-                child: Text(
-                  'สร้างบัญชีผู้ใช้ใหม่',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 32,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.black,
+    // ✅ เพิ่ม GestureDetector ครอบ Scaffold เพื่อปิดคีย์บอร์ดเมื่อแตะที่ว่าง
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFE8EFCF),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- Header ---
+                Padding(
+                  padding: const EdgeInsets.only(left: 19, top: 31),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1D1B20)),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 50),
+                const SizedBox(height: 20),
 
-              // --- Form Fields ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 62),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildLabel('ชื่อ - นามสกุล *'),
-                    const SizedBox(height: 6),
-                    _buildTextField(_nameController),
-
-                    const SizedBox(height: 20),
-
-                    _buildLabel('E-mail *'),
-                    const SizedBox(height: 6),
-                    _buildTextField(_emailController),
-
-                    const SizedBox(height: 20),
-
-                    _buildLabel('Password *'),
-                    const SizedBox(height: 6),
-                    _buildTextField(_passwordController, isPassword: true),
-
-                    const SizedBox(height: 20),
-
-                    _buildLabel('Confirm password *'),
-                    const SizedBox(height: 6),
-                    _buildTextField(_confirmPasswordController, isPassword: true),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 80),
-
-              // --- Submit Button (Done) ---
-              Center(
-                child: GestureDetector(
-                  onTap: _isLoading ? null : _handleRegister, // ถ้าโหลดอยู่กดไม่ได้
-                  child: Container(
-                    width: 259,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF628141),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
-                          blurRadius: 4,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                // --- Title ---
+                const Center(
+                  child: Text(
+                    'สร้างบัญชีผู้ใช้ใหม่',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 32,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.black,
                     ),
-                    child: Center(
-                      // ถ้าโหลดอยู่ให้โชว์หมุนๆ
-                      child: _isLoading 
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            'Done',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
+                  ),
+                ),
+
+                const SizedBox(height: 50),
+
+                // --- Form Fields ---
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 62),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('ชื่อ - นามสกุล *'),
+                      _buildTextField(_nameController),
+
+                      const SizedBox(height: 20),
+
+                      _buildLabel('E-mail *'),
+                      _buildTextField(_emailController),
+
+                      const SizedBox(height: 20),
+
+                      _buildLabel(
+                        'Password *', 
+                        onInfoTap: _showPasswordRules // ปุ่ม ? ดูเงื่อนไข
+                      ),
+                      _buildTextField(_passwordController, isPassword: true),
+
+                      const SizedBox(height: 20),
+
+                      _buildLabel('Confirm password *'),
+                      _buildTextField(_confirmPasswordController, isPassword: true),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 80),
+
+                // --- Submit Button ---
+                Center(
+                  child: GestureDetector(
+                    onTap: _isLoading ? null : _handleRegister, 
+                    child: Container(
+                      width: 259,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF628141),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.25),
+                            blurRadius: 4,
+                            offset: const Offset(0, 4),
                           ),
+                        ],
+                      ),
+                      child: Center(
+                        child: _isLoading 
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              'Done',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 40),
-            ],
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
       ),
@@ -203,17 +261,32 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   // --- Helper Widgets ---
-  Widget _buildLabel(String text) {
+  Widget _buildLabel(String text, {VoidCallback? onInfoTap}) {
     return Padding(
-      padding: const EdgeInsets.only(left: 8),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 16,
-          fontWeight: FontWeight.w400,
-          color: Colors.black.withOpacity(0.5),
-        ),
+      padding: const EdgeInsets.only(left: 8, bottom: 6),
+      child: Row(
+        children: [
+          Text(
+            text,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: Colors.black.withOpacity(0.5),
+            ),
+          ),
+          if (onInfoTap != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onInfoTap,
+              child: const Icon(
+                Icons.help_outline,
+                size: 20,
+                color: Color(0xFF628141),
+              ),
+            )
+          ]
+        ],
       ),
     );
   }
@@ -241,6 +314,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             color: Colors.black,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Widget สำหรับแสดงรายการใน Popup เงื่อนไขรหัสผ่าน
+class _RuleItem extends StatelessWidget {
+  final String text;
+  const _RuleItem({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle_outline, size: 16, color: Colors.green),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontFamily: 'Inter', fontSize: 14))),
+        ],
       ),
     );
   }
