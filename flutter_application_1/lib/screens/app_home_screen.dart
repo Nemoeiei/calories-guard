@@ -14,7 +14,7 @@ class AppHomeScreen extends ConsumerStatefulWidget {
 
 class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   bool _isLoading = true;
-  bool _hasWarnedCalories = false; // ตัวแปรป้องกันการเด้งแจ้งเตือนซ้ำซ้อน
+  bool _hasWarnedCalories = false; // ป้องกันการแจ้งเตือนเด้งรัวๆ
 
   @override
   void initState() {
@@ -24,28 +24,24 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     });
   }
 
+  // ✅ ฟังก์ชันดึงข้อมูล (เหมือนเดิม)
   Future<void> _fetchDailyData() async {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
-
     final now = DateTime.now();
     final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-    
     final logUrl = Uri.parse('http://10.0.2.2:8000/daily_logs/$userId?date_query=$dateStr');
     final userUrl = Uri.parse('http://10.0.2.2:8000/users/$userId'); 
-
     try {
       final userResponse = await http.get(userUrl);
       if (userResponse.statusCode == 200) {
         final userData = jsonDecode(userResponse.body);
-        
         GoalOption goalEnum = GoalOption.loseWeight;
         if (userData['goal_type'] == 'maintain_weight') goalEnum = GoalOption.maintainWeight;
         if (userData['goal_type'] == 'build_muscle') goalEnum = GoalOption.buildMuscle;
-
         ref.read(userDataProvider.notifier).setPersonalInfo(
           name: userData['username'] ?? 'User',
           birthDate: DateTime.parse(userData['birth_date'] ?? '2000-01-01'), 
@@ -53,24 +49,14 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           weight: (userData['current_weight_kg'] ?? 0).toDouble(),
         );
         ref.read(userDataProvider.notifier).setGoal(goalEnum);
-        ref.read(userDataProvider.notifier).setGoalInfo(
-          targetWeight: (userData['target_weight_kg'] ?? 0).toDouble(), 
-          duration: 0 
-        );
+        ref.read(userDataProvider.notifier).setGoalInfo(targetWeight: (userData['target_weight_kg'] ?? 0).toDouble(), duration: 0);
       }
-
       final logResponse = await http.get(logUrl);
       if (logResponse.statusCode == 200) {
         final logData = jsonDecode(logResponse.body);
         ref.read(userDataProvider.notifier).updateDailyFood(
-          cal: logData['calories'] ?? 0,
-          protein: logData['protein'] ?? 0,
-          carbs: logData['carbs'] ?? 0,
-          fat: logData['fat'] ?? 0,
-          breakfast: logData['breakfast_menu'] ?? '',
-          lunch: logData['lunch_menu'] ?? '',
-          dinner: logData['dinner_menu'] ?? '',
-          snack: logData['snack_menu'] ?? '',
+          cal: logData['calories'] ?? 0, protein: logData['protein'] ?? 0, carbs: logData['carbs'] ?? 0, fat: logData['fat'] ?? 0,
+          breakfast: logData['breakfast_menu'] ?? '', lunch: logData['lunch_menu'] ?? '', dinner: logData['dinner_menu'] ?? '', snack: logData['snack_menu'] ?? '',
         );
       }
     } catch (e) {
@@ -78,6 +64,21 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // ✅ ฟังก์ชันคำนวณเป้าหมาย สารอาหารหลัก (Macros)
+  Map<String, int> calculateMacroTargets(double targetCalories, GoalOption goal) {
+    double pRatio, cRatio, fRatio;
+    switch (goal) {
+      case GoalOption.loseWeight: pRatio = 0.30; cRatio = 0.40; fRatio = 0.30; break;
+      case GoalOption.maintainWeight: pRatio = 0.25; cRatio = 0.45; fRatio = 0.30; break;
+      case GoalOption.buildMuscle: pRatio = 0.30; cRatio = 0.50; fRatio = 0.20; break;
+    }
+    return {
+      'protein': (targetCalories * pRatio / 4).round(),
+      'carbs': (targetCalories * cRatio / 4).round(),
+      'fat': (targetCalories * fRatio / 9).round(),
+    };
   }
 
   double calculateBMI(double weight, double heightInput) {
@@ -101,44 +102,25 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 25, height: 25,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  image: DecorationImage(image: AssetImage(imagePath), fit: BoxFit.cover),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
-            ],
-          ),
+          Row(children: [
+            Container(width: 25, height: 25, decoration: BoxDecoration(shape: BoxShape.circle, image: DecorationImage(image: AssetImage(imagePath), fit: BoxFit.cover))),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
+          ]),
           const SizedBox(height: 4),
-          Stack(
-            children: [
-              Container(
-                width: 140, height: 2,
-                decoration: BoxDecoration(color: const Color(0xFF979797).withOpacity(0.5), borderRadius: BorderRadius.circular(6)),
-              ),
-              Container(
-                width: 140 * (total > 0 ? (current / total).clamp(0.0, 1.0) : 0),
-                height: 2,
-                decoration: BoxDecoration(color: const Color(0xFF1C1B1F).withOpacity(0.8), borderRadius: BorderRadius.circular(6)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          SizedBox(
-            width: 140,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('$current g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
-                Text('$total g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
-              ],
+          Stack(children: [
+            Container(width: 140, height: 2, decoration: BoxDecoration(color: const Color(0xFF979797).withOpacity(0.5), borderRadius: BorderRadius.circular(6))),
+            Container(
+              width: 140 * (total > 0 ? (current / total).clamp(0.0, 1.0) : 0),
+              height: 2,
+              decoration: BoxDecoration(color: const Color(0xFF1C1B1F).withOpacity(0.8), borderRadius: BorderRadius.circular(6)),
             ),
-          ),
+          ]),
+          const SizedBox(height: 2),
+          SizedBox(width: 140, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text('$current g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
+            Text('$total g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
+          ])),
         ],
       ),
     );
@@ -147,28 +129,35 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final userData = ref.watch(userDataProvider);
-
-    int targetCal = userData.targetCalories.toInt();
-    if (targetCal <= 0) targetCal = 1500; 
-
+    int targetCal = userData.targetCalories.toInt() > 0 ? userData.targetCalories.toInt() : 1500;
     int currentCal = userData.consumedCalories; 
-    double progress = (targetCal > 0) ? currentCal / targetCal : 0.0;
+    double progress = currentCal / targetCal;
 
-    // 🔥 LOGIC: ตรวจสอบว่าแคลอรี่เกินหรือไม่
+    // 🔥 แก้ Error: ใส่ ?? GoalOption.loseWeight เพื่อป้องกันค่า null
+    final macroTargets = calculateMacroTargets(
+      targetCal.toDouble(), 
+      userData.goal ?? GoalOption.loseWeight 
+    );
+    final targetP = macroTargets['protein']!;
+    final targetC = macroTargets['carbs']!;
+    final targetF = macroTargets['fat']!;
+
+    // 🔥 LOGIC สีแจ้งเตือน
     bool isOverCalories = currentCal > targetCal;
     Color progressColor = isOverCalories ? Colors.red : const Color(0xFF628141);
-    Color textColor = isOverCalories ? Colors.red : Colors.black;
+    Color calorieTextColor = isOverCalories ? Colors.red : Colors.black;
 
-    // 🔥 แจ้งเตือนเมื่อแคลอรี่เกิน (SnackBar)
+    // 🔥 ระบบคำแนะนำ
+    String getAdvice() {
+      if (currentCal == 0) return "เริ่มบันทึกมื้อแรกของวันกันเลย!";
+      if (isOverCalories) return "พลังงานเกินเป้าหมายแล้ว! ลองเดินย่อยดูนะ";
+      if (progress >= 0.8) return "ใกล้ถึงเป้าหมายแล้ว มื้อหน้าเลือกทานเบาๆ นะ";
+      return "รักษาวินัยได้ดีมาก วันนี้มาทำให้สำเร็จกัน!";
+    }
+
     if (isOverCalories && !_hasWarnedCalories) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('⚠️ แจ้งเตือน: คุณกินแคลอรี่เกินเป้าหมายแล้ว!'),
-            backgroundColor: Colors.redAccent,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ แจ้งเตือน: แคลอรี่เกินเป้าหมายแล้ว!'), backgroundColor: Colors.redAccent));
         setState(() => _hasWarnedCalories = true);
       });
     }
@@ -191,88 +180,53 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
             Container(
               width: double.infinity,
               color: const Color(0xFFE8EFCF),
-              padding: const EdgeInsets.only(bottom: 20),
               child: Column(
                 children: [
-                  // ===== Header ย้ายเข้ามาในกล่องเขียว =====
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'ภาพรวมวันนี้',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFF628141), size: 32),
-                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProgressScreen())),
-                        ),
+                        const Text('ภาพรวมวันนี้', style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
+                        IconButton(icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFF628141), size: 32), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProgressScreen()))),
                       ],
                     ),
                   ),
 
-                  // ===== ส่วนกราฟวงกลม =====
                   SizedBox(
-                    height: 200,
+                    height: 250,
                     child: Stack(
                       children: [
                         Positioned(
-                          left: 21, top: 0,
-                          child: SizedBox(
-                            width: 170, height: 170,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 150, height: 150,
-                                  child: CircularProgressIndicator(
-                                    value: 1.0,
-                                    strokeWidth: 12,
-                                    color: const Color(0xFF8BAE66),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 150, height: 150,
-                                  child: CircularProgressIndicator(
-                                    value: progress.clamp(0.0, 1.0),
-                                    strokeWidth: 12,
-                                    color: progressColor, // ✅ สีเปลี่ยนตามแคลอรี่
-                                    strokeCap: StrokeCap.round,
-                                  ),
-                                ),
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                          left: 5, top: 18,
+                          child: Column(
+                            children: [
+                              SizedBox(
+                                width: 170, height: 170,
+                                child: Stack(
+                                  alignment: Alignment.center,
                                   children: [
-                                    Text(
-                                      '$currentCal',
-                                      style: TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 48,
-                                        fontWeight: FontWeight.w500,
-                                        color: textColor, // ✅ สีตัวเลขเปลี่ยนตามแคลอรี่
-                                        height: 1,
-                                      ),
-                                    ),
-                                    Text(
-                                      '/ $targetCal KCAL',
-                                      style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500),
+                                    SizedBox(width: 150, height: 150, child: CircularProgressIndicator(value: 1.0, strokeWidth: 12, color: const Color(0xFF8BAE66))),
+                                    SizedBox(width: 150, height: 150, child: CircularProgressIndicator(value: progress.clamp(0.0, 1.0), strokeWidth: 12, color: progressColor, strokeCap: StrokeCap.round)),
+                                    Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text('$currentCal', style: TextStyle(fontFamily: 'Inter', fontSize: 48, fontWeight: FontWeight.w500, color: calorieTextColor, height: 1)),
+                                        Text('/ $targetCal KCAL', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
+                                      ],
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 30),
+                              Text(getAdvice(), style: TextStyle(color: calorieTextColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
                           ),
                         ),
-                        // รายการสารอาหาร
-                        Positioned(left: 226, top: 15, child: _buildNutrientLabel('โปรตีน', userData.consumedProtein, 111, 'assets/images/icon/meat.png')),
-                        Positioned(left: 226, top: 75, child: _buildNutrientLabel('คาร์บ', userData.consumedCarbs, 104, 'assets/images/icon/rice.png')),
-                        Positioned(left: 226, top: 135, child: _buildNutrientLabel('ไขมัน', userData.consumedFat, 41, 'assets/images/icon/oil.png')),
+                        // รายการสารอาหารที่คำนวณเป้าหมายจริง
+                        Positioned(left: 226, top: 41, child: _buildNutrientLabel('โปรตีน', userData.consumedProtein, targetP, 'assets/images/icon/meat.png')),
+                        Positioned(left: 226, top: 102, child: _buildNutrientLabel('คาร์โบไฮเดรต', userData.consumedCarbs, targetC, 'assets/images/icon/rice.png')),
+                        Positioned(left: 226, top: 166, child: _buildNutrientLabel('ไขมัน', userData.consumedFat, targetF, 'assets/images/icon/oil.png')),
                       ],
                     ),
                   ),

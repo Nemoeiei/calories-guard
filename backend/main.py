@@ -45,6 +45,9 @@ class UserUpdate(BaseModel):
     target_weight_kg: float | None = None
     goal_target_date: date | None = None
     target_calories: int | None = None
+    target_protein: int | None = None
+    target_carbs: int | None = None
+    target_fat: int | None = None
 
 class DailyLogUpdate(BaseModel):
     date: date
@@ -164,6 +167,15 @@ def update_user(user_id: int, user_update: UserUpdate):
         values = []
         
         # ตรวจสอบว่าส่งค่าอะไรมาบ้าง
+        if user_update.target_protein is not None:
+            update_fields.append("target_protein = %s")
+            values.append(user_update.target_protein)
+        if user_update.target_carbs is not None:
+            update_fields.append("target_carbs = %s")
+            values.append(user_update.target_carbs)
+        if user_update.target_fat is not None:
+            update_fields.append("target_fat = %s")
+            values.append(user_update.target_fat)
         if user_update.target_calories is not None:
             update_fields.append("target_calories = %s")
             values.append(user_update.target_calories)
@@ -290,7 +302,9 @@ def get_user_profile(user_id: int):
         cur.execute("""
             SELECT user_id, email, username, gender, birth_date, 
                    height_cm, current_weight_kg, target_weight_kg, 
-                   target_calories, goal_type
+                   target_calories, 
+                   target_protein, target_carbs, target_fat, -- ✅ เพิ่มตรงนี้
+                   goal_type
             FROM users 
             WHERE user_id = %s
         """, (user_id,))

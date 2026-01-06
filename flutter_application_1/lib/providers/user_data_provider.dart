@@ -108,16 +108,37 @@ class UserData {
   // --- 🎯 Logic 4: คำนวณแคลอรี่เป้าหมาย ---
   double get targetCalories {
     double maintenance = tdee;
-    
     if (goal == GoalOption.loseWeight) {
-      return maintenance - 500; // ลดน้ำหนัก: กินน้อยกว่าใช้ 500 kcal
+      return maintenance - 500; 
     } else if (goal == GoalOption.buildMuscle) {
-      return maintenance + 300; // เพิ่มกล้าม: กินมากกว่าใช้ 300 kcal
+      return maintenance + 300; 
     }
-    
-    return maintenance; // รักษาน้ำหนัก
+    return maintenance; 
   }
 
+  // ✅ เพิ่ม Logic 5: คำนวณสารอาหาร (Macros)
+  // สัดส่วนมาตรฐาน: Protein 30% / Carbs 40% / Fat 30% (ปรับเปลี่ยนได้ตามสูตรที่ต้องการ)
+  
+  int get targetProtein {
+    // 1 กรัม = 4 kcal
+    // สมมติให้กินโปรตีน 30% ของแคลอรี่ทั้งหมด
+    double proteinCals = targetCalories * 0.30; 
+    return (proteinCals / 4).round();
+  }
+
+  int get targetCarbs {
+    // 1 กรัม = 4 kcal
+    // สมมติให้กินคาร์บ 40% ของแคลอรี่ทั้งหมด
+    double carbsCals = targetCalories * 0.40;
+    return (carbsCals / 4).round();
+  }
+
+  int get targetFat {
+    // 1 กรัม = 9 kcal
+    // สมมติให้กินไขมัน 30% ของแคลอรี่ทั้งหมด
+    double fatCals = targetCalories * 0.30;
+    return (fatCals / 9).round();
+  }
   // --- CopyWith: ฟังก์ชันสำหรับอัปเดตค่า ---
   UserData copyWith({
     int? userId,
