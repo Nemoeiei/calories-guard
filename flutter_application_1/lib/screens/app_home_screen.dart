@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'profile/subprofile_screen/progress_screen.dart';
-
-import '../services/notification_helper.dart';
+import '/screens/profile/subprofile_screen/progress_screen.dart'; // ตรวจสอบ path ให้ถูก
+import '../../services/notification_helper.dart'; // ตรวจสอบ path ให้ถูก
 
 class AppHomeScreen extends ConsumerStatefulWidget {
   const AppHomeScreen({super.key});
@@ -16,59 +15,71 @@ class AppHomeScreen extends ConsumerStatefulWidget {
 
 class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   bool _isLoading = true;
-  bool _hasWarnedCalories = false; // ป้องกันการแจ้งเตือนเด้งรัวๆ
+  bool _hasWarnedCalories = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchDailyData();
+      _fetchAllData();
     });
   }
 
-  // ✅ ฟังก์ชันดึงข้อมูล (เหมือนเดิม)
-  Future<void> _fetchDailyData() async {
+  Future<void> _fetchAllData() async {
+    await _fetchUserData();
+    await _fetchDailyData();
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _fetchUserData() async {
     final userId = ref.read(userDataProvider).userId;
-    if (userId == 0) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-    final now = DateTime.now();
-    final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-    final logUrl = Uri.parse('http://10.0.2.2:8000/daily_logs/$userId?date_query=$dateStr');
-    final userUrl = Uri.parse('http://10.0.2.2:8000/users/$userId'); 
+    if (userId == 0) return;
+
     try {
-      final userResponse = await http.get(userUrl);
-      if (userResponse.statusCode == 200) {
-        final userData = jsonDecode(userResponse.body);
-        GoalOption goalEnum = GoalOption.loseWeight;
-        if (userData['goal_type'] == 'maintain_weight') goalEnum = GoalOption.maintainWeight;
-        if (userData['goal_type'] == 'build_muscle') goalEnum = GoalOption.buildMuscle;
-        ref.read(userDataProvider.notifier).setPersonalInfo(
-          name: userData['username'] ?? 'User',
-          birthDate: DateTime.parse(userData['birth_date'] ?? '2000-01-01'), 
-          height: (userData['height_cm'] ?? 0).toDouble(),
-          weight: (userData['current_weight_kg'] ?? 0).toDouble(),
-        );
-        ref.read(userDataProvider.notifier).setGoal(goalEnum);
-        ref.read(userDataProvider.notifier).setGoalInfo(targetWeight: (userData['target_weight_kg'] ?? 0).toDouble(), duration: 0);
-      }
-      final logResponse = await http.get(logUrl);
-      if (logResponse.statusCode == 200) {
-        final logData = jsonDecode(logResponse.body);
-        ref.read(userDataProvider.notifier).updateDailyFood(
-          cal: logData['calories'] ?? 0, protein: logData['protein'] ?? 0, carbs: logData['carbs'] ?? 0, fat: logData['fat'] ?? 0,
-          breakfast: logData['breakfast_menu'] ?? '', lunch: logData['lunch_menu'] ?? '', dinner: logData['dinner_menu'] ?? '', snack: logData['snack_menu'] ?? '',
-        );
+      final url = Uri.parse('http://10.0.2.2:8000/users/$userId');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // เรียกใช้ฟังก์ชันใน Provider เพื่ออัปเดตข้อมูลทั้งหมด
+        ref.read(userDataProvider.notifier).setUserFromApi(data);
+        print("✅ ดึงข้อมูลผู้ใช้สำเร็จ: ${data['username']}");
+      } else {
+        print("❌ ดึงข้อมูลผู้ใช้ล้มเหลว: ${response.statusCode}");
       }
     } catch (e) {
-      print("Error fetching data: $e");
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      print("❌ Error fetching user data: $e");
     }
   }
 
-  // ✅ ฟังก์ชันคำนวณเป้าหมาย สารอาหารหลัก (Macros)
+  Future<void> _fetchDailyData() async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+
+    final now = DateTime.now();
+    final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    final url = Uri.parse('http://10.0.2.2:8000/daily_logs/$userId?date_query=$dateStr');
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final logData = json.decode(response.body);
+        ref.read(userDataProvider.notifier).updateDailyFood(
+          cal: (logData['calories'] as num?)?.toInt() ?? 0,
+          protein: (logData['protein'] as num?)?.toInt() ?? 0,
+          carbs: (logData['carbs'] as num?)?.toInt() ?? 0,
+          fat: (logData['fat'] as num?)?.toInt() ?? 0,
+          breakfast: logData['breakfast_menu'] ?? '',
+          lunch: logData['lunch_menu'] ?? '',
+          dinner: logData['dinner_menu'] ?? '',
+          snack: logData['snack_menu'] ?? '',
+        );
+      }
+    } catch (e) {
+      print("Error fetching daily log: $e");
+    }
+  }
+
   Map<String, int> calculateMacroTargets(double targetCalories, GoalOption goal) {
     double pRatio, cRatio, fRatio;
     switch (goal) {
@@ -85,7 +96,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
   double calculateBMI(double weight, double heightInput) {
     if (heightInput <= 0) return 0;
-    double heightM = (heightInput < 3.0) ? heightInput : heightInput / 100;
+    double heightM = (heightInput > 3.0) ? heightInput / 100 : heightInput; // แก้ไข Logic แปลงหน่วย
     return weight / (heightM * heightM);
   }
 
@@ -131,11 +142,12 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final userData = ref.watch(userDataProvider);
+    
+    // ใช้ค่าจาก Provider ที่คำนวณไว้แล้ว
     int targetCal = userData.targetCalories.toInt() > 0 ? userData.targetCalories.toInt() : 1500;
     int currentCal = userData.consumedCalories; 
     double progress = (targetCal > 0) ? currentCal / targetCal : 0.0;
 
-    // 🔥 แก้ Error: ใส่ ?? GoalOption.loseWeight เพื่อป้องกันค่า null
     final macroTargets = calculateMacroTargets(
       targetCal.toDouble(), 
       userData.goal ?? GoalOption.loseWeight 
@@ -144,12 +156,10 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     final targetC = macroTargets['carbs']!;
     final targetF = macroTargets['fat']!;
 
-    // 🔥 LOGIC สีแจ้งเตือน
     bool isOverCalories = currentCal > targetCal;
     Color progressColor = isOverCalories ? Colors.red : const Color(0xFF628141);
     Color calorieTextColor = isOverCalories ? Colors.red : Colors.black;
 
-    // 🔥 ระบบคำแนะนำ
     String getAdvice() {
       if (currentCal == 0) return "เริ่มบันทึกมื้อแรกของวันกันเลย!";
       if (isOverCalories) return "พลังงานเกินเป้าหมายแล้ว! ลองเดินย่อยดูนะ";
@@ -159,14 +169,11 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
     if (isOverCalories && !_hasWarnedCalories) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        // 1. แสดงในแอป (SnackBar) - อันเดิม
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('⚠️ แจ้งเตือน: แคลอรี่เกินเป้าหมายแล้ว!'),
             backgroundColor: Colors.redAccent));
         
-        // ✅ 2. เพิ่มบรรทัดนี้ครับ! สั่งให้แจ้งเตือนเด้ง (Notification)
         NotificationHelper.showCalorieAlert(currentCal, targetCal);
-
         setState(() => _hasWarnedCalories = true);
       });
     }
@@ -175,6 +182,23 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     String bmiStatus = getBMIStatus(bmi);
     double weightDiff = (userData.weight - userData.targetWeight).abs();
     String weightAction = (userData.weight > userData.targetWeight) ? "ต้องลดอีก" : "ต้องเพิ่มอีก";
+    
+    // คำนวณ % ความคืบหน้า (สมมติว่าเริ่มจาก 100 กก เป้าหมาย 70 กก ตอนนี้ 90 กก -> ลดไป 10/30 = 33%)
+    // เพื่อความง่ายในตัวอย่างนี้ใช้สูตรคร่าวๆ
+    double weightProgress = 0.0;
+    if (userData.weight > 0 && userData.targetWeight > 0) {
+       // ถ้าเป้าหมายคือลดน้ำหนัก
+       if (userData.goal == GoalOption.loseWeight && userData.weight >= userData.targetWeight) {
+          // สูตรสมมติ: ให้เริ่มต้นที่น้ำหนักปัจจุบัน + 10 (เป็นจุดเริ่ม) เพื่อหา Progress
+          // ในแอปจริงควรเก็บ starting_weight ไว้ใน DB เพื่อคำนวณที่แม่นยำ
+          double startWeight = userData.weight + 5; // Mockup
+          double totalToLose = startWeight - userData.targetWeight;
+          double lost = startWeight - userData.weight;
+          weightProgress = (totalToLose > 0) ? (lost / totalToLose) : 0;
+       }
+    }
+    String progressPercent = "${(weightProgress * 100).toInt()}%";
+
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -185,7 +209,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           children: [
             Container(height: 40, color: Colors.white),
 
-            // --- Dashboard (กล่องสีเขียวรวม Header และ แคลอรี่) ---
+            // --- Dashboard ---
             Container(
               width: double.infinity,
               color: const Color(0xFFE8EFCF),
@@ -227,13 +251,11 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                                   ],
                                 ),
                               ),
-                              // ✅ ข้อความคำแนะนำ (Advice)
                               const SizedBox(height: 30),
                               Text(getAdvice(), style: TextStyle(color: calorieTextColor, fontWeight: FontWeight.bold, fontSize: 12)),
                             ],
                           ),
                         ),
-                        // รายการสารอาหารที่คำนวณเป้าหมายจริง
                         Positioned(left: 226, top: 41, child: _buildNutrientLabel('โปรตีน', userData.consumedProtein, targetP, 'assets/images/icon/meat.png')),
                         Positioned(left: 226, top: 102, child: _buildNutrientLabel('คาร์บ', userData.consumedCarbs, targetC, 'assets/images/icon/rice.png')),
                         Positioned(left: 226, top: 166, child: _buildNutrientLabel('ไขมัน', userData.consumedFat, targetF, 'assets/images/icon/oil.png')),
@@ -269,7 +291,15 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                         children: [
                           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Text('BMI ${bmi.toStringAsFixed(1)}', style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)), const SizedBox(height: 7), Text(bmiStatus, style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)), const SizedBox(height: 7), Container(padding: const EdgeInsets.symmetric(horizontal: 4), color: Colors.white, child: Text('$weightAction ${weightDiff.toStringAsFixed(1)}', style: const TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFFB74D4D))))])),
                           Container(width: 1, height: 119, color: Colors.white.withOpacity(0.3)),
-                          Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Text('30%', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)), const SizedBox(height: 7), const Text('ความคืบหน้า', style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)), const SizedBox(height: 7), Container(padding: const EdgeInsets.symmetric(horizontal: 4), color: Colors.white, child: const Text('เหลืออีก 70%', style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFFB74D4D))))])),
+                          // ส่วนแสดง Progress (Mockup value, ต้องปรับ Logic เพิ่มถ้าต้องการความแม่นยำ)
+                          Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                             // แสดง % ความคืบหน้า (ถ้าทำ Logic start_weight แล้วค่อยมาแก้ตรงนี้)
+                             const Text('Start', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)), 
+                             const SizedBox(height: 7), 
+                             const Text('ความคืบหน้า', style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)), 
+                             const SizedBox(height: 7), 
+                             Container(padding: const EdgeInsets.symmetric(horizontal: 4), color: Colors.white, child: Text('สู้ๆ นะ!', style: const TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFFB74D4D))))
+                          ])),
                         ],
                       ),
                     ),

@@ -48,6 +48,12 @@ class UserUpdate(BaseModel):
     target_protein: int | None = None
     target_carbs: int | None = None
     target_fat: int | None = None
+    activity_level: str | None = None
+    username: str | None = None
+    unit_weight: str | None = None
+    unit_height: str | None = None
+    unit_energy: str | None = None
+    unit_water: str | None = None
 
 class DailyLogUpdate(BaseModel):
     date: date
@@ -167,6 +173,12 @@ def update_user(user_id: int, user_update: UserUpdate):
         values = []
         
         # ตรวจสอบว่าส่งค่าอะไรมาบ้าง
+        if user_update.username is not None:
+            update_fields.append("username = %s")
+            values.append(user_update.username)
+        if user_update.activity_level is not None:
+            update_fields.append("activity_level = %s")
+            values.append(user_update.activity_level)
         if user_update.target_protein is not None:
             update_fields.append("target_protein = %s")
             values.append(user_update.target_protein)
@@ -200,6 +212,7 @@ def update_user(user_id: int, user_update: UserUpdate):
         if user_update.current_weight_kg:
             update_fields.append("current_weight_kg = %s")
             values.append(user_update.current_weight_kg)
+        
             
         if not update_fields:
              return {"message": "No fields to update"}
@@ -299,15 +312,18 @@ def get_user_profile(user_id: int):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        # ✅ เพิ่ม goal_target_date เข้าไปในบรรทัด SELECT ครับ
         cur.execute("""
             SELECT user_id, email, username, gender, birth_date, 
                    height_cm, current_weight_kg, target_weight_kg, 
                    target_calories, 
-                   target_protein, target_carbs, target_fat, -- ✅ เพิ่มตรงนี้
-                   goal_type
+                   target_protein, target_carbs, target_fat,
+                   goal_type, 
+                   goal_target_date  -- 🔥 บรรทัดนี้ที่ขาดไปครับ!
             FROM users 
             WHERE user_id = %s
         """, (user_id,))
+        
         user = cur.fetchone()
         
         if user is None:
@@ -316,26 +332,63 @@ def get_user_profile(user_id: int):
         return user
     finally:
         if conn: conn.close()
-@app.get("/daily_logs/{user_id}/weekly")
-def get_weekly_logs(user_id: int):
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        # ลบข้อมูลที่เกี่ยวข้องก่อน (ถ้ามี Foreign Key) เช่น daily_logs
+        cur.execute("DELETE FROM daily_logs WHERE user_id = %s", (user_id,))
+        # ลบ user
+        cur.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+        conn.commit()
+        return {"message": "User deleted successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+@app.get("/daily_logs/{user_id}")
+def get_daily_log(user_id: int, date_query: date):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. เช็คก่อนว่ามี User คนนี้ไหม? (เอา Target Calories มาด้วย)
+        cur.execute("SELECT target_calories FROM users WHERE user_id = %s", (user_id,))
+        user = cur.fetchone()
+
+        if user is None:
+            # ถ้าไม่มี User นี้ในระบบเลย ค่อยส่ง 404
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # 2. ถ้ามี User -> ให้ลองดึง Log ของวันที่ระบุ
+        cur.execute("SELECT * FROM daily_logs WHERE user_id = %s AND date = %s", (user_id, date_query))
+        log = cur.fetchone()
+
+        target_cal = user['target_calories'] if user['target_calories'] is not None else 0
+
+        # 3. ถ้ามี Log ของวันนี้ -> ส่งข้อมูลกลับไป
+        if log:
+            log['target_calories'] = target_cal
+            return log
         
-        # SQL: ดึงข้อมูล 7 วันล่าสุด เรียงตามวันที่
-        sql = """
-            SELECT date, calories, protein, carbs, fat
-            FROM daily_logs
-            WHERE user_id = %s 
-              AND date >= CURRENT_DATE - INTERVAL '6 days'
-            ORDER BY date ASC
-        """
-        cur.execute(sql, (user_id,))
-        logs = cur.fetchall()
-        
-        return logs # ส่งกลับเป็น List [{}, {}, ...]
+        # 4. 🔥 จุดสำคัญ: ถ้าไม่มี Log (วันใหม่) -> ให้ส่งค่า 0 กลับไป (ห้ามส่ง 404)
+        else:
+            return {
+                "calories": 0,
+                "protein": 0,
+                "carbs": 0,
+                "fat": 0,
+                "breakfast_menu": "",
+                "lunch_menu": "",
+                "dinner_menu": "",
+                "snack_menu": "",
+                "target_calories": target_cal
+            }
+
     finally:
-        conn.close()
+        if conn: conn.close()
 @app.get("/daily_logs/{user_id}/calendar")
 def get_calendar_logs(user_id: int, month: int, year: int):
     conn = get_db_connection()

@@ -22,7 +22,8 @@ class UserData {
   final GoalOption? goal;
   final double targetWeight;
   final int duration;
-  final String activityLevel; // ระดับกิจกรรม
+  final String activityLevel; // ระดับกิจกรรม (sedentary, light, moderate...)
+  final DateTime? targetDate;
 
   // --- 3. ส่วนข้อมูลโภชนาการรายวัน (Nutrition) ---
   final int consumedCalories;
@@ -36,6 +37,12 @@ class UserData {
   final String dinnerMenu;
   final String snackMenu; // รวมมื้อว่าง 1+2
 
+  // --- 5. หน่วยนับ (Unit) ---
+  final String unitWeight; // 'kg', 'lbs'
+  final String unitHeight; // 'cm', 'ft'
+  final String unitEnergy; // 'kcal', 'kj'
+  final String unitWater;  // 'ml', 'bottle'
+
   UserData({
     this.userId = 0,
     this.email = '',
@@ -48,7 +55,8 @@ class UserData {
     this.goal,
     this.targetWeight = 0.0,
     this.duration = 0,
-    this.activityLevel = 'ไม่ออกกำลังกายเลย',
+    this.activityLevel = 'sedentary', // Default เป็นภาษาอังกฤษ
+    this.targetDate,
     // Default values เริ่มต้นเป็น 0
     this.consumedCalories = 0,
     this.consumedProtein = 0,
@@ -59,6 +67,11 @@ class UserData {
     this.lunchMenu = '',
     this.dinnerMenu = '',
     this.snackMenu = '',
+    // Default หน่วยนับ
+    this.unitWeight = 'kg',
+    this.unitHeight = 'cm',
+    this.unitEnergy = 'kcal',
+    this.unitWater = 'ml',
   });
 
   // --- 🧮 Logic 1: คำนวณอายุ ---
@@ -90,16 +103,17 @@ class UserData {
 
   // --- 🏃‍♂️ Logic 3: คำนวณ TDEE (พลังงานรวมกิจกรรม) ---
   double get tdee {
-    double activityMultiplier = 1.2; // Default: ไม่ออกกำลังกายเลย
+    double activityMultiplier = 1.2; // Default: sedentary
 
-    if (activityLevel.contains('เบาๆ')) {
+    // ✅ เช็คจาก Value ภาษาอังกฤษ (ดูเป็นทางการ & จัดการง่าย)
+    if (activityLevel == 'light') {
       activityMultiplier = 1.375;
-    } else if (activityLevel.contains('ปานกลาง')) {
+    } else if (activityLevel == 'moderate') {
       activityMultiplier = 1.55;
-    } else if (activityLevel.contains('หนัก')) {
-      activityMultiplier = 1.725; // 6-7 ครั้ง
-    } else if (activityLevel.contains('หนักมาก')) {
-      activityMultiplier = 1.9; // ทุกวันเช้าเย็น
+    } else if (activityLevel == 'active') {
+      activityMultiplier = 1.725;
+    } else if (activityLevel == 'extreme') {
+      activityMultiplier = 1.9;
     }
 
     return bmr * activityMultiplier;
@@ -116,7 +130,7 @@ class UserData {
     return maintenance; 
   }
 
-  // ✅ เพิ่ม Logic 5: คำนวณสารอาหาร (Macros)
+  // ✅ Logic 5: คำนวณสารอาหาร (Macros)
   // สัดส่วนมาตรฐาน: Protein 30% / Carbs 40% / Fat 30% (ปรับเปลี่ยนได้ตามสูตรที่ต้องการ)
   
   int get targetProtein {
@@ -139,6 +153,7 @@ class UserData {
     double fatCals = targetCalories * 0.30;
     return (fatCals / 9).round();
   }
+
   // --- CopyWith: ฟังก์ชันสำหรับอัปเดตค่า ---
   UserData copyWith({
     int? userId,
@@ -151,6 +166,7 @@ class UserData {
     double? weight,
     GoalOption? goal,
     double? targetWeight,
+    DateTime? targetDate,
     int? duration,
     String? activityLevel,
     int? consumedCalories,
@@ -161,6 +177,10 @@ class UserData {
     String? lunchMenu,
     String? dinnerMenu,
     String? snackMenu,
+    String? unitWeight,
+    String? unitHeight,
+    String? unitEnergy,
+    String? unitWater,
   }) {
     return UserData(
       userId: userId ?? this.userId,
@@ -173,6 +193,7 @@ class UserData {
       weight: weight ?? this.weight,
       goal: goal ?? this.goal,
       targetWeight: targetWeight ?? this.targetWeight,
+      targetDate: targetDate ?? this.targetDate,
       duration: duration ?? this.duration,
       activityLevel: activityLevel ?? this.activityLevel,
       consumedCalories: consumedCalories ?? this.consumedCalories,
@@ -183,6 +204,10 @@ class UserData {
       lunchMenu: lunchMenu ?? this.lunchMenu,
       dinnerMenu: dinnerMenu ?? this.dinnerMenu,
       snackMenu: snackMenu ?? this.snackMenu,
+      unitWeight: unitWeight ?? this.unitWeight,
+      unitHeight: unitHeight ?? this.unitHeight,
+      unitEnergy: unitEnergy ?? this.unitEnergy,
+      unitWater: unitWater ?? this.unitWater,
     );
   }
 }
@@ -190,6 +215,7 @@ class UserData {
 // --- Notifier: ตัวจัดการ State ---
 class UserDataNotifier extends StateNotifier<UserData> {
   UserDataNotifier() : super(UserData());
+  
   void setUserId(int id) {
     state = state.copyWith(userId: id);
   }
@@ -225,8 +251,16 @@ class UserDataNotifier extends StateNotifier<UserData> {
   }
 
   // อัปเดตรายละเอียดเป้าหมาย
-  void setGoalInfo({required double targetWeight, required int duration}) {
-    state = state.copyWith(targetWeight: targetWeight, duration: duration);
+  void setGoalInfo({
+    required double targetWeight,
+    DateTime? targetDate, // รับค่าวันที่
+    int? duration,
+  }) {
+    state = state.copyWith(
+      targetWeight: targetWeight,
+      targetDate: targetDate, // บันทึกลง State
+      duration: duration ?? state.duration,
+    );
   }
   
   // อัปเดตระดับกิจกรรม
@@ -268,6 +302,54 @@ class UserDataNotifier extends StateNotifier<UserData> {
       lunchMenu: '',
       dinnerMenu: '',
       snackMenu: '',
+    );
+  }
+
+  // ฟังก์ชันสำหรับอัปเดตหน่วยนับ
+  void updateUnit({String? weight, String? height, String? energy, String? water}) {
+    state = state.copyWith(
+      unitWeight: weight ?? state.unitWeight,
+      unitHeight: height ?? state.unitHeight,
+      unitEnergy: energy ?? state.unitEnergy,
+      unitWater: water ?? state.unitWater,
+    );
+  }
+
+  // ✅ ฟังก์ชันใหม่: รับข้อมูลทั้งหมดจาก API มาใส่ Provider
+  void setUserFromApi(Map<String, dynamic> data) {
+    // แปลง String วันที่ เป็น DateTime
+    DateTime? tDate;
+    if (data['goal_target_date'] != null) {
+      tDate = DateTime.parse(data['goal_target_date']);
+    }
+    
+    DateTime? bDate;
+    if (data['birth_date'] != null) {
+      bDate = DateTime.parse(data['birth_date']);
+    }
+
+    // แปลง goal_type เป็น Enum
+    GoalOption userGoal = GoalOption.loseWeight;
+    if (data['goal_type'] == 'maintain_weight') userGoal = GoalOption.maintainWeight;
+    if (data['goal_type'] == 'build_muscle') userGoal = GoalOption.buildMuscle;
+
+    state = state.copyWith(
+      userId: data['user_id'] ?? 0,
+      name: data['username'] ?? 'User',
+      email: data['email'] ?? '',
+      gender: data['gender'] ?? 'male',
+      birthDate: bDate,
+      height: (data['height_cm'] as num?)?.toDouble() ?? 0.0,
+      weight: (data['current_weight_kg'] as num?)?.toDouble() ?? 0.0,
+      targetWeight: (data['target_weight_kg'] as num?)?.toDouble() ?? 0.0,
+      targetDate: tDate,
+      goal: userGoal,
+      activityLevel: data['activity_level'] ?? 'sedentary',
+      // ถ้ามี unit ใน DB ก็ดึงมาด้วย (ถ้าไม่มีให้ใช้ default)
+      unitWeight: data['unit_weight'] ?? 'kg',
+      unitHeight: data['unit_height'] ?? 'cm',
+      unitEnergy: data['unit_energy'] ?? 'kcal',
+      unitWater: data['unit_water'] ?? 'ml',
     );
   }
 }
