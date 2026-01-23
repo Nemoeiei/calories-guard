@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart'; 
-import '../../services/auth_service.dart'; // ✅ เรียกใช้ Service ตัวเดิม
+import '../../services/auth_service.dart'; 
 import 'personal_info_screen.dart';
 
 class GenderSelectionScreen extends ConsumerStatefulWidget {
@@ -13,19 +13,28 @@ class GenderSelectionScreen extends ConsumerStatefulWidget {
 
 class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
   String? selectedGender;
-  final AuthService _authService = AuthService(); // ✅ สร้างตัวแปร Service
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
 
-  // 🔥 ฟังก์ชันใหม่: ส่งค่าเพศไปเก็บใน Database
   void _saveGenderToDb() async {
     if (selectedGender == null) return;
 
+    // 1. ดึง user_id
+    final userId = ref.read(userDataProvider).userId; 
+    
+    // ⚠️ เช็คความปลอดภัย: ถ้า userId เป็น 0 แสดงว่าการสมัคร/ล็อกอินมีปัญหา
+    if (userId == 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบข้อมูลผู้ใช้ (กรุณาเข้าสู่ระบบใหม่)'), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    // 1. ดึง user_id ของคนที่เพิ่งสมัคร/ล็อกอิน มาจาก Provider
-    final userId = ref.read(userDataProvider).userId; 
-
-    // 2. ยิง API ไปที่ Backend (ใช้คำสั่ง PUT ที่เราเขียนไว้)
+    // 2. ยิง API อัปเดตเพศ
     bool isSuccess = await _authService.updateProfile(userId, {
       "gender": selectedGender, 
     });
@@ -33,7 +42,7 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
     setState(() => _isLoading = false);
 
     if (isSuccess) {
-      // ✅ ถ้าสำเร็จ อัปเดตข้อมูลในแอปด้วย แล้วไปหน้าถัดไป
+      // ✅ 3. อัปเดตข้อมูลในแอป แล้วไปหน้าถัดไป
       ref.read(userDataProvider.notifier).setGender(selectedGender!);
       if (mounted) {
         Navigator.push(
@@ -42,10 +51,9 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
         );
       }
     } else {
-      // ❌ ถ้าไม่สำเร็จ
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ไม่สามารถบันทึกเพศได้ กรุณาลองใหม่'), backgroundColor: Colors.red),
+          const SnackBar(content: Text('ไม่สามารถบันทึกเพศได้ กรุณาลองใหม่อีกครั้ง'), backgroundColor: Colors.red),
         );
       }
     }
@@ -58,9 +66,20 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ... (ส่วน Header และปุ่มย้อนกลับ เหมือนเดิม) ...
-            const SizedBox(height: 50),
-            const Text('เลือกเพศของคุณ', style: TextStyle(fontSize: 32)),
+            // ปุ่มย้อนกลับ (ถ้าต้องการ)
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 20, top: 20),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 20),
+            const Text('เลือกเพศของคุณ', style: TextStyle(fontSize: 32, fontFamily: 'Inter', fontWeight: FontWeight.w500)),
             
             const SizedBox(height: 50),
             Row(
@@ -74,7 +93,6 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
             
             const Spacer(),
             
-            // ✅ ปุ่มถัดไปที่เรียกใช้ฟังก์ชันบันทึกข้อมูลจริง
             Padding(
               padding: const EdgeInsets.only(bottom: 40),
               child: GestureDetector(
@@ -88,7 +106,7 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
                   child: Center(
                     child: _isLoading 
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('ถัดไป', style: TextStyle(color: Colors.white, fontSize: 20)),
+                      : const Text('ถัดไป', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
@@ -99,22 +117,23 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
     );
   }
 
-  // Helper สร้าง Card เพศ
   Widget _buildGenderCard(String gender, String label, String imgPath) {
     bool isSelected = selectedGender == gender;
     return GestureDetector(
       onTap: () => setState(() => selectedGender = gender),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.green.withOpacity(0.2) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: isSelected ? Border.all(color: Colors.green, width: 2) : null,
+          color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(20),
+          border: isSelected ? Border.all(color: const Color(0xFF4C6414), width: 3) : Border.all(color: Colors.transparent, width: 3),
+          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)] : [],
         ),
         child: Column(
           children: [
             Image.asset(imgPath, width: 100, height: 100),
-            Text(label, style: const TextStyle(fontSize: 20)),
+            const SizedBox(height: 10),
+            Text(label, style: TextStyle(fontSize: 20, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
           ],
         ),
       ),

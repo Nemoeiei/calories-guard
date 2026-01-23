@@ -30,7 +30,7 @@ class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
     super.dispose();
   }
 
-  // ✅ ฟังก์ชันบันทึกข้อมูล (รวมแคลอรี่) และจบ Flow
+  // ✅ ฟังก์ชันบันทึกข้อมูล (รวมแคลอรี่และสารอาหาร) และจบ Flow
   void _saveAndFinish() async {
     if (_targetWeightController.text.isEmpty || _durationController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -49,20 +49,20 @@ class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
     DateTime targetDate = DateTime.now().add(Duration(days: weeks * 7));
     String targetDateStr = "${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}";
 
-    // 2. 🔥 ดึงค่าแคลอรี่ที่คำนวณเสร็จแล้วจาก Provider
-    // (Provider คำนวณจาก น้ำหนัก/ส่วนสูง/อายุ/เป้าหมาย ที่เรากรอกมาทั้งหมดก่อนหน้านี้)
-    // หมายเหตุ: ต้องมั่นใจว่า Goal ถูก set ใน Provider แล้วจากหน้าก่อนหน้า
-    // ถ้ายังไม่ set เราต้อง set ชั่วคราวก่อนคำนวณ หรือมั่นใจว่าหน้าก่อนหน้า set แล้ว
-    
-    // ดึง Goal ปัจจุบันมาเช็ค (ถ้ายังไม่ตรงกับที่เลือกในหน้านี้ ให้ใช้ที่เลือกมา)
+    // 2. 🔥 ดึงค่าแคลอรี่และคำนวณสารอาหาร
+    // จำลอง UserData ชั่วคราวเพื่อคำนวณค่า TDEE
     final currentGoal = widget.selectedGoal;
-    
-    // จำลอง UserData ชั่วคราวเพื่อคำนวณ (กรณี Provider ยังไม่อัปเดต Goal ล่าสุด)
     final currentUserData = ref.read(userDataProvider);
     final tempUserData = currentUserData.copyWith(goal: currentGoal);
     
-    // คำนวณแคลอรี่เป้าหมาย (TDEE - 500 หรือตามสูตรใน UserData)
+    // 2.1 คำนวณแคลอรี่เป้าหมาย (TDEE +/- ตาม Goal)
     int calculatedCalories = tempUserData.targetCalories.toInt();
+
+    // 2.2 🔥 คำนวณสารอาหาร (Macros) ตรงนี้เลย 
+    // สัดส่วนมาตรฐาน: Protein 30% / Carbs 40% / Fat 30%
+    int targetProtein = (calculatedCalories * 0.30 / 4).round(); // 1g Protein = 4 kcal
+    int targetCarbs = (calculatedCalories * 0.40 / 4).round();   // 1g Carbs = 4 kcal
+    int targetFat = (calculatedCalories * 0.30 / 9).round();     // 1g Fat = 9 kcal
 
     // 3. ส่งข้อมูลทั้งหมดไป Backend
     final userId = ref.read(userDataProvider).userId;
@@ -70,7 +70,10 @@ class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
     bool success = await _authService.updateProfile(userId, {
       "target_weight_kg": targetW,
       "goal_target_date": targetDateStr,
-      "target_calories": calculatedCalories, // ✅ ส่งแคลอรี่ไปบันทึก
+      "target_calories": calculatedCalories,
+      "target_protein": targetProtein, // ✅ ส่งโปรตีน
+      "target_carbs": targetCarbs,     // ✅ ส่งคาร์บ
+      "target_fat": targetFat,         // ✅ ส่งไขมัน
     });
 
     setState(() => _isLoading = false);
@@ -82,7 +85,7 @@ class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
         duration: weeks
       );
       
-      // อย่าลืมอัปเดต Goal ใน Provider ด้วย (เผื่อหน้าก่อนหน้าไม่ได้ทำ)
+      // อัปเดต Goal ใน Provider ให้ตรงกับปัจจุบัน
       ref.read(userDataProvider.notifier).setGoal(widget.selectedGoal);
 
       if (mounted) {
@@ -103,7 +106,7 @@ class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ... (ส่วน UI ทั้งหมดเหมือนเดิม ไม่ต้องแก้) ...
+    // กำหนดค่า UI ตามเป้าหมายที่เลือก
     String titleText = '';
     Color subTitleColor = Colors.black;
     String imageUrl = '';

@@ -1,5 +1,7 @@
-from datetime import date
+from datetime import date, datetime
 import hashlib
+from typing import List, Optional
+from enum import Enum
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from passlib.context import CryptContext
@@ -8,25 +10,36 @@ from psycopg2.extras import RealDictCursor
 
 app = FastAPI()
 
-# --- Config: ตั้งค่าการเข้ารหัสรหัสผ่าน ---
+# --- Config & Helper ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# --- Helper Functions: ช่วยเข้ารหัส/ตรวจสอบรหัสผ่าน ---
 def get_password_hash(password):
-    # 1. แปลงรหัสผ่านยาวๆ เป็น SHA-256 ก่อน
     hashed_sha256 = hashlib.sha256(password.encode('utf-8')).hexdigest()
-    # 2. ส่งให้ Bcrypt เข้ารหัสต่อ
     return pwd_context.hash(hashed_sha256)
 
 def verify_password(plain_password, hashed_password):
-    # ตอนตรวจสอบ ก็ต้องแปลงเป็น SHA-256 ก่อน
     hashed_sha256 = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
     return pwd_context.verify(hashed_sha256, hashed_password)
 
-# ==========================================
-# Models (โครงสร้างข้อมูลรับ-ส่ง)
-# ==========================================
+# --- Enums (ให้ตรงกับ DB) ---
+class GoalType(str, Enum):
+    lose_weight = 'lose_weight'
+    maintain_weight = 'maintain_weight'
+    gain_muscle = 'gain_muscle'
 
+class ActivityLevel(str, Enum):
+    sedentary = 'sedentary'
+    lightly_active = 'lightly_active'
+    moderately_active = 'moderately_active'
+    very_active = 'very_active'
+
+class MealType(str, Enum):
+    breakfast = 'breakfast'
+    lunch = 'lunch'
+    dinner = 'dinner'
+    snack = 'snack'
+
+# --- Pydantic Models ---
 class UserRegister(BaseModel):
     email: str
     password: str
@@ -37,25 +50,34 @@ class UserLogin(BaseModel):
     password: str
 
 class UserUpdate(BaseModel):
+    username: str | None = None
     gender: str | None = None
     birth_date: date | None = None
     height_cm: float | None = None
     current_weight_kg: float | None = None
-    goal_type: str | None = None
+    goal_type: GoalType | None = None
     target_weight_kg: float | None = None
-    goal_target_date: date | None = None
     target_calories: int | None = None
+    activity_level: ActivityLevel | None = None
+    goal_target_date: date | None = None
+    unit_weight: str | None = None
+    unit_height: str | None = None
+    unit_energy: str | None = None
+    unit_water: str | None = None
+
+class MealItem(BaseModel):
+    food_id: int
+    amount: float = 1.0
+    food_name: str
+    cal_per_unit: float
+    protein_per_unit: float
+    carbs_per_unit: float
+    fat_per_unit: float
 
 class DailyLogUpdate(BaseModel):
     date: date
-    calories: int
-    protein: int
-    carbs: int
-    fat: int
-    breakfast_menu: str
-    lunch_menu: str
-    dinner_menu: str
-    snack_menu: str
+    meal_type: MealType
+    items: List[MealItem]
 
 # ==========================================
 # API Endpoints
@@ -63,14 +85,12 @@ class DailyLogUpdate(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"message": "API is running! Welcome to CleanGoal Backend."}
+    return {"message": "API is running with New Database Structure!"}
 
-# --- API 1: ดึงรายชื่ออาหารทั้งหมด ---
+# --- API 1: Foods List ---
 @app.get("/foods")
 def read_foods():
     conn = get_db_connection()
-    if conn is None:
-        raise HTTPException(status_code=500, detail="Database connection failed")
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM foods ORDER BY food_id ASC")
@@ -80,12 +100,10 @@ def read_foods():
     finally:
         if conn: conn.close()
 
-# --- API 2: ดึงข้อมูลอาหารตาม ID ---
+# --- API 2: Food Detail ---
 @app.get("/foods/{food_id}")
 def read_food(food_id: int):
     conn = get_db_connection()
-    if conn is None:
-        raise HTTPException(status_code=500, detail="Database connection failed")
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM foods WHERE food_id = %s", (food_id,))
@@ -96,43 +114,43 @@ def read_food(food_id: int):
     finally:
         if conn: conn.close()
 
-# --- API 3: สมัครสมาชิก (Register) ---
+# --- API 3: Register ---
 @app.post("/register")
 def register(user: UserRegister):
     conn = get_db_connection()
-    if conn is None:
-        raise HTTPException(status_code=500, detail="Database connection failed")
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # 1. เช็คอีเมลซ้ำ
+        # 1. Check Email
         cur.execute("SELECT * FROM users WHERE email = %s", (user.email,))
         if cur.fetchone():
             raise HTTPException(status_code=400, detail="Email already exists")
-        # 2. เข้ารหัส
+        
+        # 2. Insert User
         hashed_pw = get_password_hash(user.password)
-        # 3. บันทึก
-        sql = """
-            INSERT INTO users (email, password_hash, username, created_at, updated_at)
-            VALUES (%s, %s, %s, NOW(), NOW())
+        cur.execute("""
+            INSERT INTO users (email, password_hash, username, role_id)
+            VALUES (%s, %s, %s, 2)
             RETURNING user_id, email, username
-        """
-        cur.execute(sql, (user.email, hashed_pw, user.username))
+        """, (user.email, hashed_pw, user.username))
         new_user = cur.fetchone()
+        
+        # 3. Init User Stats
+        cur.execute("""
+            INSERT INTO user_stats (user_id, date_logged) VALUES (%s, CURRENT_DATE)
+        """, (new_user['user_id'],))
+        
         conn.commit()
-        return {"message": "User created successfully", "user": new_user}
+        return {"message": "User created", "user": new_user}
     except Exception as e:
         conn.rollback()
-        print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn: conn.close()
 
-# --- API 4: เข้าสู่ระบบ (Login) ---
+# --- API 4: Login ---
 @app.post("/login")
 def login(user: UserLogin):
     conn = get_db_connection()
-    if conn is None:
-        raise HTTPException(status_code=500, detail="Database connection failed")
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM users WHERE email = %s", (user.email,))
@@ -147,196 +165,263 @@ def login(user: UserLogin):
             "username": db_user['username'],
             "email": db_user['email']
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn: conn.close()
 
-# --- API 5: อัปเดตข้อมูลผู้ใช้ (PUT) ---
+# --- API 5: Update User ---
 @app.put("/users/{user_id}")
 def update_user(user_id: int, user_update: UserUpdate):
     conn = get_db_connection()
-    if conn is None:
-        raise HTTPException(status_code=500, detail="Database connection failed")
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        update_fields = []
-        values = []
         
-        # ตรวจสอบว่าส่งค่าอะไรมาบ้าง
-        if user_update.target_calories is not None:
-            update_fields.append("target_calories = %s")
-            values.append(user_update.target_calories)
-        if user_update.target_weight_kg:
-            update_fields.append("target_weight_kg = %s")
-            values.append(user_update.target_weight_kg)
-        if user_update.goal_target_date:
-            update_fields.append("goal_target_date = %s")
-            values.append(user_update.goal_target_date)
-        if user_update.goal_type:
-            update_fields.append("goal_type = %s")
-            values.append(user_update.goal_type)
-        if user_update.gender:
-            update_fields.append("gender = %s")
-            values.append(user_update.gender)
-        if user_update.birth_date:
-            update_fields.append("birth_date = %s")
-            values.append(user_update.birth_date)
-        if user_update.height_cm:
-            update_fields.append("height_cm = %s")
-            values.append(user_update.height_cm)
-        if user_update.current_weight_kg:
-            update_fields.append("current_weight_kg = %s")
-            values.append(user_update.current_weight_kg)
-            
-        if not update_fields:
-             return {"message": "No fields to update"}
-             
-        values.append(user_id)
-        
-        sql = f"""
-            UPDATE users 
-            SET {", ".join(update_fields)}, updated_at = NOW()
-            WHERE user_id = %s
-            RETURNING *
-        """
-        cur.execute(sql, tuple(values))
-        updated_user = cur.fetchone()
-        conn.commit()
-        
-        if updated_user is None:
-            raise HTTPException(status_code=404, detail="User not found")
-            
-        return {"message": "Update successful", "user": updated_user}
-    except Exception as e:
-        conn.rollback()
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if conn: conn.close()
+        # 1. Update users table
+        user_fields = []
+        user_values = []
+        if user_update.username: user_fields.append("username=%s"); user_values.append(user_update.username)
+        if user_update.goal_type: user_fields.append("goal_type=%s"); user_values.append(user_update.goal_type)
+        if user_update.target_weight_kg: user_fields.append("target_weight_kg=%s"); user_values.append(user_update.target_weight_kg)
+        if user_update.target_calories: user_fields.append("target_calories=%s"); user_values.append(user_update.target_calories)
+        if user_update.activity_level: user_fields.append("activity_level=%s"); user_values.append(user_update.activity_level)
+        if user_update.gender: user_fields.append("gender=%s"); user_values.append(user_update.gender)
+        if user_update.birth_date: user_fields.append("birth_date=%s"); user_values.append(user_update.birth_date)
+        if user_update.height_cm: user_fields.append("height_cm=%s"); user_values.append(user_update.height_cm)
+        if user_update.current_weight_kg: user_fields.append("current_weight_kg=%s"); user_values.append(user_update.current_weight_kg)
+        if user_update.goal_target_date: user_fields.append("goal_target_date=%s"); user_values.append(user_update.goal_target_date)
+        # Units
+        if user_update.unit_weight: user_fields.append("unit_weight=%s"); user_values.append(user_update.unit_weight)
+        if user_update.unit_height: user_fields.append("unit_height=%s"); user_values.append(user_update.unit_height)
+        if user_update.unit_energy: user_fields.append("unit_energy=%s"); user_values.append(user_update.unit_energy)
+        if user_update.unit_water: user_fields.append("unit_water=%s"); user_values.append(user_update.unit_water)
 
-# --- API 6: ดึงข้อมูลการกินของวันนี้ (GET Daily Log) ---
-@app.get("/daily_logs/{user_id}")
-def get_daily_log(user_id: int, date_query: date):
-    conn = get_db_connection()
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # ดึงทั้ง log และ target_calories ของ user
-        sql = """
-            SELECT d.*, u.target_calories 
-            FROM daily_logs d
-            RIGHT JOIN users u ON d.user_id = u.user_id
-            WHERE u.user_id = %s AND (d.date = %s OR d.date IS NULL)
-        """
-        cur.execute(sql, (user_id, date_query))
-        result = cur.fetchone()
-        
-        # จัดการค่า Default กรณีไม่มีข้อมูล
-        if result:
-            if result['target_calories'] is None: result['target_calories'] = 0
-            if result['log_id'] is None: # ถ้าไม่มี log วันนี้
-                return {
-                    "calories": 0, "protein": 0, "carbs": 0, "fat": 0,
-                    "breakfast_menu": "", "lunch_menu": "", "dinner_menu": "", "snack_menu": "",
-                    "target_calories": result['target_calories']
-                }
-            return result
-        else:
-            raise HTTPException(status_code=404, detail="User not found")
-    finally:
-        if conn: conn.close()
+        if user_fields:
+            user_values.append(user_id)
+            sql = f"UPDATE users SET {', '.join(user_fields)} WHERE user_id = %s"
+            cur.execute(sql, tuple(user_values))
 
-# --- API 7: บันทึกการกินรายวัน (PUT Daily Log) ---
-@app.put("/daily_logs/{user_id}")
-def update_daily_log(user_id: int, log: DailyLogUpdate):
-    conn = get_db_connection()
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        sql = """
-            INSERT INTO daily_logs (user_id, date, calories, protein, carbs, fat, breakfast_menu, lunch_menu, dinner_menu, snack_menu, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-            ON CONFLICT (user_id, date) 
-            DO UPDATE SET 
-                calories = EXCLUDED.calories,
-                protein = EXCLUDED.protein,
-                carbs = EXCLUDED.carbs,
-                fat = EXCLUDED.fat,
-                breakfast_menu = EXCLUDED.breakfast_menu,
-                lunch_menu = EXCLUDED.lunch_menu,
-                dinner_menu = EXCLUDED.dinner_menu,
-                snack_menu = EXCLUDED.snack_menu,
-                updated_at = NOW()
-            RETURNING *;
-        """
-        cur.execute(sql, (
-            user_id, log.date, log.calories, log.protein, log.carbs, log.fat,
-            log.breakfast_menu, log.lunch_menu, log.dinner_menu, log.snack_menu
-        ))
-        updated_log = cur.fetchone()
+        # 2. Update user_stats (ประวัติ)
+        if user_update.current_weight_kg or user_update.height_cm:
+            cur.execute("""
+                INSERT INTO user_stats (user_id, date_logged, weight_kg, height_cm)
+                VALUES (%s, CURRENT_DATE, %s, %s)
+                ON CONFLICT (user_id, date_logged) 
+                DO UPDATE SET weight_kg = EXCLUDED.weight_kg, height_cm = EXCLUDED.height_cm
+            """, (user_id, user_update.current_weight_kg, user_update.height_cm))
+
         conn.commit()
-        return {"message": "Log updated", "data": updated_log}
+        return {"message": "Update successful"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn: conn.close()
 
-# --- API 8: ดึงข้อมูล User Profile (GET) ---
+# --- API 6: Get User Profile ---
 @app.get("/users/{user_id}")
 def get_user_profile(user_id: int):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT user_id, email, username, gender, birth_date, 
-                   height_cm, current_weight_kg, target_weight_kg, 
-                   target_calories, goal_type
-            FROM users 
-            WHERE user_id = %s
-        """, (user_id,))
+        cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
         user = cur.fetchone()
-        
-        if user is None:
+        if not user:
             raise HTTPException(status_code=404, detail="User not found")
-            
         return user
     finally:
         if conn: conn.close()
-@app.get("/daily_logs/{user_id}/weekly")
-def get_weekly_logs(user_id: int):
+
+# --- API 7: Record Meal (แบบใหม่) ---
+@app.post("/meals/{user_id}")
+def add_meal(user_id: int, log: DailyLogUpdate):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # SQL: ดึงข้อมูล 7 วันล่าสุด เรียงตามวันที่
-        sql = """
-            SELECT date, calories, protein, carbs, fat
-            FROM daily_logs
-            WHERE user_id = %s 
-              AND date >= CURRENT_DATE - INTERVAL '6 days'
-            ORDER BY date ASC
-        """
-        cur.execute(sql, (user_id,))
-        logs = cur.fetchall()
+        # 1. Create Meal
+        cur.execute("""
+            INSERT INTO meals (user_id, meal_type, created_at)
+            VALUES (%s, %s, NOW())
+            RETURNING meal_id
+        """, (user_id, log.meal_type))
+        meal_id = cur.fetchone()['meal_id']
         
-        return logs # ส่งกลับเป็น List [{}, {}, ...]
+        # 2. Insert Items & Calculate Total
+        total_cal = 0
+        total_prot = 0
+        total_carb = 0
+        total_fat = 0
+        
+        for item in log.items:
+            cal = item.cal_per_unit * item.amount
+            prot = item.protein_per_unit * item.amount
+            carb = item.carbs_per_unit * item.amount
+            fat = item.fat_per_unit * item.amount
+            
+            total_cal += cal
+            total_prot += prot
+            total_carb += carb
+            total_fat += fat
+            
+            cur.execute("""
+                INSERT INTO meal_items (meal_id, food_id, amount, food_name, 
+                                        cal_per_unit, protein_per_unit, carbs_per_unit, fat_per_unit)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (meal_id, item.food_id, item.amount, item.food_name, 
+                  item.cal_per_unit, item.protein_per_unit, item.carbs_per_unit, item.fat_per_unit))
+
+        # 3. Update Daily Summary
+        cur.execute("""
+            INSERT INTO daily_summaries (user_id, date_record, total_calories_intake, total_protein, total_carbs, total_fat)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, date_record)
+            DO UPDATE SET 
+                total_calories_intake = daily_summaries.total_calories_intake + EXCLUDED.total_calories_intake,
+                total_protein = daily_summaries.total_protein + EXCLUDED.total_protein,
+                total_carbs = daily_summaries.total_carbs + EXCLUDED.total_carbs,
+                total_fat = daily_summaries.total_fat + EXCLUDED.total_fat
+        """, (user_id, log.date, total_cal, total_prot, total_carb, total_fat))
+        
+        conn.commit()
+        return {"message": "Meal recorded successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
-        conn.close()
+        if conn: conn.close()
+
+# --- API 8: Get Daily Summary (แก้ไขให้มีชื่อเมนูอาหาร) ---
+@app.get("/daily_summary/{user_id}")
+def get_daily_summary(user_id: int, date_record: date):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # 1. ดึงเป้าหมายแคลอรี่
+        cur.execute("SELECT target_calories FROM users WHERE user_id = %s", (user_id,))
+        user = cur.fetchone()
+        target_cal = user['target_calories'] if user else 2000
+        
+        # 2. ดึงข้อมูลตัวเลขสรุป (Summary)
+        cur.execute("""
+            SELECT * FROM daily_summaries 
+            WHERE user_id = %s AND date_record = %s
+        """, (user_id, date_record))
+        summary = cur.fetchone()
+        
+        if not summary:
+            summary = {
+                "total_calories_intake": 0, "total_protein": 0, 
+                "total_carbs": 0, "total_fat": 0, 
+                "target_calories": target_cal
+            }
+        else:
+            summary['target_calories'] = target_cal
+
+        # 🔥 3. [เพิ่มส่วนนี้] ดึงรายชื่ออาหาร แยกตามมื้อ (GroupConcat)
+        cur.execute("""
+            SELECT m.meal_type, STRING_AGG(mi.food_name, ', ') as menu_names
+            FROM meals m
+            JOIN meal_items mi ON m.meal_id = mi.meal_id
+            WHERE m.user_id = %s AND DATE(m.meal_time) = %s
+            GROUP BY m.meal_type
+        """, (user_id, date_record))
+        
+        menu_rows = cur.fetchall()
+        
+        # แปลงข้อมูลให้อยู่ในรูป Dictionary
+        menus = {row['meal_type']: row['menu_names'] for row in menu_rows}
+        
+        # ยัดใส่กลับเข้าไปใน summary ส่งกลับไปให้ App
+        summary['breakfast_menu'] = menus.get('breakfast', '')
+        summary['lunch_menu'] = menus.get('lunch', '')
+        summary['dinner_menu'] = menus.get('dinner', '')
+        summary['snack_menu'] = menus.get('snack', '') # รวมมื้อว่างทั้งหมด
+        
+        return summary
+    finally:
+        if conn: conn.close()
+
+# --- API 9: Delete User ---
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+        conn.commit()
+        return {"message": "User deleted successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API 10: Calendar Logs ---
 @app.get("/daily_logs/{user_id}/calendar")
 def get_calendar_logs(user_id: int, month: int, year: int):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # ดึงเฉพาะวันที่ ที่มีข้อมูล
         sql = """
-            SELECT date, calories 
-            FROM daily_logs
+            SELECT date_record as date, total_calories_intake as calories 
+            FROM daily_summaries
             WHERE user_id = %s 
-              AND EXTRACT(MONTH FROM date) = %s
-              AND EXTRACT(YEAR FROM date) = %s
+              AND EXTRACT(MONTH FROM date_record) = %s
+              AND EXTRACT(YEAR FROM date_record) = %s
         """
         cur.execute(sql, (user_id, month, year))
         logs = cur.fetchall()
-        return logs # ส่งกลับเป็น List ของวันที่ที่มีข้อมูล
+        return logs
+    finally:
+        if conn: conn.close()
+# --- API 11: Clear Specific Meal Type (ล้างข้อมูลมื้ออาหารเฉพาะมื้อ) ---
+@app.delete("/meals/clear/{user_id}")
+def clear_meal_type(user_id: int, date_record: date, meal_type: MealType):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        
+        # 1. ลบข้อมูลในตาราง meals (เดี๋ยว meal_items จะหายไปเองเพราะ CASCADE หรือ trigger ถ้าตั้งไว้)
+        # หรือถ้าไม่มี CASCADE ต้องลบ items ก่อน เเต่ในที่นี้สมมติลบ meals ก็พอ
+        
+        # ค้นหา meal_id ที่ตรงกับ user, วันที่, และประเภทมื้อ
+        cur.execute("""
+            DELETE FROM meals 
+            WHERE user_id = %s 
+              AND DATE(meal_time) = %s 
+              AND meal_type = %s
+        """, (user_id, date_record, meal_type))
+        
+        # 2. ต้องไปคำนวณ Daily Summary ใหม่ด้วย (ลดค่าแคลอรี่ลง)
+        # วิธีที่ง่ายที่สุดคือ "คำนวณใหม่หมด (Recalculate)" จากข้อมูลที่เหลือ
+        cur.execute("""
+            SELECT 
+                COALESCE(SUM(mi.amount * mi.cal_per_unit), 0) as total_cal,
+                COALESCE(SUM(mi.amount * mi.protein_per_unit), 0) as total_protein,
+                COALESCE(SUM(mi.amount * mi.carbs_per_unit), 0) as total_carbs,
+                COALESCE(SUM(mi.amount * mi.fat_per_unit), 0) as total_fat
+            FROM meals m
+            JOIN meal_items mi ON m.meal_id = mi.meal_id
+            WHERE m.user_id = %s AND DATE(m.meal_time) = %s
+        """, (user_id, date_record))
+        
+        new_stats = cur.fetchone()
+        
+        # อัปเดตตารางสรุป daily_summaries ให้ตรงกับความเป็นจริง
+        cur.execute("""
+            UPDATE daily_summaries
+            SET total_calories_intake = %s,
+                total_protein = %s,
+                total_carbs = %s,
+                total_fat = %s
+            WHERE user_id = %s AND date_record = %s
+        """, (new_stats[0], new_stats[1], new_stats[2], new_stats[3], user_id, date_record))
+
+        conn.commit()
+        return {"message": f"Cleared {meal_type} successfully"}
+        
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn: conn.close()
