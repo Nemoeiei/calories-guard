@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import '/providers/user_data_provider.dart'; // ตรวจสอบ Path ให้ถูก
+import '/providers/user_data_provider.dart'; // ปรับ Path ให้ตรงกับโครงสร้างของคุณ
 
 class ProgressScreen extends ConsumerStatefulWidget {
   const ProgressScreen({super.key});
@@ -18,7 +18,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   DateTime _currentMonth = DateTime.now();
   
   List<dynamic> _weeklyData = [];
-  List<DateTime> _loggedDates = [];
+  // ✅ เปลี่ยนจาก List<DateTime> เป็น List<Map> เพื่อเก็บทั้ง date และ calories
+  List<Map<String, dynamic>> _calendarData = []; 
   bool _isLoading = true;
 
   @override
@@ -42,7 +43,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   Future<void> _fetchWeeklyData() async {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
-    // ⚠️ แก้ IP ให้ตรง (10.0.2.2 หรือ 127.0.0.1)
+    // ⚠️ แก้ IP ให้ตรง (10.0.2.2 หรือ localhost)
     final url = Uri.parse('http://10.0.2.2:8000/daily_logs/$userId/weekly');
     try {
       final response = await http.get(url);
@@ -60,6 +61,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   Future<void> _fetchCalendarData() async {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
+    // URL นี้ควร return list ของ { "date": "YYYY-MM-DD", "calories": 1500 }
     final url = Uri.parse(
         'http://10.0.2.2:8000/daily_logs/$userId/calendar?month=${_currentMonth.month}&year=${_currentMonth.year}');
     try {
@@ -67,7 +69,11 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         setState(() {
-          _loggedDates = data.map((e) => DateTime.parse(e['date'])).toList();
+          // ✅ แปลงข้อมูลและเก็บทั้ง date และ calories
+          _calendarData = data.map((e) => {
+            'date': DateTime.parse(e['date']),
+            'calories': e['calories'] ?? 0, // กันเหนียวถ้าไม่มี field นี้
+          }).toList();
         });
       }
     } catch (e) {
@@ -116,10 +122,10 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               _buildDetailRow('ไขมัน', '${data['fat']} g'),
               const SizedBox(height: 15),
               const Text("เมนูที่ทาน:", style: TextStyle(fontWeight: FontWeight.bold)),
-              if (data['breakfast_menu'] != "") Text("เช้า: ${data['breakfast_menu']}"),
-              if (data['lunch_menu'] != "") Text("เที่ยง: ${data['lunch_menu']}"),
-              if (data['dinner_menu'] != "") Text("เย็น: ${data['dinner_menu']}"),
-              if (data['snack_menu'] != "") Text("ว่าง: ${data['snack_menu']}"),
+              if (data['breakfast_menu'] != null && data['breakfast_menu'] != "") Text("เช้า: ${data['breakfast_menu']}"),
+              if (data['lunch_menu'] != null && data['lunch_menu'] != "") Text("เที่ยง: ${data['lunch_menu']}"),
+              if (data['dinner_menu'] != null && data['dinner_menu'] != "") Text("เย็น: ${data['dinner_menu']}"),
+              if (data['snack_menu'] != null && data['snack_menu'] != "") Text("ว่าง: ${data['snack_menu']}"),
               const SizedBox(height: 20),
             ],
           ),
@@ -165,15 +171,28 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   }
 
   int _calculateStreak() {
-    if (_loggedDates.isEmpty) return 0;
-    _loggedDates.sort((a, b) => b.compareTo(a));
+    if (_calendarData.isEmpty) return 0;
+    
+    // ดึงเฉพาะวันที่ที่มีแคลอรี่ > 0 มาคิด Streak
+    List<DateTime> validDates = _calendarData
+        .where((e) => (e['calories'] as num) > 0)
+        .map((e) => e['date'] as DateTime)
+        .toList();
+
+    if (validDates.isEmpty) return 0;
+
+    validDates.sort((a, b) => b.compareTo(a)); // เรียงจากใหม่ไปเก่า
+    
     int streak = 0;
     DateTime checkDate = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-    if (!_loggedDates.any((d) => isSameDay(d, checkDate))) {
+    
+    // ถ้าวันนี้ยังไม่ได้บันทึก ให้เริ่มเช็คจากเมื่อวาน
+    if (!validDates.any((d) => isSameDay(d, checkDate))) {
        checkDate = checkDate.subtract(const Duration(days: 1));
     }
+    
     while (true) {
-      if (_loggedDates.any((d) => isSameDay(d, checkDate))) {
+      if (validDates.any((d) => isSameDay(d, checkDate))) {
         streak++;
         checkDate = checkDate.subtract(const Duration(days: 1));
       } else {
@@ -254,7 +273,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // --- 1. กราฟรายสัปดาห์ (Weekly Chart) ---
+                      // --- 1. กราฟรายสัปดาห์ ---
                       _buildWhiteCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,7 +286,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                               ],
                             ),
                             const SizedBox(height: 20),
-                            // เรียกใช้ Widget กราฟที่สร้างไว้ข้างล่าง
                             _WeeklyBarChart(
                               weeklyData: _weeklyData,
                               targetCal: targetCal,
@@ -402,23 +420,52 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     List<Widget> dayHeaders = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
         .map((day) => Center(child: Text(day, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))).toList();
     List<Widget> dayCells = [];
+    
     for (int i = 1; i < firstWeekday; i++) dayCells.add(Container());
+    
     for (int day = 1; day <= daysInMonth; day++) {
       DateTime date = DateTime(month.year, month.month, day);
-      bool isLogged = _loggedDates.any((d) => isSameDay(d, date));
+      
+      // ✅ Logic ใหม่: หาข้อมูลของวันนั้นๆ เพื่อเช็ค Calories
+      Map<String, dynamic>? logData = _calendarData.firstWhere(
+        (data) => isSameDay(data['date'], date),
+        orElse: () => {},
+      );
+
+      bool isLogged = logData.isNotEmpty; // มี record ใน DB ไหม
+      double cal = isLogged ? (logData['calories'] as num).toDouble() : 0.0;
       bool isToday = isSameDay(date, DateTime.now());
+
+      // ✅ เงื่อนไขสี: เขียวถ้าแคล > 0, แดงถ้าแคล = 0 (และมี record)
+      Color? circleColor;
+      if (isLogged) {
+        if (cal > 0) {
+          circleColor = const Color(0xFF628141); // เขียว
+        } else {
+          circleColor = Colors.red; // แดง
+        }
+      } else if (isToday) {
+        circleColor = Colors.grey.shade300;
+      } else {
+        circleColor = Colors.transparent;
+      }
+
       dayCells.add(GestureDetector(
         onTap: isLogged ? () => _showDayDetails(date) : null,
         child: Center(
           child: Container(
             width: 30, height: 30,
             decoration: BoxDecoration(
-              color: isLogged ? const Color(0xFF628141) : (isToday ? Colors.grey.shade300 : Colors.transparent),
+              color: circleColor,
               shape: BoxShape.circle,
               border: isToday ? Border.all(color: Colors.black) : null,
             ),
             alignment: Alignment.center,
-            child: Text('$day', style: TextStyle(color: isLogged ? Colors.white : Colors.black, fontWeight: isLogged || isToday ? FontWeight.bold : FontWeight.normal, fontSize: 12)),
+            child: Text('$day', style: TextStyle(
+              color: isLogged ? Colors.white : Colors.black, 
+              fontWeight: isLogged || isToday ? FontWeight.bold : FontWeight.normal, 
+              fontSize: 12
+            )),
           ),
         ),
       ));
@@ -484,8 +531,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   }
 }
 
-// --- Widget: กราฟแท่งรายสัปดาห์ (Bar Chart) ---
-// ใช้กับ fl_chart: ^0.68.0 ได้โดยไม่ Error
 class _WeeklyBarChart extends StatelessWidget {
   final List<dynamic> weeklyData;
   final double targetCal;
@@ -513,7 +558,6 @@ class _WeeklyBarChart extends StatelessWidget {
           barTouchData: BarTouchData(
             enabled: true,
             touchTooltipData: BarTouchTooltipData(
-              // ✅ แก้ตรงนี้: เปลี่ยนจาก tooltipBgColor เป็น getTooltipColor
               getTooltipColor: (group) => Colors.black87, 
               getTooltipItem: (group, groupIndex, rod, rodIndex) {
                 return BarTooltipItem(
