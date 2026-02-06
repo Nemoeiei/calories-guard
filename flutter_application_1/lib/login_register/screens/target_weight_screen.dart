@@ -65,9 +65,10 @@ class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
     int targetFat = (calculatedCalories * 0.30 / 9).round();     // 1g Fat = 9 kcal
 
     // 3. ส่งข้อมูลทั้งหมดไป Backend
-    final userId = ref.read(userDataProvider).userId;
+    final token = ref.read(userDataProvider).token;
+    if (token == null) return;
 
-    bool success = await _authService.updateProfile(userId, {
+    bool success = await _authService.updateProfile(token, {
       "target_weight_kg": targetW,
       "goal_target_date": targetDateStr,
       "target_calories": calculatedCalories,

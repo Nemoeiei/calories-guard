@@ -34,11 +34,12 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
 
     setState(() => _isLoading = true);
 
-    // 1. ดึง ID
-    final userId = ref.read(userDataProvider).userId;
+    // 1. ดึง Token
+    final token = ref.read(userDataProvider).token;
+    if (token == null) return;
 
     // 2. ส่ง API
-    bool success = await _authService.updateProfile(userId, {
+    bool success = await _authService.updateProfile(token, {
       "goal_type": _goalToString(selectedGoal!),
     });
 

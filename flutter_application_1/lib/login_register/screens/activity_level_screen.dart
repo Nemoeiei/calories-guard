@@ -54,11 +54,12 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
     // ดึงค่าภาษาอังกฤษ เช่น 'sedentary', 'light'
     final selectedValue = _activities[_selectedIndex]['value'];
     
-    // ดึง userId ปัจจุบัน
-    final userId = ref.read(userDataProvider).userId;
+    // ดึง token ปัจจุบัน
+    final token = ref.read(userDataProvider).token;
+    if (token == null) return;
 
     // --- ยิง API บันทึกลง Database ---
-    bool success = await _authService.updateProfile(userId, {
+    bool success = await _authService.updateProfile(token, {
       "activity_level": selectedValue,
     });
 

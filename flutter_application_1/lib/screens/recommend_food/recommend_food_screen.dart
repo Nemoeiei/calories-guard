@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/recommendation_service.dart';
 
 class RecommendedFoodScreen extends StatefulWidget {
   const RecommendedFoodScreen({super.key});
@@ -8,59 +9,38 @@ class RecommendedFoodScreen extends StatefulWidget {
 }
 
 class _RecommendedFoodScreenState extends State<RecommendedFoodScreen> {
-  // ✅ 1. แก้ไขข้อมูล: แยกชื่อ (name) และ แคลอรี่ (cal) ออกจากกัน
-  final List<Map<String, String>> _foodMenu = [
-    {
-      'name': 'เมนู หมูพันเห็ดเข็มทองคลีน', // แก้ชื่อผิดนิดหน่อย (เข็มทอง)
-      'cal': '120–150 kcal',
-      'image': 'assets/images/food/หมูพันเห็ดเข็มของคลีน.png', 
-    },
-    {
-      'name': 'เมนู ผักหมูลวกจิ้มคลีน',
-      'cal': '180–220 กิโลแคลอรี่',
-      'image': 'assets/images/food/ลาบวุ้นเส้นคลีน.png',
-    },
-    {
-      'name': 'เมนู ลาบวุ้นเส้นคลีน',
-      'cal': '230–280 kcal',
-      'image': 'assets/images/food/ผักหมูลวกจิ้มคลีน.png',
-    },
-    {
-      'name': 'เมนู กระเพราหมูสับไข่ดาว',
-      'cal': '550–650 kcal',
-      'image': 'assets/images/food/กระเพราหมูสับไข่ดาว.png',
-    },
-  ];
+  List<Map<String, String>> _foodMenu = [];
+  List<Map<String, String>> _drinkMenu = [];
+  bool _isLoading = true;
 
-  final List<Map<String, String>> _drinkMenu = [
-    {
-      'name': 'เมนู นํ้ามะม่วงสมูทตี้',
-      'cal': '180–250 kcal',
-      'image': 'assets/images/food/นํ้ามะม่วงสมูทตี้.png', 
-    },
-    {
-      'name': 'เมนู นํ้าสตอเบอรี่สมูทตี้',
-      'cal': '140–200 kcal',
-      'image': 'assets/images/food/นํ้าสตอเบอรี่สมูทตี้.png',
-    },
-    {
-      'name': 'เมนู มัจฉะลาเต้',
-      'cal': '180–250 kcal',
-      'image': 'assets/images/food/มัจฉะลาเต้.png',
-    },
-    {
-      'name': 'เมนู มัจฉะลาเต้สตอเบอรี่',
-      'cal': '220–300 kcal',
-      'image': 'assets/images/food/มัจฉะลาเต้สตอเบอรี่.png',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchRecommendations();
+  }
+
+  Future<void> _fetchRecommendations() async {
+    final service = RecommendationService();
+    final foods = await service.getRecommendedFoods();
+    final drinks = await service.getRecommendedDrinks();
+
+    if (mounted) {
+      setState(() {
+        if (foods != null) _foodMenu = foods;
+        if (drinks != null) _drinkMenu = drinks;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
-        child: Column(
+        child: _isLoading 
+            ? const Center(child: Padding(padding: EdgeInsets.only(top: 100), child: CircularProgressIndicator()))
+            : Column(
           children: [
             const SizedBox(height: 30),
 

@@ -1,13 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../constants/constants.dart'; // ✅ Import Constants
 
 class AuthService {
-  // ⚠️ เปลี่ยน IP ให้ตรงกับเครื่องที่ใช้ (Android: 10.0.2.2, iOS: 127.0.0.1)
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  // ✅ ใช้ Base URL กลางจาก Constants
+  static const String baseUrl = AppConstants.baseUrl;
 
   // ฟังก์ชันสมัครสมาชิก
   Future<Map<String, dynamic>> register(String username, String email, String password) async {
-    final url = Uri.parse('$baseUrl/register');
+    final url = Uri.parse('$baseUrl/auth/register'); // ✅ เพิ่ม /auth prefix
     
     try {
       final response = await http.post(
@@ -33,7 +34,7 @@ class AuthService {
 
   // ฟังก์ชันเข้าสู่ระบบ
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final url = Uri.parse('$baseUrl/login');
+    final url = Uri.parse('$baseUrl/auth/login'); // ✅ เพิ่ม /auth prefix
 
     try {
       final response = await http.post(
@@ -55,20 +56,50 @@ class AuthService {
       return {'success': false, 'message': 'Connection error: $e'};
     }
   }
-  Future<bool> updateProfile(int userId, Map<String, dynamic> data) async {
-    final url = Uri.parse('$baseUrl/users/$userId');
+
+  // ดึงข้อมูลโปรไฟล์ผู้ใช้
+  // Endpoint: GET /users/profile
+  Future<Map<String, dynamic>?> getUserProfile(String token) async {
+    final url = Uri.parse('$baseUrl/users/profile');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      } else {
+        print('Get Profile Failed: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error getting profile: $e');
+      return null;
+    }
+  }
+
+  // ✅ แก้ไข: รับ Token มาด้วย + แก้ URL ให้ถูก (users/profile)
+  Future<bool> updateProfile(String token, Map<String, dynamic> data) async {
+    final url = Uri.parse('$baseUrl/users/profile'); // ✅ API ที่ถูกต้อง
 
     try {
       final response = await http.put(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token', // ✅ ส่ง Token
+        },
         body: jsonEncode(data),
       );
 
       if (response.statusCode == 200) {
-        return true; // อัปเดตสำเร็จ
+        return true; 
       } else {
-        print('Update failed: ${response.body}');
+        print('Update failed: ${response.statusCode} - ${response.body}');
         return false;
       }
     } catch (e) {

@@ -42,9 +42,13 @@ class UserData {
   final String unitHeight;
   final String unitEnergy;
   final String unitWater;
+  
+  // --- 6. Authentication ---
+  final String? token; // ✅ เพิ่ม Token
 
   UserData({
     this.userId = 0,
+    this.token, // ✅ Init Token
     this.email = '',
     this.password = '',
     this.name = 'User',
@@ -164,6 +168,7 @@ class UserData {
     String? unitHeight,
     String? unitEnergy,
     String? unitWater,
+    String? token, // ✅ Add Token
   }) {
     return UserData(
       userId: userId ?? this.userId,
@@ -191,6 +196,7 @@ class UserData {
       unitHeight: unitHeight ?? this.unitHeight,
       unitEnergy: unitEnergy ?? this.unitEnergy,
       unitWater: unitWater ?? this.unitWater,
+      token: token ?? this.token, // ✅ Add Token
     );
   }
 }
@@ -199,6 +205,11 @@ class UserData {
 class UserDataNotifier extends StateNotifier<UserData> {
   UserDataNotifier() : super(UserData());
   
+  // ✅ เพิ่มฟังก์ชัน Set Token
+  void setToken(String token) {
+    state = state.copyWith(token: token);
+  }
+
   // ✅ เพิ่มฟังก์ชัน Logout
   void logout() {
     state = UserData(); // Reset กลับเป็นค่าเริ่มต้นทั้งหมด

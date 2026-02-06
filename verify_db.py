@@ -5,6 +5,10 @@ import sys
 # Add backend directory to python path
 sys.path.append(os.path.join(os.getcwd(), 'backend'))
 
+from dotenv import load_dotenv
+env_path = os.path.join(os.getcwd(), 'backend', '.env')
+load_dotenv(env_path)
+
 from backend.app.core.database import SessionLocal, engine
 from backend.app.models.models import User, Base
 from sqlalchemy import text

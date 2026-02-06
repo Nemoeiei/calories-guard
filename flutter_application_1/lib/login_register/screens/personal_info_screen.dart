@@ -78,11 +78,18 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
     // แปลงวันที่เป็น String format YYYY-MM-DD เพื่อส่งให้ Python
     String birthDateStr = "${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}";
 
-    // 3. ดึง ID จาก Provider
-    final userId = ref.read(userDataProvider).userId;
+    // 3. ดึง Token จาก Provider
+    final token = ref.read(userDataProvider).token;
+
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบ Token กรุณา Login ใหม่')),
+      );
+      return;
+    }
 
     // 4. ยิง API Update
-    bool success = await _authService.updateProfile(userId, {
+    bool success = await _authService.updateProfile(token, {
       "birth_date": birthDateStr,
       "height_cm": heightVal,
       "current_weight_kg": weightVal,

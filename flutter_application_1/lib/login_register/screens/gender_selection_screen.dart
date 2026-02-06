@@ -19,14 +19,14 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
   void _saveGenderToDb() async {
     if (selectedGender == null) return;
 
-    // 1. ดึง user_id
-    final userId = ref.read(userDataProvider).userId; 
+    // 1. ดึง Token
+    final token = ref.read(userDataProvider).token; 
     
-    // ⚠️ เช็คความปลอดภัย: ถ้า userId เป็น 0 แสดงว่าการสมัคร/ล็อกอินมีปัญหา
-    if (userId == 0) {
+    // ⚠️ เช็คความปลอดภัย: ถ้า Token เป็น null แสดงว่าการสมัคร/ล็อกอินมีปัญหา
+    if (token == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบข้อมูลผู้ใช้ (กรุณาเข้าสู่ระบบใหม่)'), backgroundColor: Colors.red),
+          const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบ Token (กรุณาเข้าสู่ระบบใหม่)'), backgroundColor: Colors.red),
         );
       }
       return;
@@ -34,8 +34,8 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
 
     setState(() => _isLoading = true);
 
-    // 2. ยิง API อัปเดตเพศ
-    bool isSuccess = await _authService.updateProfile(userId, {
+    // 2. ยิง API อัปเดตเพศ (ส่ง Token แทน userId)
+    bool isSuccess = await _authService.updateProfile(token, {
       "gender": selectedGender, 
     });
 

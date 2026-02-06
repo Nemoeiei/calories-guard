@@ -113,12 +113,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (result['success']) {
       final data = result['data']; 
       
-      // ✅ หัวใจสำคัญ: ดึง ID จาก Backend แล้วยัดใส่ Provider ทันที
-      // เช็ค Structure ให้ชัวร์: Backend ส่งกลับมาเป็น {"message": "...", "user": {"user_id": 1, ...}}
-      // AuthService ของเรามักจะห่อเป็น {'success': true, 'data': response_body}
-      final int newId = data['user']['user_id']; 
+      // ✅ หัวใจสำคัญ: ดึง ID และ Token จาก Backend แล้วยัดใส่ Provider ทันที
+      // Backend (FastAPI) ส่งกลับมาเป็น TokenResponse: {"access_token": "...", "user_id": 1, ...}
+      final int newId = data['user_id']; 
+      final String token = data['access_token'];
       
       ref.read(userDataProvider.notifier).setUserId(newId); 
+      ref.read(userDataProvider.notifier).setToken(token); // ✅ Save Token 
       ref.read(userDataProvider.notifier).setLoginInfo(email, password);
       ref.read(userDataProvider.notifier).setPersonalInfo(
           name: name, 

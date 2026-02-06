@@ -1,9 +1,11 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../providers/user_data_provider.dart';
+import '../../services/auth_service.dart';
+import '../../services/meal_service.dart';
+import '../../services/food_service.dart';
 
 class FoodLoggingScreen extends ConsumerStatefulWidget {
   const FoodLoggingScreen({super.key});
@@ -48,30 +50,22 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
   }
 
   Future<void> _fetchFoodsFromApi() async {
-    final url = Uri.parse('http://10.0.2.2:8000/foods'); 
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-        if (mounted) {
-          setState(() {
-            _foodDatabase = data;
-            _isLoading = false;
-          });
-        }
-      } else {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    } catch (e) {
+    final foodService = FoodService();
+    final data = await foodService.getAllFoods();
+    
+    if (data != null && mounted) {
+      setState(() {
+        _foodDatabase = data;
+        _isLoading = false;
+      });
+    } else {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _saveMealToBackend(String mealType, String menuName) async {
+  Future<void> _saveMealToBackend(String mealType, String menuName, String token) async {
     if (menuName.isEmpty) return;
 
-    final userId = ref.read(userDataProvider).userId;
-    
     final food = _foodDatabase.firstWhere(
       (f) => f['food_name'].toString().toLowerCase() == menuName.toLowerCase().trim(),
       orElse: () => null, 
@@ -79,34 +73,27 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
 
     if (food == null) return; 
 
-    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-    final url = Uri.parse('http://10.0.2.2:8000/meals/$userId');
-
-    final body = jsonEncode({
-      "date": dateStr,
+    // แปลง selectedDate เป็น ISO8601 string สำหรับ meal_time
+    // สมมติเวลา 12:00:00 เพื่อให้เป็นกลางวัน หรือใช้เวลาปัจจุบันร่วมด้วยได้
+    final now = DateTime.now();
+    final mealDateTime = DateTime(
+      _selectedDate.year, _selectedDate.month, _selectedDate.day, 
+      now.hour, now.minute, now.second
+    );
+    
+    final mealData = {
       "meal_type": mealType,
+      "meal_time": mealDateTime.toIso8601String(), // ✅ ส่ง meal_time ตาม Schema
       "items": [
         {
           "food_id": food['food_id'],
           "amount": 1.0, 
-          "food_name": food['food_name'],
-          "cal_per_unit": _safeParse(food['calories']),
-          "protein_per_unit": _safeParse(food['protein']),
-          "carbs_per_unit": _safeParse(food['carbs']),
-          "fat_per_unit": _safeParse(food['fat'])
         }
       ]
-    });
+    };
 
-    try {
-      await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: body,
-      );
-    } catch (e) {
-      print("Error saving $mealType: $e");
-    }
+    final mealService = MealService();
+    await mealService.logMeal(token, mealData);
   }
 
   void _calculateAndSave() async {
@@ -146,23 +133,21 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
 
     try {
       // 2. บันทึกลง Backend
-      await _saveMealToBackend('breakfast', _breakfast);
-      await _saveMealToBackend('lunch', _lunch);
-      await _saveMealToBackend('dinner', _dinner);
-      await _saveMealToBackend('snack', _snack1);
-      await _saveMealToBackend('snack', _snack2);
+      final token = ref.read(userDataProvider).token;
+      if (token != null) {
+        await _saveMealToBackend('breakfast', _breakfast, token);
+        await _saveMealToBackend('lunch', _lunch, token);
+        await _saveMealToBackend('dinner', _dinner, token);
+        await _saveMealToBackend('snack', _snack1, token);
+        await _saveMealToBackend('snack', _snack2, token);
 
-      // 3. อัปเดต Activity
-      String activityValue = _activityMap[_selectedActivityLabel] ?? 'sedentary';
-      try {
-        final userUrl = Uri.parse('http://10.0.2.2:8000/users/$userId');
-        await http.put(
-          userUrl,
-          headers: {"Content-Type": "application/json"},
-          body: jsonEncode({"activity_level": activityValue}),
-        );
+        // 3. อัปเดต Activity
+        String activityValue = _activityMap[_selectedActivityLabel] ?? 'sedentary';
+        final authService = AuthService();
+        await authService.updateProfile(token, {"activity_level": activityValue});
+        
         ref.read(userDataProvider.notifier).setActivityLevel(activityValue);
-      } catch (e) { print("Act Error: $e"); }
+      }
 
       // ✅ 4. อัปเดต Provider ทันที! (หน้า Home จะเปลี่ยนเอง)
       String combinedSnacks = [_snack1, _snack2].where((s) => s.isNotEmpty).join(", ");

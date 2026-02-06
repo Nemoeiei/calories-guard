@@ -53,11 +53,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (result['success']) {
       // ✅ จุดที่ต้องแก้คือตรงนี้!
       
-      // 1. ดึง ID ออกมาจากผลลัพธ์
+      // 1. ดึง ID และ Token ออกมาจากผลลัพธ์
       final int userId = result['data']['user_id']; 
-      
-      // 2. สั่ง Provider ให้จำ ID "เดี๋ยวนั้นเลย" (สำคัญมาก)
+      final String token = result['data']['access_token']; // ✅ ดึง Token
+
+      // 2. สั่ง Provider ให้จำ ID และ Token
       ref.read(userDataProvider.notifier).setUserId(userId);
+      ref.read(userDataProvider.notifier).setToken(token); // ✅ จำ Token
       
       // 3. จำข้อมูลอื่นๆ ด้วย
       ref.read(userDataProvider.notifier).setLoginInfo(

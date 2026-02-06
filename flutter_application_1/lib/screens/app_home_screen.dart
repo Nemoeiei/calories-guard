@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '/screens/profile/subprofile_screen/progress_screen.dart'; 
 import '../../services/notification_helper.dart'; 
+import '../../services/auth_service.dart'; // ✅ Import AuthService
+import '../../services/meal_service.dart'; // ✅ Import MealService 
 
 class AppHomeScreen extends ConsumerStatefulWidget {
   const AppHomeScreen({super.key});
@@ -34,49 +36,38 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   }
 
   Future<void> _fetchUserData() async {
-    final userId = ref.read(userDataProvider).userId;
-    if (userId == 0) return;
+    final token = ref.read(userDataProvider).token;
+    if (token == null) return;
 
-    try {
-      final url = Uri.parse('http://10.0.2.2:8000/users/$userId');
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        ref.read(userDataProvider.notifier).setUserFromApi(data);
-      }
-    } catch (e) {
-      print("❌ Error fetching user data: $e");
+    final authService = AuthService();
+    final data = await authService.getUserProfile(token);
+    
+    if (data != null) {
+      ref.read(userDataProvider.notifier).setUserFromApi(data);
     }
   }
 
   Future<void> _fetchDailyData() async {
-    final userId = ref.read(userDataProvider).userId;
-    if (userId == 0) return;
+    final token = ref.read(userDataProvider).token;
+    if (token == null) return;
 
     final now = DateTime.now();
     final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
     
-    final url = Uri.parse('http://10.0.2.2:8000/daily_summary/$userId?date_record=$dateStr');
+    final mealService = MealService();
+    final summaryData = await mealService.getDailySummary(token, dateStr);
 
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final summaryData = json.decode(utf8.decode(response.bodyBytes));
-        
-        ref.read(userDataProvider.notifier).updateDailyFood(
-          cal: (summaryData['total_calories_intake'] as num?)?.toInt() ?? 0,
-          protein: (summaryData['total_protein'] as num?)?.toInt() ?? 0,
-          carbs: (summaryData['total_carbs'] as num?)?.toInt() ?? 0,
-          fat: (summaryData['total_fat'] as num?)?.toInt() ?? 0,
-          breakfast: summaryData['breakfast_menu'] ?? '',
-          lunch: summaryData['lunch_menu'] ?? '',
-          dinner: summaryData['dinner_menu'] ?? '',
-          snack: summaryData['snack_menu'] ?? '',
-        );
-      }
-    } catch (e) {
-      print("Error fetching daily summary: $e");
+    if (summaryData != null) {
+      ref.read(userDataProvider.notifier).updateDailyFood(
+        cal: (summaryData['total_calories_intake'] as num?)?.toInt() ?? 0,
+        protein: (summaryData['total_protein'] as num?)?.toInt() ?? 0,
+        carbs: (summaryData['total_carbs'] as num?)?.toInt() ?? 0,
+        fat: (summaryData['total_fat'] as num?)?.toInt() ?? 0,
+        breakfast: summaryData['breakfast_menu'] ?? '',
+        lunch: summaryData['lunch_menu'] ?? '',
+        dinner: summaryData['dinner_menu'] ?? '',
+        snack: summaryData['snack_menu'] ?? '',
+      );
     }
   }
 
@@ -112,9 +103,11 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     );
   }
 
-  // ฟังก์ชันสั่งลบข้อมูล (ของจริง)
+  // ฟังก์ชันสั่งลบข้อมูล
   Future<void> _deleteMeal(String mealType) async {
-    final userId = ref.read(userDataProvider).userId;
+    final token = ref.read(userDataProvider).token;
+    if (token == null) return;
+
     final now = DateTime.now();
     final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
@@ -125,36 +118,23 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
       builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
 
-    try {
-      // 2. ยิง API ลบข้อมูล
-      // URL: DELETE /meals/clear/{user_id}?date_record=...&meal_type=...
-      final url = Uri.parse(
-        'http://10.0.2.2:8000/meals/clear/$userId?date_record=$dateStr&meal_type=$mealType'
-      );
+    final mealService = MealService();
+    // 2. เรียก Service ลบข้อมูล
+    bool success = await mealService.deleteMealByType(token, dateStr, mealType);
 
-      final response = await http.delete(url);
+    if (mounted) {
+      Navigator.pop(context); // ปิด Loading
 
-      if (response.statusCode == 200) {
+      if (success) {
         // 3. ถ้าลบสำเร็จ
-        if (mounted) {
-          Navigator.pop(context); // ปิด Loading
-          
-          await _fetchAllData(); // 🔥 ดึงข้อมูลใหม่ทันที หน้าจอจะอัปเดตเอง
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ลบรายการเรียบร้อย'), backgroundColor: Colors.green),
-          );
-        }
+        await _fetchAllData(); // 🔥 ดึงข้อมูลใหม่ทันที
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ลบรายการเรียบร้อย'), backgroundColor: Colors.green),
+        );
       } else {
         // ถ้าลบไม่สำเร็จ
-        throw Exception('Failed to delete: ${response.body}');
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // ปิด Loading
-        print("Delete Error: $e");
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('เกิดข้อผิดพลาดในการลบ'), backgroundColor: Colors.red),
+          const SnackBar(content: Text('เกิดข้อผิดพลาดในการลบ (ไม่พบรายการ)'), backgroundColor: Colors.red),
         );
       }
     }

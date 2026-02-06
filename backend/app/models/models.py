@@ -235,6 +235,7 @@ class DailySummary(Base):
     total_protein = Column(DECIMAL(10, 2), default=0)
     total_carbs = Column(DECIMAL(10, 2), default=0)
     total_fat = Column(DECIMAL(10, 2), default=0)
+    total_calories_burned = Column(DECIMAL(10, 2), default=0) # Added for Exercise Tracking
     goal_calories = Column(Integer)
     is_goal_met = Column(Boolean, default=False)
 
