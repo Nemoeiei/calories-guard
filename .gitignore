@@ -1,1 +1,33 @@
+# General
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+*.egg-info/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Config
 .config/
+
+# Specific project files to ignore
+database.db
+*.sqlite3
