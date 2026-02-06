@@ -1,5 +1,4 @@
 from datetime import date, datetime
-import hashlib
 from typing import List, Optional
 from enum import Enum
 from fastapi import FastAPI, HTTPException
@@ -11,15 +10,17 @@ from psycopg2.extras import RealDictCursor
 app = FastAPI()
 
 # --- Config & Helper ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto"
+)
 
-def get_password_hash(password):
-    hashed_sha256 = hashlib.sha256(password.encode('utf-8')).hexdigest()
-    return pwd_context.hash(hashed_sha256)
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
 
-def verify_password(plain_password, hashed_password):
-    hashed_sha256 = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
-    return pwd_context.verify(hashed_sha256, hashed_password)
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
 
 # --- Enums (ให้ตรงกับ DB) ---
 class GoalType(str, Enum):

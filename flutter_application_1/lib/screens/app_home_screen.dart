@@ -83,7 +83,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   // --- Logic การลบ/แก้ไข ---
 
   void _editMeal(String mealType, String currentMenu) {
-    // TODO: ใส่ Logic เปิดหน้าแก้ไขที่นี่
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('กำลังจะแก้ไขเมนู: $currentMenu')),
     );
@@ -102,8 +101,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // ปิด Dialog
-              _deleteMeal(mealType);  // สั่งลบ
+              Navigator.pop(context); 
+              _deleteMeal(mealType);
             },
             child: const Text('ลบ', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
@@ -112,13 +111,11 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     );
   }
 
-  // ฟังก์ชันสั่งลบข้อมูล (ของจริง)
   Future<void> _deleteMeal(String mealType) async {
     final userId = ref.read(userDataProvider).userId;
     final now = DateTime.now();
     final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
-    // 1. โชว์ Loading
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -126,8 +123,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     );
 
     try {
-      // 2. ยิง API ลบข้อมูล
-      // URL: DELETE /meals/clear/{user_id}?date_record=...&meal_type=...
       final url = Uri.parse(
         'http://10.0.2.2:8000/meals/clear/$userId?date_record=$dateStr&meal_type=$mealType'
       );
@@ -135,23 +130,19 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
       final response = await http.delete(url);
 
       if (response.statusCode == 200) {
-        // 3. ถ้าลบสำเร็จ
         if (mounted) {
-          Navigator.pop(context); // ปิด Loading
-          
-          await _fetchAllData(); // 🔥 ดึงข้อมูลใหม่ทันที หน้าจอจะอัปเดตเอง
-          
+          Navigator.pop(context); 
+          await _fetchAllData(); 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('ลบรายการเรียบร้อย'), backgroundColor: Colors.green),
           );
         }
       } else {
-        // ถ้าลบไม่สำเร็จ
         throw Exception('Failed to delete: ${response.body}');
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // ปิด Loading
+        Navigator.pop(context);
         print("Delete Error: $e");
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('เกิดข้อผิดพลาดในการลบ'), backgroundColor: Colors.red),
@@ -223,12 +214,12 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     );
   }
 
-  // Widget สร้างแถวรายการอาหาร พร้อมปุ่มจัดการ
+  // Widget สร้างแถวรายการอาหาร พร้อมปุ่มจัดการ (ตาม CSS ใหม่)
   Widget _buildMealRow(String label, String menu, String mealType) {
     bool hasMenu = menu.isNotEmpty && menu != '-' && menu != '';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 8.0), // เพิ่มระยะห่างแนวตั้ง
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -239,37 +230,60 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               children: [
                 Text(
                   '$label :', 
-                  style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF4C6414))
+                  style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black) // ปรับตาม CSS (Size 16, Weight 500)
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   hasMenu ? menu : '-', 
-                  style: const TextStyle(fontFamily: 'Inter', fontSize: 14, color: Colors.black87),
+                  style: const TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black), // ปรับตาม CSS
                 ),
               ],
             ),
           ),
 
-          // ปุ่มแก้ไข & ลบ (แสดงเมื่อมีเมนูเท่านั้น)
+          // ปุ่มแก้ไข (วงกลมตาม CSS Rectangle 157)
           if (hasMenu) 
             Row(
               children: [
                 // Edit Button
                 InkWell(
                   onTap: () => _editMeal(mealType, menu),
-                  borderRadius: BorderRadius.circular(20),
-                  child: const Padding(
-                    padding: EdgeInsets.all(6.0),
-                    child: Icon(Icons.edit, size: 18, color: Colors.blueGrey),
+                  child: Container(
+                    width: 30, // ปรับขนาดให้พอดีนิ้ว
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8EFCF), // สีพื้นหลังตาม CSS
+                      shape: BoxShape.circle, // วงกลม (border-radius: 100000px)
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.25),
+                          offset: const Offset(0, 4),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.edit, size: 16, color: Colors.black), // ไอคอนสีดำ
                   ),
                 ),
-                // Delete Button
+                const SizedBox(width: 10), // ระยะห่างระหว่างปุ่ม
+                // Delete Button (เพิ่มเองเพื่อให้ครบฟังก์ชัน แต่สไตล์คล้ายกัน)
                 InkWell(
                   onTap: () => _confirmDeleteMeal(mealType),
-                  borderRadius: BorderRadius.circular(20),
-                  child: const Padding(
-                    padding: EdgeInsets.all(6.0),
-                    child: Icon(Icons.delete, size: 18, color: Colors.redAccent),
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8EFCF),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.25),
+                          offset: const Offset(0, 4),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.delete, size: 16, color: Colors.red),
                   ),
                 ),
               ],
@@ -338,7 +352,92 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 children: [
-                  Container(height: 40, color: Colors.white),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: Row(
+                      children: [
+                        // Date box
+                        Expanded(
+                          flex: 1,
+                          child: Container(
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))],
+                            ),
+                            child: Center(
+                              child: Text(
+                                // แสดงวัน/เดือน/ปี
+                                "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
+                                style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Selected program box
+                        Expanded(
+                          flex: 2,
+                          child: Builder(builder: (context) {
+                            // Map GoalOption -> display data
+                            GoalOption goal = userData.goal ?? GoalOption.loseWeight;
+                            String title = 'ลดน้ำหนัก';
+                            String subtitle = '';
+                            String iconUrl = '';
+                            LinearGradient gradient = const LinearGradient(colors: [Colors.white, Colors.white]);
+
+                            if (goal == GoalOption.loseWeight) {
+                              title = 'ลดน้ำหนัก';
+                              subtitle = 'ควบคุมแคลอรี่';
+                              iconUrl = 'https://api.builder.io/api/v1/image/assets/TEMP/2b36cbc83f6282347dd67152d454841cc595df15';
+                              gradient = const LinearGradient(colors: [Color(0xFFDBA979), Color(0xFFD76A3C)]);
+                            } else if (goal == GoalOption.maintainWeight) {
+                              title = 'รักษาน้ำหนัก';
+                              subtitle = 'รักษาสมดุล สุขภาพดี';
+                              iconUrl = 'https://api.builder.io/api/v1/image/assets/TEMP/caa3690bf64691cf18159ea72b5ec46944c37e66';
+                              gradient = const LinearGradient(colors: [Color(0xFF10337F), Color(0xFF2D58B6), Color(0xFF497CEA)], stops: [0.0, 0.36, 1.0]);
+                            } else if (goal == GoalOption.buildMuscle) {
+                              title = 'เพิ่มกล้ามเนื้อ';
+                              subtitle = 'ลดไขมัน';
+                              iconUrl = 'https://api.builder.io/api/v1/image/assets/TEMP/3ac072bc08b89b53ec34785b4a25b0021535bdd8';
+                              gradient = const LinearGradient(colors: [Color(0xFFB4AC15), Color(0xFFFFEA4B), Color(0xFFFAFC83)], stops: [0.0, 0.63, 1.0]);
+                            }
+
+                            return Container(
+                              height: 60,
+                              decoration: BoxDecoration(
+                                gradient: gradient,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))],
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Row(
+                                children: [
+                                  // Icon image
+                                  if (iconUrl.isNotEmpty) ...[
+                                    Image.network(iconUrl, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (c,e,s) => const SizedBox(width: 44, height: 44)),
+                                    const SizedBox(width: 12),
+                                  ],
+                                  // Texts
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(title, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                                        if (subtitle.isNotEmpty) Text(subtitle, style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
 
                   // --- Dashboard ---
                   Container(
@@ -351,7 +450,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('ภาพรวมวันนี้', style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
+                              const Text('เเคลอรี่ที่ทานต่อวัน', style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
                               IconButton(icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFF628141), size: 32), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProgressScreen()))),
                             ],
                           ),
@@ -437,33 +536,44 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                     ),
                   ),
 
-                  // --- Menu List Section (Updated) ---
+                  // --- Menu List Section (Updated with CSS) ---
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('มื้ออาหารที่ทานวันนี้', style: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w500, color: Colors.black)),
+                        // Header Box ตาม CSS
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8EFCF), // พื้นหลังเขียวอ่อน
+                            borderRadius: BorderRadius.circular(10), // มุมโค้ง
+                          ),
+                          child: const Text(
+                            'มื้ออาหารที่ทานวันนี้',
+                            style: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w500, color: Colors.black),
+                          ),
+                        ),
                         const SizedBox(height: 10),
                         
-                        // ✅ กล่องรายการอาหารแบบใหม่ (มีปุ่ม Edit/Delete)
+                        // กล่องรายการอาหาร (Rectangle 18)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(color: const Color(0xFF4C6414), width: 1),
-                            borderRadius: BorderRadius.circular(10),
+                            color: const Color(0xFFE8EFCF), // พื้นหลัง E8EFCF
+                            border: Border.all(color: const Color(0xFF4C6414), width: 1), // ขอบเขียวเข้ม
+                            borderRadius: BorderRadius.circular(10), // มุมโค้ง 10px
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _buildMealRow('มื้อเช้า', userData.breakfastMenu, 'breakfast'),
-                              const Divider(), // เส้นคั่น
+                              const Divider(color: Colors.black12), // เส้นคั่นบางๆ
                               _buildMealRow('อาหารว่าง', userData.snackMenu, 'snack'),
-                              const Divider(),
+                              const Divider(color: Colors.black12),
                               _buildMealRow('มื้อเที่ยง', userData.lunchMenu, 'lunch'),
-                              const Divider(),
+                              const Divider(color: Colors.black12),
                               _buildMealRow('มื้อเย็น', userData.dinnerMenu, 'dinner'),
                             ],
                           ),
