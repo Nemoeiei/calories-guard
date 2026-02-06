@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:state_notifier/state_notifier.dart';
 
 // Enum สำหรับเป้าหมาย
 enum GoalOption {
@@ -99,13 +100,16 @@ class UserData {
     double activityMultiplier = 1.2; // sedentary
 
     // ✅ แก้ไข: ใช้ string ให้ตรงกับ Enum ใน Database ใหม่
-    if (activityLevel == 'lightly_active') { // เดิม light
+    if (activityLevel == 'lightly_active') {
+      // เดิม light
       activityMultiplier = 1.375;
-    } else if (activityLevel == 'moderately_active') { // เดิม moderate
+    } else if (activityLevel == 'moderately_active') {
+      // เดิม moderate
       activityMultiplier = 1.55;
-    } else if (activityLevel == 'very_active') { // เดิม active
+    } else if (activityLevel == 'very_active') {
+      // เดิม active
       activityMultiplier = 1.725;
-    } 
+    }
 
     return bmr * activityMultiplier;
   }
@@ -114,16 +118,16 @@ class UserData {
   double get targetCalories {
     double maintenance = tdee;
     if (goal == GoalOption.loseWeight) {
-      return maintenance - 500; 
+      return maintenance - 500;
     } else if (goal == GoalOption.buildMuscle) {
-      return maintenance + 300; 
+      return maintenance + 300;
     }
-    return maintenance; 
+    return maintenance;
   }
 
   // ✅ Logic 5: คำนวณสารอาหาร (Macros)
   int get targetProtein {
-    double proteinCals = targetCalories * 0.30; 
+    double proteinCals = targetCalories * 0.30;
     return (proteinCals / 4).round();
   }
 
@@ -198,7 +202,7 @@ class UserData {
 // --- Notifier ---
 class UserDataNotifier extends StateNotifier<UserData> {
   UserDataNotifier() : super(UserData());
-  
+
   // ✅ เพิ่มฟังก์ชัน Logout
   void logout() {
     state = UserData(); // Reset กลับเป็นค่าเริ่มต้นทั้งหมด
@@ -245,7 +249,7 @@ class UserDataNotifier extends StateNotifier<UserData> {
       duration: duration ?? state.duration,
     );
   }
-  
+
   void setActivityLevel(String level) {
     state = state.copyWith(activityLevel: level);
   }
@@ -273,15 +277,15 @@ class UserDataNotifier extends StateNotifier<UserData> {
       snackMenu: snack,
     );
   }
-  
+
   // ✅ เพิ่มฟังก์ชันนี้: รับค่าจาก API /daily_summary มาใส่ Provider
- void setDailySummaryFromApi(Map<String, dynamic> data) {
+  void setDailySummaryFromApi(Map<String, dynamic> data) {
     state = state.copyWith(
       consumedCalories: (data['total_calories_intake'] as num?)?.toInt() ?? 0,
       consumedProtein: (data['total_protein'] as num?)?.toInt() ?? 0,
       consumedCarbs: (data['total_carbs'] as num?)?.toInt() ?? 0,
       consumedFat: (data['total_fat'] as num?)?.toInt() ?? 0,
-      
+
       // ✅ [เพิ่มส่วนนี้] รับค่าชื่อเมนูจาก API มาใส่ใน State
       breakfastMenu: data['breakfast_menu'] ?? '',
       lunchMenu: data['lunch_menu'] ?? '',
@@ -303,7 +307,8 @@ class UserDataNotifier extends StateNotifier<UserData> {
     );
   }
 
-  void updateUnit({String? weight, String? height, String? energy, String? water}) {
+  void updateUnit(
+      {String? weight, String? height, String? energy, String? water}) {
     state = state.copyWith(
       unitWeight: weight ?? state.unitWeight,
       unitHeight: height ?? state.unitHeight,
@@ -317,15 +322,18 @@ class UserDataNotifier extends StateNotifier<UserData> {
     if (data['goal_target_date'] != null) {
       tDate = DateTime.parse(data['goal_target_date']);
     }
-    
+
     DateTime? bDate;
     if (data['birth_date'] != null) {
       bDate = DateTime.parse(data['birth_date']);
     }
 
     GoalOption userGoal = GoalOption.loseWeight;
-    if (data['goal_type'] == 'maintain_weight') userGoal = GoalOption.maintainWeight;
-    if (data['goal_type'] == 'gain_muscle') userGoal = GoalOption.buildMuscle; // แก้ build_muscle เป็น gain_muscle ตาม DB ใหม่
+    if (data['goal_type'] == 'maintain_weight')
+      userGoal = GoalOption.maintainWeight;
+    if (data['goal_type'] == 'gain_muscle')
+      userGoal = GoalOption
+          .buildMuscle; // แก้ build_muscle เป็น gain_muscle ตาม DB ใหม่
 
     state = state.copyWith(
       userId: data['user_id'] ?? 0,
@@ -347,7 +355,8 @@ class UserDataNotifier extends StateNotifier<UserData> {
   }
 }
 
-final userDataProvider = StateNotifierProvider<UserDataNotifier, UserData>((ref) {
+final userDataProvider =
+    StateNotifierProvider<UserDataNotifier, UserData>((ref) {
   return UserDataNotifier();
 });
 final navIndexProvider = StateProvider<int>((ref) => 0);

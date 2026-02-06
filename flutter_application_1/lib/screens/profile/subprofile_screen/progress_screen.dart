@@ -421,7 +421,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         .map((day) => Center(child: Text(day, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))).toList();
     List<Widget> dayCells = [];
     
-    for (int i = 1; i < firstWeekday; i++) dayCells.add(Container());
+    for (int i = 1; i < firstWeekday; i++) {
+      dayCells.add(Container());
+    }
     
     for (int day = 1; day <= daysInMonth; day++) {
       DateTime date = DateTime(month.year, month.month, day);

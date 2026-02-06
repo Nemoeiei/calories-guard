@@ -239,7 +239,7 @@ def add_meal(user_id: int, log: DailyLogUpdate):
         
         # 1. Create Meal
         cur.execute("""
-            INSERT INTO meals (user_id, meal_type, created_at)
+            INSERT INTO meals (user_id, meal_type, meal_time)
             VALUES (%s, %s, NOW())
             RETURNING meal_id
         """, (user_id, log.meal_type))

@@ -130,7 +130,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: SwitchListTile(
                   title: const Text('การแจ้งเตือน', style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black)),
                   value: _isNotificationOn,
-                  activeColor: const Color(0xFF4C6414),
+                  activeThumbColor: const Color(0xFF4C6414),
                   onChanged: (val) => setState(() => _isNotificationOn = val),
                 ),
               ),

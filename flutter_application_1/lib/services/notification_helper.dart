@@ -1,30 +1,47 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
-import 'dart:io'; // ✅ 1. เพิ่ม import นี้
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'platform_checker_stub.dart'
+    if (dart.library.io) 'platform_checker_io.dart';
 
 class NotificationHelper {
   static final _notification = FlutterLocalNotificationsPlugin();
 
   // ตั้งค่าเริ่มต้น
   static Future<void> init() async {
+    // Skip initialization on web - flutter_local_notifications doesn't support web
+    if (kIsWeb) {
+      return;
+    }
+
     tz.initializeTimeZones(); // โหลดฐานข้อมูลเวลา
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher'); // ไอคอนแอป
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher'); // ไอคอนแอป
     const iosSettings = DarwinInitializationSettings();
 
-    const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
+    const settings =
+        InitializationSettings(android: androidSettings, iOS: iosSettings);
 
     await _notification.initialize(settings);
-    
+
     // ✅ 2. เรียกขออนุญาตทันทีที่ Init (สำคัญมากสำหรับ Android 13+)
     await requestPermission();
   }
 
   // ✅ 3. เพิ่มฟังก์ชันขออนุญาต
   static Future<void> requestPermission() async {
-    if (Platform.isAndroid) {
-      final androidImplementation = _notification.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    // Skip on web
+    if (kIsWeb) {
+      return;
+    }
+    // On web, `isAndroid` will be false via the stub. The conditional import
+    // prevents importing `dart:io` on web builds.
+    if (isAndroid) {
+      final androidImplementation =
+          _notification.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
       await androidImplementation?.requestNotificationsPermission();
     }
   }
@@ -44,7 +61,7 @@ class NotificationHelper {
           'channel_id_alert', // ตั้งชื่อ channel ให้ต่างกันสำหรับ Alert
           'Alert Notifications',
           importance: Importance.max, // ✅ ต้อง Max ถึงจะเด้งทับหน้าจอ
-          priority: Priority.high,    // ✅ ต้อง High
+          priority: Priority.high, // ✅ ต้อง High
           playSound: true,
         ),
         iOS: DarwinNotificationDetails(),
@@ -75,15 +92,18 @@ class NotificationHelper {
       ),
       // ✅ 4. แก้เป็น inexact เพื่อเลี่ยงปัญหา Permission บน Android 12+
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time, // ให้เตือนซ้ำทุกวันเวลาเดิม
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents:
+          DateTimeComponents.time, // ให้เตือนซ้ำทุกวันเวลาเดิม
     );
   }
 
   // คำนวณเวลาถัดไปที่จะเตือน
   static tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
     final now = tz.TZDateTime.now(tz.local);
-    var scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    var scheduledDate =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
@@ -96,9 +116,24 @@ class NotificationHelper {
 
   // 1. แจ้งเตือนกันลืม (Time-based)
   static Future<void> scheduleMealReminders() async {
-    await scheduleDailyNotification(id: 101, title: '🍳 มื้อเช้าสำคัญนะ!', body: 'อย่าลืมบันทึกอาหารเช้าลง CleanGoal นะครับ', hour: 08, minute: 00);
-    await scheduleDailyNotification(id: 102, title: '🍱 เที่ยงแล้ว กินไรยัง?', body: 'ทานมื้อเที่ยงแล้วมาจดบันทึกกันเถอะ', hour: 12, minute: 00);
-    await scheduleDailyNotification(id: 103, title: '🥗 มื้อเย็นเบาๆ กันเถอะ', body: 'จบวันแล้ว สรุปยอดแคลอรี่กันหน่อย', hour: 18, minute: 00);
+    await scheduleDailyNotification(
+        id: 101,
+        title: '🍳 มื้อเช้าสำคัญนะ!',
+        body: 'อย่าลืมบันทึกอาหารเช้าลง CleanGoal นะครับ',
+        hour: 08,
+        minute: 00);
+    await scheduleDailyNotification(
+        id: 102,
+        title: '🍱 เที่ยงแล้ว กินไรยัง?',
+        body: 'ทานมื้อเที่ยงแล้วมาจดบันทึกกันเถอะ',
+        hour: 12,
+        minute: 00);
+    await scheduleDailyNotification(
+        id: 103,
+        title: '🥗 มื้อเย็นเบาๆ กันเถอะ',
+        body: 'จบวันแล้ว สรุปยอดแคลอรี่กันหน่อย',
+        hour: 18,
+        minute: 00);
   }
 
   // 2. แจ้งเตือนเตือนภัย (Alert) - เรียกตอนแคลอรี่เกิน
@@ -106,7 +141,8 @@ class NotificationHelper {
     await showNotification(
       id: 201,
       title: '🚨 พลังงานเกินเป้าหมายแล้ว!',
-      body: 'คุณทานไป $current / $target KCAL แนะนำให้ขยับร่างกายเพิ่มหน่อยนะครับ',
+      body:
+          'คุณทานไป $current / $target KCAL แนะนำให้ขยับร่างกายเพิ่มหน่อยนะครับ',
     );
   }
 
@@ -115,34 +151,34 @@ class NotificationHelper {
     await showNotification(
       id: 202,
       title: '⚠️ ใกล้เต็มโควตาแล้วนะ',
-      body: 'เหลืออีกแค่ ${target - current} KCAL มื้อถัดไปเน้นผักหน่อยดีมั้ย? 🥦',
+      body:
+          'เหลืออีกแค่ ${target - current} KCAL มื้อถัดไปเน้นผักหน่อยดีมั้ย? 🥦',
     );
   }
 
   // 3. แจ้งเตือนความคืบหน้า (Progress) - สรุปตอนค่ำ
   static Future<void> scheduleDailyRecap() async {
     await scheduleDailyNotification(
-      id: 301, 
-      title: '🌙 สรุปผลวันนี้', 
-      body: 'มาดูกันว่าวันนี้คุณทำได้ตามเป้าหมายหรือไม่?', 
-      hour: 21, 
-      minute: 00
-    );
+        id: 301,
+        title: '🌙 สรุปผลวันนี้',
+        body: 'มาดูกันว่าวันนี้คุณทำได้ตามเป้าหมายหรือไม่?',
+        hour: 21,
+        minute: 00);
   }
 
   // 4. แจ้งเตือนปลุกใจ (Motivation) - ตอนเช้า
   static Future<void> scheduleMorningMotivation() async {
     await scheduleDailyNotification(
-      id: 401, 
-      title: '🔥 เช้าวันใหม่ สดใสกว่าเดิม', 
-      body: 'วินัยเริ่มต้นที่ตัวเรา วันนี้สู้ๆ นะครับ!', 
-      hour: 07, 
-      minute: 00
-    );
+        id: 401,
+        title: '🔥 เช้าวันใหม่ สดใสกว่าเดิม',
+        body: 'วินัยเริ่มต้นที่ตัวเรา วันนี้สู้ๆ นะครับ!',
+        hour: 07,
+        minute: 00);
   }
+
   static Future<void> scheduleWaterReminders() async {
     // เตือนตอน 10:00, 14:00, 16:00, 20:00
-    final times = [10, 14, 16, 20]; 
+    final times = [10, 14, 16, 20];
     for (int i = 0; i < times.length; i++) {
       await scheduleDailyNotification(
         id: 500 + i, // ID เริ่มที่ 500
@@ -170,14 +206,17 @@ class NotificationHelper {
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime, // ✅ เตือนซ้ำทุกสัปดาห์
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents:
+          DateTimeComponents.dayOfWeekAndTime, // ✅ เตือนซ้ำทุกสัปดาห์
     );
   }
 
   // Helper: หาเวลา 7 โมงเช้าวันจันทร์ถัดไป
   static tz.TZDateTime _nextInstanceOfMondaySevenAM() {
-    tz.TZDateTime scheduledDate = _nextInstanceOfTime(7, 0); // เอา 7 โมงวันนี้มาก่อน
+    tz.TZDateTime scheduledDate =
+        _nextInstanceOfTime(7, 0); // เอา 7 โมงวันนี้มาก่อน
     while (scheduledDate.weekday != DateTime.monday) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
