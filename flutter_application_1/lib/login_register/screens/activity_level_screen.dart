@@ -24,25 +24,25 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
     {
       "title": "ไม่ออกกำลังกายเลย",
       "subtitle": "นั่งทำงานตลอดวัน ไม่ค่อยขยับตัว",
-      "value": "sedentary",
+      "value": "sedentary", // BMR x 1.2
       "icon": Icons.weekend_outlined,
     },
     {
       "title": "ออกกำลังกายเบาๆ",
       "subtitle": "1-3 วันต่อสัปดาห์ หรือเดินบ่อย",
-      "value": "light",
+      "value": "lightly_active", // BMR x 1.375 (แก้ตรงนี้)
       "icon": Icons.directions_walk,
     },
     {
       "title": "ออกกำลังกายปานกลาง",
       "subtitle": "3-5 วันต่อสัปดาห์ (แอโรบิค, วิ่ง)",
-      "value": "moderate",
+      "value": "moderately_active", // BMR x 1.55 (แก้ตรงนี้)
       "icon": Icons.run_circle_outlined,
     },
     {
       "title": "ออกกำลังกายหนัก",
       "subtitle": "6-7 วันต่อสัปดาห์",
-      "value": "active",
+      "value": "very_active", // BMR x 1.725 (แก้ตรงนี้)
       "icon": Icons.fitness_center,
     },
   ];

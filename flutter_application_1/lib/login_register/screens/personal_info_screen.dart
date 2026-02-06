@@ -184,23 +184,23 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                   child: Column(
                     children: [
                       _buildFormField(
-                        label: 'วันเกิด',
+                        label: 'วันเกิด*',
                         controller: _birthdayController,
                         hintText: 'วว/ดด/ปปปป',
                         isDate: true,
                       ),
                       const SizedBox(height: 28),
                       _buildFormField(
-                        label: 'ส่วนสูง',
+                        label: 'ส่วนสูง*',
                         controller: _heightController,
-                        hintText: 'cm', // เปลี่ยน hint ให้สื่อความหมาย
+                        hintText: '0.00 cm.', // เปลี่ยน hint ให้สื่อความหมาย
                         isNumber: true,
                       ),
                       const SizedBox(height: 28),
                       _buildFormField(
-                        label: 'นํ้าหนัก',
+                        label: 'นํ้าหนัก*',
                         controller: _weightController,
-                        hintText: 'kg', // เปลี่ยน hint ให้สื่อความหมาย
+                        hintText: '0.00 kg.', // เปลี่ยน hint ให้สื่อความหมาย
                         isNumber: true,
                       ),
                     ],
@@ -281,7 +281,13 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                 hintText: hintText,
                 hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w400, color: Color(0xB3000000)),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9), // ปรับ padding ให้ข้อความอยู่กลาง
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                suffixIcon: isDate
+                    ? const Padding(
+                        padding: EdgeInsets.only(right: 10),
+                        child: Icon(Icons.calendar_today, size: 18, color: Color(0xFF628141)),
+                      )
+                    : null,
               ),
               style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w400, color: Colors.black),
             ),

@@ -12,7 +12,8 @@ class RegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
-  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
@@ -22,7 +23,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -68,18 +70,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   void _handleRegister() async {
-    String name = _nameController.text.trim();
+    String firstName = _firstNameController.text.trim();
+    String lastName = _lastNameController.text.trim();
+    String fullName = '$firstName $lastName';
     String email = _emailController.text.trim();
     String password = _passwordController.text;
     String confirmPassword = _confirmPasswordController.text;
 
     // Validation
-    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       _showError('กรุณากรอกข้อมูลให้ครบถ้วน');
       return;
     }
-    if (name.length < 4) {
-      _showError('ชื่อผู้ใช้ต้องมีความยาวอย่างน้อย 4 ตัวอักษร');
+    if (firstName.length < 2) {
+      _showError('ชื่อต้องมีความยาวอย่างน้อย 2 ตัวอักษร');
+      return;
+    }
+    if (lastName.length < 2) {
+      _showError('นามสกุลต้องมีความยาวอย่างน้อย 2 ตัวอักษร');
       return;
     }
     if (!email.endsWith('@gmail.com')) {
@@ -106,7 +114,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     // Call API
     setState(() => _isLoading = true); 
 
-    final result = await _authService.register(name, email, password);
+    final result = await _authService.register(fullName, email, password);
 
     setState(() => _isLoading = false); 
 
@@ -121,7 +129,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ref.read(userDataProvider.notifier).setUserId(newId); 
       ref.read(userDataProvider.notifier).setLoginInfo(email, password);
       ref.read(userDataProvider.notifier).setPersonalInfo(
-          name: name, 
+          name: fullName, 
           birthDate: DateTime.now(), // ค่าชั่วคราว เดี๋ยวไปแก้หน้า PersonalInfo
           height: 0, 
           weight: 0
@@ -171,8 +179,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLabel('ชื่อ - นามสกุล *'),
-                      _buildTextField(_nameController),
+                      _buildLabel('ชื่อ *'),
+                      _buildTextField(_firstNameController),
+                      const SizedBox(height: 20),
+                      _buildLabel('นามสกุล *'),
+                      _buildTextField(_lastNameController),
                       const SizedBox(height: 20),
                       _buildLabel('E-mail *'),
                       _buildTextField(_emailController),

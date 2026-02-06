@@ -80,8 +80,16 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
             
             const SizedBox(height: 20),
             const Text('เลือกเพศของคุณ', style: TextStyle(fontSize: 32, fontFamily: 'Inter', fontWeight: FontWeight.w500)),
-            
-            const SizedBox(height: 50),
+const SizedBox(height: 20),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 50),
+                  child: Text(
+                    'เพื่อนำไปคำนวณค่า BMR ซึ่งเพศส่งผลต่อระบบเผาผลาญ',
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w400, color: Colors.black),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+            const SizedBox(height: 100),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
