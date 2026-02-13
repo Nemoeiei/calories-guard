@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
 from enum import Enum
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -34,11 +34,8 @@ class ActivityLevel(str, Enum):
     moderately_active = 'moderately_active'
     very_active = 'very_active'
 
-class MealType(str, Enum):
-    breakfast = 'breakfast'
-    lunch = 'lunch'
-    dinner = 'dinner'
-    snack = 'snack'
+# ❌ ลบ MealType Enum ออกเพื่อให้รับค่าอะไรก็ได้ (meal_1, meal_2...)
+# class MealType(str, Enum): ... 
 
 # --- Pydantic Models ---
 class UserRegister(BaseModel):
@@ -77,7 +74,7 @@ class MealItem(BaseModel):
 
 class DailyLogUpdate(BaseModel):
     date: date
-    meal_type: MealType
+    meal_type: str # ✅ เปลี่ยนเป็น str เพื่อรองรับ 'meal_1', 'meal_2' ได้ไม่จำกัด
     items: List[MealItem]
 
 # ==========================================
@@ -86,7 +83,7 @@ class DailyLogUpdate(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"message": "API is running with New Database Structure!"}
+    return {"message": "API is running with Dynamic Meal Support!"}
 
 # --- API 1: Foods List ---
 @app.get("/foods")
@@ -161,11 +158,12 @@ def login(user: UserLogin):
             raise HTTPException(status_code=401, detail="Invalid email or password")
             
         return {
-            "message": "Login successful",
-            "user_id": db_user['user_id'],
-            "username": db_user['username'],
-            "email": db_user['email']
-        }
+        "message": "Login successful",
+        "user_id": db_user['user_id'],
+        "username": db_user['username'],
+        "email": db_user['email'],
+        "role_id": db_user['role_id'] 
+    }
     finally:
         if conn: conn.close()
 
@@ -231,7 +229,7 @@ def get_user_profile(user_id: int):
     finally:
         if conn: conn.close()
 
-# --- API 7: Record Meal (แบบใหม่) ---
+# --- API 7: Record Meal (แบบใหม่ รองรับ Dynamic Meal Type) ---
 @app.post("/meals/{user_id}")
 def add_meal(user_id: int, log: DailyLogUpdate):
     conn = get_db_connection()
@@ -239,6 +237,7 @@ def add_meal(user_id: int, log: DailyLogUpdate):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         # 1. Create Meal
+        # ใช้ created_at เป็นตัวเก็บเวลา
         cur.execute("""
             INSERT INTO meals (user_id, meal_type, created_at)
             VALUES (%s, %s, NOW())
@@ -290,7 +289,7 @@ def add_meal(user_id: int, log: DailyLogUpdate):
     finally:
         if conn: conn.close()
 
-# --- API 8: Get Daily Summary (แก้ไขให้มีชื่อเมนูอาหาร) ---
+# --- API 8: Get Daily Summary (แก้ไขให้คืนค่าเป็น Dynamic Map) ---
 @app.get("/daily_summary/{user_id}")
 def get_daily_summary(user_id: int, date_record: date):
     conn = get_db_connection()
@@ -318,25 +317,23 @@ def get_daily_summary(user_id: int, date_record: date):
         else:
             summary['target_calories'] = target_cal
 
-        # 🔥 3. [เพิ่มส่วนนี้] ดึงรายชื่ออาหาร แยกตามมื้อ (GroupConcat)
+        # 🔥 3. [แก้ใหม่] ดึงรายชื่ออาหารและ Group ตาม meal_type
+        # ใช้ created_at ในการกรองวัน เพราะตาราง meals ไม่มี meal_time
         cur.execute("""
             SELECT m.meal_type, STRING_AGG(mi.food_name, ', ') as menu_names
             FROM meals m
             JOIN meal_items mi ON m.meal_id = mi.meal_id
-            WHERE m.user_id = %s AND DATE(m.meal_time) = %s
+            WHERE m.user_id = %s AND DATE(m.created_at) = %s
             GROUP BY m.meal_type
         """, (user_id, date_record))
         
         menu_rows = cur.fetchall()
         
-        # แปลงข้อมูลให้อยู่ในรูป Dictionary
-        menus = {row['meal_type']: row['menu_names'] for row in menu_rows}
+        # แปลงเป็น Dict เช่น: {'meal_1': 'ข้าวผัด', 'meal_2': 'ก๋วยเตี๋ยว'}
+        meals_map = {row['meal_type']: row['menu_names'] for row in menu_rows}
         
-        # ยัดใส่กลับเข้าไปใน summary ส่งกลับไปให้ App
-        summary['breakfast_menu'] = menus.get('breakfast', '')
-        summary['lunch_menu'] = menus.get('lunch', '')
-        summary['dinner_menu'] = menus.get('dinner', '')
-        summary['snack_menu'] = menus.get('snack', '') # รวมมื้อว่างทั้งหมด
+        # ส่งก้อนนี้ไปให้ Frontend ใน key 'meals'
+        summary['meals'] = meals_map 
         
         return summary
     finally:
@@ -375,26 +372,24 @@ def get_calendar_logs(user_id: int, month: int, year: int):
         return logs
     finally:
         if conn: conn.close()
-# --- API 11: Clear Specific Meal Type (ล้างข้อมูลมื้ออาหารเฉพาะมื้อ) ---
+
+# --- API 11: Clear Specific Meal Type (แก้ให้รับ str และใช้ created_at) ---
 @app.delete("/meals/clear/{user_id}")
-def clear_meal_type(user_id: int, date_record: date, meal_type: MealType):
+def clear_meal_type(user_id: int, date_record: date, meal_type: str): # ✅ รับ str
     conn = get_db_connection()
     try:
         cur = conn.cursor()
         
-        # 1. ลบข้อมูลในตาราง meals (เดี๋ยว meal_items จะหายไปเองเพราะ CASCADE หรือ trigger ถ้าตั้งไว้)
-        # หรือถ้าไม่มี CASCADE ต้องลบ items ก่อน เเต่ในที่นี้สมมติลบ meals ก็พอ
-        
-        # ค้นหา meal_id ที่ตรงกับ user, วันที่, และประเภทมื้อ
+        # 1. ลบข้อมูลในตาราง meals
+        # ใช้ created_at ตามโครงสร้าง DB จริง
         cur.execute("""
             DELETE FROM meals 
             WHERE user_id = %s 
-              AND DATE(meal_time) = %s 
+              AND DATE(created_at) = %s 
               AND meal_type = %s
         """, (user_id, date_record, meal_type))
         
-        # 2. ต้องไปคำนวณ Daily Summary ใหม่ด้วย (ลดค่าแคลอรี่ลง)
-        # วิธีที่ง่ายที่สุดคือ "คำนวณใหม่หมด (Recalculate)" จากข้อมูลที่เหลือ
+        # 2. คำนวณ Daily Summary ใหม่ (Recalculate)
         cur.execute("""
             SELECT 
                 COALESCE(SUM(mi.amount * mi.cal_per_unit), 0) as total_cal,
@@ -403,12 +398,12 @@ def clear_meal_type(user_id: int, date_record: date, meal_type: MealType):
                 COALESCE(SUM(mi.amount * mi.fat_per_unit), 0) as total_fat
             FROM meals m
             JOIN meal_items mi ON m.meal_id = mi.meal_id
-            WHERE m.user_id = %s AND DATE(m.meal_time) = %s
+            WHERE m.user_id = %s AND DATE(m.created_at) = %s
         """, (user_id, date_record))
         
         new_stats = cur.fetchone()
         
-        # อัปเดตตารางสรุป daily_summaries ให้ตรงกับความเป็นจริง
+        # อัปเดตตารางสรุป
         cur.execute("""
             UPDATE daily_summaries
             SET total_calories_intake = %s,

@@ -176,7 +176,7 @@ Container(
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const GoalSelectionScreen()));
                     }),
 
-                    _buildMenuItem(Icons.directions_run, 'เเก้ไขกิจกรรม', showDivider: true, onTap: () {
+                    _buildMenuItem(Icons.directions_run, 'เเก้ไขระดับกิจกรรม', showDivider: true, onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const ActivityLevelScreen(isEditing: true))); // ✅ ใส่ isEditing: true
                     }),
                     
