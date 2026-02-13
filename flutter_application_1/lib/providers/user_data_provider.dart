@@ -32,10 +32,9 @@ class UserData {
   final int consumedFat;
 
   // --- 4. ส่วนชื่อเมนูอาหาร (Food Menu Names) ---
-  final String breakfastMenu;
-  final String lunchMenu;
-  final String dinnerMenu;
-  final String snackMenu;
+  // ❌ ลบตัวแปรแยก (Breakfast, Lunch...) ออก
+  // ✅ ใช้ Map เพื่อเก็บมื้ออาหารแบบ Dynamic (เช่น {'meal_1': 'ข้าวมันไก่', 'meal_2': 'สุกี้'})
+  final Map<String, String> dailyMeals;
 
   // --- 5. หน่วยนับ (Unit) ---
   final String unitWeight;
@@ -61,10 +60,7 @@ class UserData {
     this.consumedProtein = 0,
     this.consumedCarbs = 0,
     this.consumedFat = 0,
-    this.breakfastMenu = '',
-    this.lunchMenu = '',
-    this.dinnerMenu = '',
-    this.snackMenu = '',
+    this.dailyMeals = const {}, // ✅ Default เป็น Map ว่าง
     this.unitWeight = 'kg',
     this.unitHeight = 'cm',
     this.unitEnergy = 'kcal',
@@ -94,19 +90,16 @@ class UserData {
     }
   }
 
-  // --- 🏃‍♂️ Logic 3: คำนวณ TDEE (แก้ให้ตรงกับ Database ใหม่) ---
+  // --- 🏃‍♂️ Logic 3: คำนวณ TDEE ---
   double get tdee {
     double activityMultiplier = 1.2; // sedentary
-
-    // ✅ แก้ไข: ใช้ string ให้ตรงกับ Enum ใน Database ใหม่
-    if (activityLevel == 'lightly_active') { // เดิม light
+    if (activityLevel == 'lightly_active') {
       activityMultiplier = 1.375;
-    } else if (activityLevel == 'moderately_active') { // เดิม moderate
+    } else if (activityLevel == 'moderately_active') {
       activityMultiplier = 1.55;
-    } else if (activityLevel == 'very_active') { // เดิม active
+    } else if (activityLevel == 'very_active') {
       activityMultiplier = 1.725;
     } 
-
     return bmr * activityMultiplier;
   }
 
@@ -156,10 +149,7 @@ class UserData {
     int? consumedProtein,
     int? consumedCarbs,
     int? consumedFat,
-    String? breakfastMenu,
-    String? lunchMenu,
-    String? dinnerMenu,
-    String? snackMenu,
+    Map<String, String>? dailyMeals, // ✅ รับ Map แทน String แยก
     String? unitWeight,
     String? unitHeight,
     String? unitEnergy,
@@ -183,10 +173,7 @@ class UserData {
       consumedProtein: consumedProtein ?? this.consumedProtein,
       consumedCarbs: consumedCarbs ?? this.consumedCarbs,
       consumedFat: consumedFat ?? this.consumedFat,
-      breakfastMenu: breakfastMenu ?? this.breakfastMenu,
-      lunchMenu: lunchMenu ?? this.lunchMenu,
-      dinnerMenu: dinnerMenu ?? this.dinnerMenu,
-      snackMenu: snackMenu ?? this.snackMenu,
+      dailyMeals: dailyMeals ?? this.dailyMeals, // ✅ Copy Map
       unitWeight: unitWeight ?? this.unitWeight,
       unitHeight: unitHeight ?? this.unitHeight,
       unitEnergy: unitEnergy ?? this.unitEnergy,
@@ -199,9 +186,8 @@ class UserData {
 class UserDataNotifier extends StateNotifier<UserData> {
   UserDataNotifier() : super(UserData());
   
-  // ✅ เพิ่มฟังก์ชัน Logout
   void logout() {
-    state = UserData(); // Reset กลับเป็นค่าเริ่มต้นทั้งหมด
+    state = UserData(); 
   }
 
   void setUserId(int id) {
@@ -250,43 +236,38 @@ class UserDataNotifier extends StateNotifier<UserData> {
     state = state.copyWith(activityLevel: level);
   }
 
-  // อัปเดตข้อมูลอาหารรายวัน (Manual)
+  // ✅ อัปเดตข้อมูลอาหารรายวัน (Manual) แบบรับ Map
   void updateDailyFood({
     required int cal,
     required int protein,
     required int carbs,
     required int fat,
-    // เพิ่มพารามิเตอร์ชื่อเมนู (ใส่ default เป็นค่าว่าง)
-    String breakfast = '',
-    String lunch = '',
-    String dinner = '',
-    String snack = '',
+    // รับเป็น Map แทนที่จะเป็น String แยก
+    Map<String, String> dailyMeals = const {}, 
   }) {
     state = state.copyWith(
       consumedCalories: cal,
       consumedProtein: protein,
       consumedCarbs: carbs,
       consumedFat: fat,
-      breakfastMenu: breakfast,
-      lunchMenu: lunch,
-      dinnerMenu: dinner,
-      snackMenu: snack,
+      dailyMeals: dailyMeals, // ✅ บันทึก Map
     );
   }
   
-  // ✅ เพิ่มฟังก์ชันนี้: รับค่าจาก API /daily_summary มาใส่ Provider
- void setDailySummaryFromApi(Map<String, dynamic> data) {
+  // ✅ รับค่าจาก API /daily_summary มาใส่ Provider
+  void setDailySummaryFromApi(Map<String, dynamic> data) {
+    // แปลงข้อมูลจาก API ('meals': {...}) มาเป็น Map<String, String>
+    Map<String, String> meals = {};
+    if (data['meals'] != null) {
+       meals = Map<String, String>.from(data['meals']);
+    }
+
     state = state.copyWith(
       consumedCalories: (data['total_calories_intake'] as num?)?.toInt() ?? 0,
       consumedProtein: (data['total_protein'] as num?)?.toInt() ?? 0,
       consumedCarbs: (data['total_carbs'] as num?)?.toInt() ?? 0,
       consumedFat: (data['total_fat'] as num?)?.toInt() ?? 0,
-      
-      // ✅ [เพิ่มส่วนนี้] รับค่าชื่อเมนูจาก API มาใส่ใน State
-      breakfastMenu: data['breakfast_menu'] ?? '',
-      lunchMenu: data['lunch_menu'] ?? '',
-      dinnerMenu: data['dinner_menu'] ?? '',
-      snackMenu: data['snack_menu'] ?? '',
+      dailyMeals: meals, // ✅ อัปเดต Map จาก API
     );
   }
 
@@ -296,10 +277,7 @@ class UserDataNotifier extends StateNotifier<UserData> {
       consumedProtein: 0,
       consumedCarbs: 0,
       consumedFat: 0,
-      breakfastMenu: '',
-      lunchMenu: '',
-      dinnerMenu: '',
-      snackMenu: '',
+      dailyMeals: {}, // ✅ Reset เป็น Map ว่าง
     );
   }
 
@@ -325,7 +303,7 @@ class UserDataNotifier extends StateNotifier<UserData> {
 
     GoalOption userGoal = GoalOption.loseWeight;
     if (data['goal_type'] == 'maintain_weight') userGoal = GoalOption.maintainWeight;
-    if (data['goal_type'] == 'gain_muscle') userGoal = GoalOption.buildMuscle; // แก้ build_muscle เป็น gain_muscle ตาม DB ใหม่
+    if (data['goal_type'] == 'gain_muscle') userGoal = GoalOption.buildMuscle;
 
     state = state.copyWith(
       userId: data['user_id'] ?? 0,
