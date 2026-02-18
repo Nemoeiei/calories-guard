@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../../../providers/user_data_provider.dart';
 
 class UnitSettingsScreen extends ConsumerStatefulWidget {
@@ -13,28 +11,12 @@ class UnitSettingsScreen extends ConsumerStatefulWidget {
 
 class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
   
-  // ฟังก์ชันยิง API อัปเดตหน่วย
-  Future<void> _updateUnit(String key, String value) async {
-    final userId = ref.read(userDataProvider).userId;
-    
-    // 1. อัปเดตในแอปทันที (ให้ลื่นไหล)
+  // อัปเดตหน่วยเฉพาะในแอป (backend schema ใหม่ไม่มี unit_* ใน users)
+  void _updateUnit(String key, String value) {
     if (key == 'unit_weight') ref.read(userDataProvider.notifier).updateUnit(weight: value);
     if (key == 'unit_height') ref.read(userDataProvider.notifier).updateUnit(height: value);
     if (key == 'unit_energy') ref.read(userDataProvider.notifier).updateUnit(energy: value);
     if (key == 'unit_water') ref.read(userDataProvider.notifier).updateUnit(water: value);
-
-    // 2. ยิง API บันทึกลง Database
-    try {
-      final url = Uri.parse('http://10.0.2.2:8000/users/$userId');
-      await http.put(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({key: value}),
-      );
-    } catch (e) {
-      print("Error updating unit: $e");
-      // ถ้า Error อาจจะ SnackBar บอกก็ได้
-    }
   }
 
   @override

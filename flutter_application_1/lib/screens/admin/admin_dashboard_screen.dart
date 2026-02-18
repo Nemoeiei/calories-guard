@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 // ✅ อย่าลืม Import หน้า Login ให้ถูกต้องตาม Path ของคุณ
 import '/login_register/screens/login_screen.dart'; 
 import 'admin_request_screen.dart'; // Import หน้าดูคำขอ
+import 'admin_food_list_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -120,10 +121,13 @@ class AdminDashboardScreen extends StatelessWidget {
                       // เมนู 1: เพิ่ม/ลดข้อมูล
                       _buildMenuItem(
                         icon: Icons.edit_note,
-                        title: 'เพิ่ม/ลดข้อมูล',
+                        title: 'เพิ่ม/ลดข้อมูล', // หรือเปลี่ยนชื่อเป็น "จัดการเมนูอาหาร"
                         onTap: () {
-                          print("กด เพิ่ม/ลดข้อมูล");
-                          // TODO: ใส่ลิงก์ไปหน้าจัดการ Database
+                          // ✅ 2. ใส่ Navigator ตรงนี้ครับ
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const AdminFoodListScreen()),
+                          );
                         },
                       ),
                       

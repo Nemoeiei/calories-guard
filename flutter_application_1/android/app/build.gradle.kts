@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.example.flutter_application_1"
-    compileSdk = 34   // ⭐ ใส่เป็นตัวเลขตรง ๆ ชั่วคราว
+    compileSdk = 36   // ⭐ ใส่เป็นตัวเลขตรง ๆ ชั่วคราว
 
     defaultConfig {
         applicationId = "com.example.flutter_application_1"
         minSdk = flutter.minSdkVersion
-        targetSdk = 34
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

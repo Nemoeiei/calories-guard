@@ -305,6 +305,7 @@ class UserDataNotifier extends StateNotifier<UserData> {
     if (data['goal_type'] == 'maintain_weight') userGoal = GoalOption.maintainWeight;
     if (data['goal_type'] == 'gain_muscle') userGoal = GoalOption.buildMuscle;
 
+    // หน่วย (unit_*) backend schema ใหม่ไม่มีใน users — ใช้ค่าเดิมในแอปหรือ default
     state = state.copyWith(
       userId: data['user_id'] ?? 0,
       name: data['username'] ?? 'User',
@@ -317,10 +318,10 @@ class UserDataNotifier extends StateNotifier<UserData> {
       targetDate: tDate,
       goal: userGoal,
       activityLevel: data['activity_level'] ?? 'sedentary',
-      unitWeight: data['unit_weight'] ?? 'kg',
-      unitHeight: data['unit_height'] ?? 'cm',
-      unitEnergy: data['unit_energy'] ?? 'kcal',
-      unitWater: data['unit_water'] ?? 'ml',
+      unitWeight: data['unit_weight'] ?? state.unitWeight,
+      unitHeight: data['unit_height'] ?? state.unitHeight,
+      unitEnergy: data['unit_energy'] ?? state.unitEnergy,
+      unitWater: data['unit_water'] ?? state.unitWater,
     );
   }
 }

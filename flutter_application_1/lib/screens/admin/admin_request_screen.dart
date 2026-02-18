@@ -42,7 +42,7 @@ class AdminRequestScreen extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: GestureDetector(
                       onTap: () => Navigator.pop(context),
-                      child: Container(
+                      child: SizedBox(
                         width: 40,
                         height: 40,
                         child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 24),

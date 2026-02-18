@@ -207,10 +207,7 @@ Container(
                     _buildMenuItem(Icons.bar_chart, 'ความคืบหน้า', showDivider: true, onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const ProgressScreen()));
                     }),
-                    _buildMenuItem(Icons.pie_chart, 'เป้าหมายแคลอรี่และสารอาหารหลัก', showDivider: true),
-                    _buildMenuItem(Icons.article, 'บทความ', showDivider: false, onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const ArticleScreen()));
-                    }),
+                    
                   ],
                 ),
               ),
@@ -243,7 +240,7 @@ Container(
     return Column(
       children: [
         ListTile(
-          leading: Container(width: 30, height: 30, child: Icon(icon, color: Colors.black, size: 26)),
+          leading: SizedBox(width: 30, height: 30, child: Icon(icon, color: Colors.black, size: 26)),
           title: Text(title, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w400, color: Colors.black)),
           trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black),
           onTap: onTap,

@@ -121,10 +121,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          Column(
+          const Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text('Calorie', style: TextStyle(fontFamily: 'Itim', fontSize: 16, color: Color(0xFFE8EFCF), height: 1)),
               Text('Guard', style: TextStyle(fontFamily: 'Karla', fontSize: 22, fontWeight: FontWeight.w500, color: Colors.white, height: 1)),
             ],
