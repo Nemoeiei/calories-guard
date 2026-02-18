@@ -87,12 +87,12 @@ class WelcomeScreen extends StatelessWidget {
                             ),
                           );
                         },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10),
                           child: Row(
                             // 3. แก้ไข: จัดกึ่งกลางเนื้อหา
                             mainAxisAlignment: MainAxisAlignment.center, 
-                            children: const [
+                            children: [
                               Text(
                                 'เข้าสู่ระบบ/สร้างบัญชีใหม่',
                                 style: TextStyle(

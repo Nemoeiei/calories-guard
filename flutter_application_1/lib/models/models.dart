@@ -25,7 +25,7 @@ class Food {
   factory Food.fromJson(Map<String, dynamic> json) {
     return Food(
       id: json['food_id'] ?? 0, // ชื่อต้องตรงกับคอลัมน์ใน DB
-      name: json['name'] ?? '',
+      name: json['food_name'] ?? json['name'] ?? '',
       // แปลงเป็น double อย่างปลอดภัย (กัน Error)
       calories: double.tryParse(json['calories'].toString()) ?? 0.0,
       protein: double.tryParse(json['protein'].toString()) ?? 0.0,

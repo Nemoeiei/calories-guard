@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '/screens/profile/subprofile_screen/progress_screen.dart'; 
-import '../../services/notification_helper.dart'; 
+import '/screens/profile/subprofile_screen/progress_screen.dart';
+import '../../services/notification_helper.dart';
+import '/screens/macro/macro_detail_screen.dart'; 
 
 class AppHomeScreen extends ConsumerStatefulWidget {
   const AppHomeScreen({super.key});
@@ -210,32 +211,45 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
   // --- Widgets ---
 
-  Widget _buildNutrientLabel(String label, int current, int total, String imagePath) {
-    return SizedBox(
-      width: 150,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Container(width: 25, height: 25, decoration: BoxDecoration(shape: BoxShape.circle, image: DecorationImage(image: AssetImage(imagePath), fit: BoxFit.cover))),
-            const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
-          ]),
-          const SizedBox(height: 4),
-          Stack(children: [
-            Container(width: 140, height: 2, decoration: BoxDecoration(color: const Color(0xFF979797).withOpacity(0.5), borderRadius: BorderRadius.circular(6))),
-            Container(
-              width: 140 * (total > 0 ? (current / total).clamp(0.0, 1.0) : 0),
-              height: 2,
-              decoration: BoxDecoration(color: const Color(0xFF1C1B1F).withOpacity(0.8), borderRadius: BorderRadius.circular(6)),
-            ),
-          ]),
-          const SizedBox(height: 2),
-          SizedBox(width: 140, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('$current g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
-            Text('$total g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
-          ])),
-        ],
+  Widget _buildNutrientLabel(String label, int current, int total, String imagePath, String macroType) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MacroDetailScreen(macroType: macroType),
+          ),
+        );
+      },
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: SizedBox(
+          width: 150,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(width: 25, height: 25, decoration: BoxDecoration(shape: BoxShape.circle, image: DecorationImage(image: AssetImage(imagePath), fit: BoxFit.cover))),
+                const SizedBox(width: 8),
+                Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500)),
+              ]),
+              const SizedBox(height: 4),
+              Stack(children: [
+                Container(width: 140, height: 2, decoration: BoxDecoration(color: const Color(0xFF979797).withOpacity(0.5), borderRadius: BorderRadius.circular(6))),
+                Container(
+                  width: 140 * (total > 0 ? (current / total).clamp(0.0, 1.0) : 0),
+                  height: 2,
+                  decoration: BoxDecoration(color: const Color(0xFF1C1B1F).withOpacity(0.8), borderRadius: BorderRadius.circular(6)),
+                ),
+              ]),
+              const SizedBox(height: 2),
+              SizedBox(width: 140, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('$current g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
+                Text('$total g', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
+              ])),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -505,7 +519,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                                       child: Stack(
                                         alignment: Alignment.center,
                                         children: [
-                                          SizedBox(width: 150, height: 150, child: CircularProgressIndicator(value: 1.0, strokeWidth: 12, color: const Color(0xFF8BAE66))),
+                                          const SizedBox(width: 150, height: 150, child: CircularProgressIndicator(value: 1.0, strokeWidth: 12, color: Color(0xFF8BAE66))),
                                           SizedBox(width: 150, height: 150, child: CircularProgressIndicator(value: progress.clamp(0.0, 1.0), strokeWidth: 12, color: progressColor, strokeCap: StrokeCap.round)),
                                           Column(
                                             mainAxisAlignment: MainAxisAlignment.center,
@@ -522,9 +536,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                                   ],
                                 ),
                               ),
-                              Positioned(left: 226, top: 41, child: _buildNutrientLabel('โปรตีน', userData.consumedProtein, targetP, 'assets/images/icon/meat.png')),
-                              Positioned(left: 226, top: 102, child: _buildNutrientLabel('คาร์บ', userData.consumedCarbs, targetC, 'assets/images/icon/rice.png')),
-                              Positioned(left: 226, top: 166, child: _buildNutrientLabel('ไขมัน', userData.consumedFat, targetF, 'assets/images/icon/oil.png')),
+                              Positioned(left: 226, top: 41, child: _buildNutrientLabel('โปรตีน', userData.consumedProtein, targetP, 'assets/images/icon/meat.png', 'protein')),
+                              Positioned(left: 226, top: 102, child: _buildNutrientLabel('คาร์บ', userData.consumedCarbs, targetC, 'assets/images/icon/rice.png', 'carbs')),
+                              Positioned(left: 226, top: 166, child: _buildNutrientLabel('ไขมัน', userData.consumedFat, targetF, 'assets/images/icon/oil.png', 'fat')),
                             ],
                           ),
                         ),
@@ -558,7 +572,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                           left: 29, top: 44,
                           child: Text('${userData.weight.toInt()}', style: const TextStyle(fontFamily: 'Inter', fontSize: 32, fontWeight: FontWeight.w500, color: Colors.black)),
                         ),
-                        Positioned(left: 72, top: 58, child: const Text('/', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black))),
+                        const Positioned(left: 72, top: 58, child: Text('/', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black))),
                         Positioned(left: 84, top: 59, child: Text('${userData.targetWeight.toInt()} กก.', style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: Color.fromRGBO(0, 0, 0, 0.7)))),
                         Positioned(
                           left: 30, top: 92,
@@ -578,7 +592,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                                       const SizedBox(height: 7),
                                       Text(bmiStatus, style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black)),
                                       const SizedBox(height: 7),
-                                      Container(padding: const EdgeInsets.symmetric(horizontal: 4), color: Colors.white, child: Text('ต้องลดอีก 2.7', style: const TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w500, color: Colors.black)))
+                                      Container(padding: const EdgeInsets.symmetric(horizontal: 4), color: Colors.white, child: const Text('ต้องลดอีก 2.7', style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w500, color: Colors.black)))
                                     ],
                                   ),
                                 ),

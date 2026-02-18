@@ -200,7 +200,7 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                         },
                       ),
                       const SizedBox(height: 10),
-                      Text('ค่า BMI ของคุณแสดงผลตามเกณฑ์มาตรฐาน', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                      const Text('ค่า BMI ของคุณแสดงผลตามเกณฑ์มาตรฐาน', style: TextStyle(fontSize: 12, color: Colors.black87)),
                     ],
                   ),
                 ),
@@ -344,9 +344,9 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                   color: const Color(0xFFF3E351), // สีเหลืองตามรูป
                   borderRadius: BorderRadius.circular(100),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
+                  children: [
                     Text(
                       'แนะนำสำหรับคุณ',
                       style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w500, color: Colors.black),
