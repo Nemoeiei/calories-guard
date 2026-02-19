@@ -17,20 +17,31 @@ class AppHomeScreen extends ConsumerStatefulWidget {
 class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   bool _isLoading = true;
   bool _hasWarnedCalories = false;
+  late DateTime _viewDate;
 
   @override
   void initState() {
     super.initState();
+    _viewDate = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncViewDateFromProvider();
       _fetchAllData();
     });
+  }
+
+  void _syncViewDateFromProvider() {
+    final fromProvider = ref.read(homeViewDateProvider);
+    if (fromProvider != null) {
+      ref.read(homeViewDateProvider.notifier).state = null;
+      setState(() => _viewDate = DateTime(fromProvider.year, fromProvider.month, fromProvider.day));
+    }
   }
 
   // --- Data Fetching Section ---
 
   Future<void> _fetchAllData() async {
     await _fetchUserData();
-    await _fetchDailyData();
+    await _fetchDailyData(_viewDate);
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -51,14 +62,12 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     }
   }
 
-  // ✅ ดึงข้อมูลมื้ออาหารแบบ Dynamic (Map)
-  Future<void> _fetchDailyData() async {
+  // ✅ ดึงข้อมูลมื้ออาหารสำหรับวันที่ที่เลือก (viewDate)
+  Future<void> _fetchDailyData(DateTime forDate) async {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
 
-    final now = DateTime.now();
-    final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-    
+    final dateStr = "${forDate.year}-${forDate.month.toString().padLeft(2, '0')}-${forDate.day.toString().padLeft(2, '0')}";
     final url = Uri.parse('http://10.0.2.2:8000/daily_summary/$userId?date_record=$dateStr');
 
     try {
@@ -93,20 +102,20 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     );
   }
 
-  void _confirmDeleteMeal(String mealType) {
+  void _confirmDeleteMeal(String mealType, String mealLabel) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('ยืนยันการลบ', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold)),
-        content: Text('คุณต้องการลบรายการอาหารใน "$mealType" ใช่หรือไม่?'),
+        content: Text('คุณต้องการลบรายการอาหารใน "$mealLabel" ใช่หรือไม่?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context), 
+            onPressed: () => Navigator.pop(context),
             child: const Text('ยกเลิก', style: TextStyle(color: Colors.grey))
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context); 
+              Navigator.pop(context);
               _deleteMeal(mealType);
             },
             child: const Text('ลบ', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
@@ -118,8 +127,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
   Future<void> _deleteMeal(String mealType) async {
     final userId = ref.read(userDataProvider).userId;
-    final now = DateTime.now();
-    final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    final dateStr = "${_viewDate.year}-${_viewDate.month.toString().padLeft(2, '0')}-${_viewDate.day.toString().padLeft(2, '0')}";
 
     showDialog(
       context: context,
@@ -158,26 +166,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
   // --- Helper Functions ---
 
-  Map<String, int> calculateMacroTargets(double targetCalories, GoalOption goal) {
-    double pRatio, cRatio, fRatio;
-    switch (goal) {
-      case GoalOption.loseWeight: pRatio = 0.30; cRatio = 0.40; fRatio = 0.30; break;
-      case GoalOption.maintainWeight: pRatio = 0.25; cRatio = 0.45; fRatio = 0.30; break;
-      case GoalOption.buildMuscle: pRatio = 0.30; cRatio = 0.50; fRatio = 0.20; break;
-    }
-    return {
-      'protein': (targetCalories * pRatio / 4).round(),
-      'carbs': (targetCalories * cRatio / 4).round(),
-      'fat': (targetCalories * fRatio / 9).round(),
-    };
-  }
-
-  double calculateBMI(double weight, double heightInput) {
-    if (heightInput <= 0) return 0;
-    double heightM = (heightInput > 3.0) ? heightInput / 100 : heightInput; 
-    return weight / (heightM * heightM);
-  }
-
   String getBMIStatus(double bmi) {
     if (bmi <= 0) return '-';
     if (bmi < 18.5) return 'น้ำหนักน้อย';
@@ -187,23 +175,31 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     return 'อ้วนมาก';
   }
 
-  // Helper: แปลง 'meal_1' -> 'มื้อที่ 1'
+  // Helper: แปลง key เป็นป้ายภาษาไทย (backend ส่ง breakfast/lunch/dinner/snack)
   String _formatMealLabel(String key) {
+    switch (key) {
+      case 'breakfast': return 'มื้อเช้า';
+      case 'lunch': return 'มื้อเที่ยง';
+      case 'dinner': return 'มื้อเย็น';
+      case 'snack': return 'อาหารว่าง';
+    }
     if (key.startsWith('meal_')) {
-      var num = key.split('_')[1];
+      var num = key.split('_').length > 1 ? key.split('_')[1] : '?';
       return 'มื้อที่ $num';
     }
-    if (key == 'snack') return 'อาหารว่าง';
-    return key; 
+    return key;
   }
 
-  // Helper: เรียงลำดับมื้ออาหาร (meal_1, meal_2, meal_10...)
+  // Helper: เรียงลำดับมื้อ (breakfast, lunch, dinner, snack แล้วตามด้วย meal_1...)
   List<String> _getSortedMealKeys(Map<String, String> meals) {
+    const order = ['breakfast', 'lunch', 'dinner', 'snack'];
     var keys = meals.keys.toList();
     keys.sort((a, b) {
-      int? numA = int.tryParse(a.replaceAll(RegExp(r'[^0-9]'), ''));
-      int? numB = int.tryParse(b.replaceAll(RegExp(r'[^0-9]'), ''));
-      if (numA != null && numB != null) return numA.compareTo(numB);
+      int ia = order.indexOf(a);
+      int ib = order.indexOf(b);
+      if (ia >= 0 && ib >= 0) return ia.compareTo(ib);
+      if (ia >= 0) return -1;
+      if (ib >= 0) return 1;
       return a.compareTo(b);
     });
     return keys;
@@ -299,7 +295,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                 ),
                 const SizedBox(width: 10), 
                 InkWell(
-                  onTap: () => _confirmDeleteMeal(mealType),
+                  onTap: () => _confirmDeleteMeal(mealType, label),
                   child: Container(
                     width: 30, height: 30,
                     decoration: BoxDecoration(
@@ -351,15 +347,21 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final userData = ref.watch(userDataProvider);
-    
+    ref.listen<DateTime?>(homeViewDateProvider, (prev, next) {
+      if (next != null && mounted) {
+        ref.read(homeViewDateProvider.notifier).state = null;
+        setState(() => _viewDate = DateTime(next.year, next.month, next.day));
+        _fetchDailyData(_viewDate).then((_) { if (mounted) setState(() {}); });
+      }
+    });
+
     int targetCal = userData.targetCalories.toInt() > 0 ? userData.targetCalories.toInt() : 1500;
     int currentCal = userData.consumedCalories; 
     double progress = (targetCal > 0) ? currentCal / targetCal : 0.0;
 
-    final macroTargets = calculateMacroTargets(targetCal.toDouble(), userData.goal ?? GoalOption.loseWeight);
-    final targetP = macroTargets['protein']!;
-    final targetC = macroTargets['carbs']!;
-    final targetF = macroTargets['fat']!;
+    final targetP = userData.targetProtein;
+    final targetC = userData.targetCarbs;
+    final targetF = userData.targetFat;
 
     bool isOverCalories = currentCal > targetCal;
     Color progressColor = isOverCalories ? Colors.red : const Color(0xFF628141);
@@ -380,7 +382,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
       });
     }
 
-    double bmi = calculateBMI(userData.weight, userData.height);
+    double bmi = userData.bmi;
     String bmiStatus = getBMIStatus(bmi);
     double weightDiff = (userData.weight - userData.targetWeight).abs();
     String weightAction = (userData.weight > userData.targetWeight) ? "ลดอีก" : "เพิ่มอีก";
@@ -414,17 +416,33 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                       children: [
                         Expanded(
                           flex: 1,
-                          child: Container(
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))],
-                            ),
-                            child: Center(
-                              child: Text(
-                                "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
-                                style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w600),
+                          child: GestureDetector(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: _viewDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now(),
+                              );
+                              if (picked != null && mounted) {
+                                setState(() => _viewDate = DateTime(picked.year, picked.month, picked.day));
+                                setState(() => _isLoading = true);
+                                await _fetchDailyData(_viewDate);
+                                if (mounted) setState(() => _isLoading = false);
+                              }
+                            },
+                            child: Container(
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))],
+                              ),
+                              child: Center(
+                                child: Text(
+                                  "${_viewDate.day}/${_viewDate.month}/${_viewDate.year + 543}",
+                                  style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w600),
+                                ),
                               ),
                             ),
                           ),

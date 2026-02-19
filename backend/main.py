@@ -34,6 +34,81 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+# --- Official formulas: BMR (Mifflin-St Jeor), TDEE, Daily Target ---
+def _age_from_birth(birth_date: Optional[date]) -> int:
+    if not birth_date:
+        return 20
+    today = date.today()
+    age = today.year - birth_date.year
+    if (today.month, today.day) < (birth_date.month, birth_date.day):
+        age -= 1
+    return max(age, 10)
+
+
+def _compute_target_macros(user: dict) -> tuple:
+    """คืน (target_protein, target_carbs, target_fat) จาก target_calories กับ goal (อัตราส่วนเท่า Flutter)."""
+    cal = user.get('target_calories')
+    if cal is None:
+        cal = _compute_target_calories(user)
+    cal = int(cal) if cal else 2000
+    goal = (user.get('goal_type') or 'lose_weight').lower()
+    if goal == 'maintain_weight':
+        p_ratio, c_ratio, f_ratio = 0.25, 0.45, 0.30
+    elif goal == 'gain_muscle':
+        p_ratio, c_ratio, f_ratio = 0.30, 0.50, 0.20
+    else:
+        p_ratio, c_ratio, f_ratio = 0.30, 0.40, 0.30
+    p = int(round(cal * p_ratio / 4))
+    c = int(round(cal * c_ratio / 4))
+    f = int(round(cal * f_ratio / 9))
+    return (p, c, f)
+
+
+def _compute_target_calories(user: dict) -> int:
+    """Daily Target = TDEE + (kg_per_week * 1100). BMR Mifflin-St Jeor, TDEE = BMR * factor."""
+    w = float(user.get('current_weight_kg') or 0)
+    h = float(user.get('height_cm') or 0)
+    if w <= 0 or h <= 0:
+        return 2000
+    birth = user.get('birth_date')
+    if isinstance(birth, str):
+        birth = datetime.strptime(birth[:10], "%Y-%m-%d").date() if birth else None
+    age = _age_from_birth(birth)
+    gender = (user.get('gender') or 'male').lower()
+    # BMR: Male = (10*w)+(6.25*h)-(5*a)+5, Female = (10*w)+(6.25*h)-(5*a)-161
+    bmr = (10 * w) + (6.25 * h) - (5 * age) + (5 if gender == 'male' else -161)
+    act = (user.get('activity_level') or 'sedentary').lower()
+    factors = {'sedentary': 1.2, 'lightly_active': 1.375, 'moderately_active': 1.55, 'very_active': 1.725}
+    tdee = bmr * factors.get(act, 1.2)
+    target_kg = float(user.get('target_weight_kg') or w)
+    goal_start = user.get('goal_start_date')
+    goal_end = user.get('goal_target_date')
+    if isinstance(goal_start, str):
+        goal_start = datetime.strptime(goal_start[:10], "%Y-%m-%d").date() if goal_start else None
+    if isinstance(goal_end, str):
+        goal_end = datetime.strptime(goal_end[:10], "%Y-%m-%d").date() if goal_end else None
+    num_weeks = 12.0
+    if goal_start and goal_end and goal_end > goal_start:
+        num_weeks = max((goal_end - goal_start).days / 7.0, 1.0)
+    kg_per_week = (target_kg - w) / num_weeks
+    return int(round(tdee + (kg_per_week * 1100)))
+
+
+def normalize_calories(values: List[float]) -> float:
+    """Takes a list of at least 3 calorie values and returns the average (sum/count)."""
+    if not values:
+        return 0.0
+    valid = [v for v in values if v is not None and v >= 0]
+    if len(valid) < 3:
+        return valid[0] if valid else 0.0
+    return sum(valid) / len(valid)
+
+
+def atwater_calories(protein: float, carbs: float, fat: float) -> float:
+    """Atwater: (Protein*4) + (Carbs*4) + (Fat*9)."""
+    return (protein * 4) + (carbs * 4) + (fat * 9)
+
+
 # --- Enums (เหลือแค่ Goal กับ Activity ก็พอ) ---
 class GoalType(str, Enum):
     lose_weight = 'lose_weight'
@@ -65,6 +140,9 @@ class UserUpdate(BaseModel):
     goal_type: GoalType | None = None
     target_weight_kg: float | None = None
     target_calories: int | None = None
+    target_protein: int | None = None
+    target_carbs: int | None = None
+    target_fat: int | None = None
     activity_level: ActivityLevel | None = None
     goal_target_date: date | None = None
     unit_weight: str | None = None
@@ -214,13 +292,33 @@ def login(user: UserLogin):
         
         if not db_user or not verify_password(user.password, db_user['password_hash']):
             raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        # Update last_login_date, total_login_days, current_streak
+        today = date.today()
+        last_login = db_user.get('last_login_date')
+        if isinstance(last_login, datetime):
+            last_login = last_login.date()
+        total_days = int(db_user.get('total_login_days') or 0) + 1
+        streak = int(db_user.get('current_streak') or 0)
+        if last_login is None:
+            streak = 1
+        elif (today - last_login).days == 1:
+            streak += 1
+        elif (today - last_login).days > 1:
+            streak = 1
+        cur.execute("""
+            UPDATE users
+            SET last_login_date = %s, total_login_days = %s, current_streak = %s
+            WHERE user_id = %s
+        """, (datetime.combine(today, datetime.min.time()), total_days, streak, db_user['user_id']))
+        conn.commit()
             
         return {
             "message": "Login successful",
             "user_id": db_user['user_id'],
             "username": db_user['username'],
             "email": db_user['email'],
-            "role_id": db_user['role_id'] 
+            "role_id": db_user['role_id'],
         }
     finally:
         if conn: conn.close()
@@ -238,6 +336,9 @@ def update_user(user_id: int, user_update: UserUpdate):
         if user_update.goal_type: user_fields.append("goal_type=%s"); user_values.append(user_update.goal_type)
         if user_update.target_weight_kg: user_fields.append("target_weight_kg=%s"); user_values.append(user_update.target_weight_kg)
         if user_update.target_calories: user_fields.append("target_calories=%s"); user_values.append(user_update.target_calories)
+        if user_update.target_protein is not None: user_fields.append("target_protein=%s"); user_values.append(user_update.target_protein)
+        if user_update.target_carbs is not None: user_fields.append("target_carbs=%s"); user_values.append(user_update.target_carbs)
+        if user_update.target_fat is not None: user_fields.append("target_fat=%s"); user_values.append(user_update.target_fat)
         if user_update.activity_level: user_fields.append("activity_level=%s"); user_values.append(user_update.activity_level)
         if user_update.gender: user_fields.append("gender=%s"); user_values.append(user_update.gender)
         if user_update.birth_date: user_fields.append("birth_date=%s"); user_values.append(user_update.birth_date)
@@ -247,8 +348,19 @@ def update_user(user_id: int, user_update: UserUpdate):
 
         if user_fields:
             user_values.append(user_id)
-            sql = f"UPDATE users SET {', '.join(user_fields)} WHERE user_id = %s"
-            cur.execute(sql, tuple(user_values))
+            cur.execute(f"UPDATE users SET {', '.join(user_fields)} WHERE user_id = %s", tuple(user_values))
+
+        # If target_calories or macros were not in request, recompute and store so DB has values
+        cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+        row = cur.fetchone()
+        if row:
+            if user_update.target_calories is None and row.get('target_calories') is None:
+                computed = _compute_target_calories(dict(row))
+                cur.execute("UPDATE users SET target_calories = %s WHERE user_id = %s", (computed, user_id))
+                row = {**row, 'target_calories': computed}
+            if user_update.target_protein is None and row.get('target_protein') is None:
+                p, c, f = _compute_target_macros(dict(row))
+                cur.execute("UPDATE users SET target_protein = %s, target_carbs = %s, target_fat = %s WHERE user_id = %s", (p, c, f, user_id))
 
         # Weight Log
         if user_update.current_weight_kg is not None:
@@ -267,7 +379,7 @@ def update_user(user_id: int, user_update: UserUpdate):
     finally:
         if conn: conn.close()
 
-# --- API 6: Get User Profile ---
+# --- API 6: Get User Profile (null-safe, target_calories from DB or computed) ---
 @app.get("/users/{user_id}")
 def get_user_profile(user_id: int):
     conn = get_db_connection()
@@ -277,7 +389,35 @@ def get_user_profile(user_id: int):
         user = cur.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        return user
+        # Null-safe: ensure numeric/string fields have defaults for JSON; store target_calories if missing
+        target_cal = user.get('target_calories')
+        if target_cal is None:
+            target_cal = _compute_target_calories(dict(user))
+            cur.execute("UPDATE users SET target_calories = %s WHERE user_id = %s", (target_cal, user_id))
+            conn.commit()
+            user = {**user, 'target_calories': target_cal}
+        if user.get('target_protein') is None or user.get('target_carbs') is None or user.get('target_fat') is None:
+            tp, tc, tf = _compute_target_macros(dict(user))
+            cur.execute("UPDATE users SET target_protein = %s, target_carbs = %s, target_fat = %s WHERE user_id = %s", (tp, tc, tf, user_id))
+            conn.commit()
+            user = {**user, 'target_protein': tp, 'target_carbs': tc, 'target_fat': tf}
+        out = dict(user)
+        out['target_calories'] = int(out['target_calories']) if out.get('target_calories') is not None else _compute_target_calories(out)
+        tp, tc, tf = _compute_target_macros(out)
+        out['target_protein'] = int(out['target_protein']) if out.get('target_protein') is not None else tp
+        out['target_carbs'] = int(out['target_carbs']) if out.get('target_carbs') is not None else tc
+        out['target_fat'] = int(out['target_fat']) if out.get('target_fat') is not None else tf
+        out['current_streak'] = int(out['current_streak']) if out.get('current_streak') is not None else 0
+        out['total_login_days'] = int(out['total_login_days']) if out.get('total_login_days') is not None else 0
+        if out.get('last_login_date') and hasattr(out['last_login_date'], 'isoformat'):
+            out['last_login_date'] = out['last_login_date'].isoformat() if out['last_login_date'] else None
+        if out.get('birth_date') and hasattr(out['birth_date'], 'isoformat'):
+            out['birth_date'] = out['birth_date'].isoformat()[:10] if out['birth_date'] else None
+        if out.get('goal_start_date') and hasattr(out['goal_start_date'], 'isoformat'):
+            out['goal_start_date'] = out['goal_start_date'].isoformat()[:10] if out['goal_start_date'] else None
+        if out.get('goal_target_date') and hasattr(out['goal_target_date'], 'isoformat'):
+            out['goal_target_date'] = out['goal_target_date'].isoformat()[:10] if out['goal_target_date'] else None
+        return out
     finally:
         if conn: conn.close()
 
@@ -336,9 +476,12 @@ def get_daily_summary(user_id: int, date_record: date):
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("SELECT target_calories FROM users WHERE user_id = %s", (user_id,))
-        user = cur.fetchone()
-        target_cal = user['target_calories'] if user else 2000
+        cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+        user_row = cur.fetchone()
+        if user_row and user_row.get('target_calories') is not None:
+            target_cal = int(user_row['target_calories'])
+        else:
+            target_cal = _compute_target_calories(dict(user_row)) if user_row else 2000
 
         cur.execute("""
             SELECT total_calories_intake FROM daily_summaries

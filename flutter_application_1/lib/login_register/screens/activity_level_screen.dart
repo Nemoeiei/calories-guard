@@ -47,6 +47,100 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
     },
   ];
 
+  static String _bmiStatus(double bmi) {
+    if (bmi <= 0) return '-';
+    if (bmi < 18.5) return 'น้ำหนักน้อย';
+    if (bmi < 23) return 'ปกติ';
+    if (bmi < 25) return 'ท้วม';
+    if (bmi < 30) return 'อ้วน';
+    return 'อ้วนมาก';
+  }
+
+  static Color _bmiColor(double bmi) {
+    if (bmi <= 0) return Colors.grey;
+    if (bmi < 18.5) return Colors.blue;
+    if (bmi < 23) return Colors.green;
+    if (bmi < 25) return Colors.orange;
+    return Colors.red;
+  }
+
+  Widget _buildBMICard() {
+    final userData = ref.watch(userDataProvider);
+    final bmi = userData.bmi;
+    final bmiStatus = _bmiStatus(bmi);
+    final bmiColor = _bmiColor(bmi);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('BMI', style: TextStyle(fontSize: 12, fontFamily: 'Inter')),
+              const SizedBox(width: 20),
+              Text(bmi.toStringAsFixed(1), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: bmiColor.withOpacity(0.2), borderRadius: BorderRadius.circular(5)),
+                child: Text(bmiStatus, style: TextStyle(fontSize: 10, color: bmiColor, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              const minBMI = 15.0;
+              const maxBMI = 35.0;
+              double normalizedBMI = (bmi - minBMI) / (maxBMI - minBMI);
+              if (normalizedBMI < 0) normalizedBMI = 0;
+              if (normalizedBMI > 1) normalizedBMI = 1;
+              final position = normalizedBMI * (width - 14);
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    height: 10,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1710ED), Color(0xFF69AE6D), Color(0xFFD3D347), Color(0xFFCAAC58), Color(0xFFFF0000)],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: position,
+                    top: -2,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black54, width: 2),
+                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          const Text('ค่า BMI ของคุณแสดงผลตามเกณฑ์มาตรฐาน', style: TextStyle(fontSize: 12, color: Colors.black87)),
+        ],
+      ),
+    );
+  }
+
   // ✅ 3. ปรับปรุงฟังก์ชัน Submit ให้ยิง API
   void _submit() async {
     setState(() => _isLoading = true); // เริ่มโหลด
@@ -128,7 +222,14 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
                 style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: Colors.black54),
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
+
+            // --- BMI Card ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildBMICard(),
+            ),
+            const SizedBox(height: 24),
 
             // --- List of Cards ---
             Expanded(

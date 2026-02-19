@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart';
 import '../../services/auth_service.dart'; // ✅ Import Service
 import 'activity_level_screen.dart';
+import 'birth_date_picker_screen.dart';
 
 class PersonalInfoScreen extends ConsumerStatefulWidget {
   const PersonalInfoScreen({super.key});
@@ -12,8 +13,6 @@ class PersonalInfoScreen extends ConsumerStatefulWidget {
 }
 
 class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
-  // ❌ เอา _nameController ออกแล้ว
-  final TextEditingController _birthdayController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
 
@@ -24,37 +23,20 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
 
   @override
   void dispose() {
-    _birthdayController.dispose();
     _heightController.dispose();
     _weightController.dispose();
     super.dispose();
   }
 
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime(2000),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF4C6414),
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
+  Future<void> _openBirthDatePicker(BuildContext context) async {
+    final DateTime? picked = await Navigator.push<DateTime>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BirthDatePickerScreen(initialDate: _selectedDate ?? DateTime(2000, 1, 1)),
+      ),
     );
-    if (picked != null) {
-      setState(() {
-        _selectedDate = picked;
-        // แสดงผลแบบ วว/ดด/ปปปป
-        _birthdayController.text = "${picked.day}/${picked.month}/${picked.year}";
-      });
+    if (picked != null && mounted) {
+      setState(() => _selectedDate = picked);
     }
   }
 
@@ -183,12 +165,7 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 50),
                   child: Column(
                     children: [
-                      _buildFormField(
-                        label: 'วันเกิด*',
-                        controller: _birthdayController,
-                        hintText: 'วว/ดด/ปปปป',
-                        isDate: true,
-                      ),
+                      _buildBirthDateRow(),
                       const SizedBox(height: 28),
                       _buildFormField(
                         label: 'ส่วนสูง*',
@@ -246,12 +223,60 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
     );
   }
 
+  Widget _buildBirthDateRow() {
+    final label = 'วันเกิด*';
+    final displayText = _selectedDate == null
+        ? 'วว/ดด/ปปปป'
+        : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}';
+    final isPlaceholder = _selectedDate == null;
+    return Row(
+      children: [
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            style: const TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w500, color: Colors.black),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => _openBirthDatePicker(context),
+            child: Container(
+              height: 29,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEEDED),
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      displayText,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: isPlaceholder ? const Color(0xB3000000) : Colors.black,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.calendar_today, size: 18, color: Color(0xFF628141)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildFormField({
     required String label,
     required TextEditingController controller,
     required String hintText,
     bool isNumber = false,
-    bool isDate = false,
   }) {
     return Row(
       children: [
@@ -272,8 +297,6 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
             ),
             child: TextField(
               controller: controller,
-              readOnly: isDate,
-              onTap: isDate ? () => _selectDate(context) : null,
               keyboardType: isNumber
                   ? const TextInputType.numberWithOptions(decimal: true)
                   : TextInputType.text,
@@ -282,12 +305,6 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                 hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w400, color: Color(0xB3000000)),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                suffixIcon: isDate
-                    ? const Padding(
-                        padding: EdgeInsets.only(right: 10),
-                        child: Icon(Icons.calendar_today, size: 18, color: Color(0xFF628141)),
-                      )
-                    : null,
               ),
               style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w400, color: Colors.black),
             ),
