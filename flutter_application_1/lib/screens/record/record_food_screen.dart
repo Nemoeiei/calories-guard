@@ -21,9 +21,9 @@ final List<Map<String, String>> _mealTimeOptions = [
 ];
 
 class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
-  // ข้อมูลมื้ออาหาร: selectedMealIndex = null หมายถึงยังไม่เลือกช่วงเวลา
+  // ข้อมูลมื้ออาหาร: selectedMealIndex, items, saved (หลังบันทึกแล้วแสดง "แก้ไข" แทน "บันทึก")
   final List<Map<String, dynamic>> _meals = [
-    {'selectedMealIndex': null, 'items': ['']}
+    {'selectedMealIndex': null, 'items': [''], 'saved': false}
   ];
 
   bool _isSaving = false;
@@ -43,6 +43,52 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
   void initState() {
     super.initState();
     _fetchFoodsFromApi();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDayData(_selectedDate));
+  }
+
+  /// โหลดข้อมูลมื้ออาหารของวันที่เลือกจาก API (ถ้ามี) แล้วใส่ในฟอร์ม
+  Future<void> _loadDayData(DateTime forDate) async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+    final dateStr = DateFormat('yyyy-MM-dd').format(forDate);
+    try {
+      final url = Uri.parse('http://10.0.2.2:8000/daily_summary/$userId?date_record=$dateStr');
+      final res = await http.get(url);
+      if (!mounted || res.statusCode != 200) return;
+      final data = json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final meals = data['meals'];
+      if (meals == null || meals is! Map) {
+        _meals.clear();
+        _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+        if (mounted) setState(() {});
+        return;
+      }
+      final map = Map<String, String>.from(Map<String, dynamic>.from(meals));
+      const order = ['breakfast', 'lunch', 'dinner', 'snack'];
+      _meals.clear();
+      for (int i = 0; i < order.length; i++) {
+        final value = map[order[i]]?.toString().trim() ?? '';
+        if (value.isEmpty) continue;
+        final items = value.split(RegExp(r',\s*')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+        if (items.isEmpty) continue;
+        items.add('');
+        _meals.add({
+          'selectedMealIndex': i,
+          'items': items,
+          'saved': true,
+        });
+      }
+      if (_meals.isEmpty) {
+        _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+      }
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) {
+        _meals.clear();
+        _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+        setState(() {});
+      }
+    }
   }
 
   double _safeParse(dynamic v) {
@@ -86,13 +132,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
         backgroundColor: Colors.green));
   }
 
-  // ✅ แก้ไข: Map Index เป็น meal_type แบบ Dynamic (meal_1, meal_2...)
-  String _mapIndexToMealType(int i) {
-    // i เริ่มจาก 0 ดังนั้น +1 ให้เป็น meal_1
-    return 'meal_${i + 1}';
-  }
-
-  // ✅ บันทึกหนึ่งมื้อลง Backend (ส่ง items ทั้งมื้อครั้งเดียว — ไม่ส่งทีละรายการเพื่อกันซ้ำ)
+  // ✅ บันทึกหนึ่งมื้อลง Backend (ส่ง items ทั้งมื้อครั้งเดียว)
   Future<void> _saveMealToBackend(String mealType, List<String> menuNames) async {
     if (menuNames.isEmpty) return;
 
@@ -140,109 +180,94 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     }
   }
 
-  // ✅ ฟังก์ชันคำนวณและบันทึกทั้งหมด
-  void _calculateAndSave() async {
+  // --- UI Logic ---
+  void _addNextMeal() {
+    setState(() {
+      _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+    });
+  }
+
+  /// บันทึกเฉพาะการ์ดนี้ (เคลียร์ meal_type นี้ของวันนั้น แล้ว POST ใหม่ แล้วเซ็ต saved = true)
+  Future<void> _saveSingleCard(int mealIndex) async {
     if (_isSaving) return;
-    FocusScope.of(context).unfocus();
-
-    final userId = ref.read(userDataProvider).userId;
-    if (userId == 0) return;
-
-    setState(() => _isSaving = true);
-
-    int totalCal = 0;
-    int totalP = 0;
-    int totalC = 0;
-    int totalF = 0;
-
-    // ✅ เก็บข้อมูลมื้ออาหารแบบ Map เพื่อส่งให้ Provider ใหม่
-    Map<String, String> recordedMeals = {};
-
-    // วนลูปบันทึกทีละมื้อ — ส่งหนึ่ง POST ต่อมื้อ (รวม items ทั้งมื้อ) เพื่อไม่ให้ backend สร้างหลาย meal / บวกแคลซ้ำ
-    for (int i = 0; i < _meals.length; i++) {
-      List<String> items = List<String>.from(_meals[i]['items']);
-      String mealType = _mealTypeForCard(i);
-
-      List<String> foodNamesInThisMeal = [];
-
-      for (String menu in items) {
-        final name = menu.trim();
-        if (name.isEmpty) continue;
-        final food = _foodDatabase.firstWhere(
-            (f) =>
-                f['food_name'].toString().toLowerCase() == name.toLowerCase(),
-            orElse: () => null);
-
-        if (food != null) {
-          totalCal += _safeParse(food['calories']).toInt();
-          totalP += _safeParse(food['protein']).toInt();
-          totalC += _safeParse(food['carbs']).toInt();
-          totalF += _safeParse(food['fat']).toInt();
-          foodNamesInThisMeal.add(name);
-        }
-      }
-
-      if (foodNamesInThisMeal.isNotEmpty) {
-        recordedMeals[mealType] = foodNamesInThisMeal.join(", ");
-        await _saveMealToBackend(mealType, foodNamesInThisMeal);
-      }
+    final items = List<String>.from(_meals[mealIndex]['items']);
+    final selectedIndex = _meals[mealIndex]['selectedMealIndex'] as int?;
+    if (selectedIndex == null || selectedIndex < 0 || selectedIndex >= _mealTimeOptions.length) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณาเลือกช่วงเวลาที่ทาน'), backgroundColor: Colors.orange));
+      return;
     }
-
+    final foodNames = items.where((s) => s.trim().isNotEmpty).toList();
+    setState(() => _isSaving = true);
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) { setState(() => _isSaving = false); return; }
+    final mealType = _mealTimeOptions[selectedIndex]['mealType']!;
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
     try {
-      // Update Activity
-      String activityValue =
-          _activityMap[_selectedActivityLabel] ?? 'sedentary';
-      try {
-        final userUrl = Uri.parse('http://10.0.2.2:8000/users/$userId');
-        await http.put(
-          userUrl,
-          headers: {"Content-Type": "application/json"},
-          body: jsonEncode({"activity_level": activityValue}),
-        );
-        ref.read(userDataProvider.notifier).setActivityLevel(activityValue);
-      } catch (e) {
-        print("Activity Update Error: $e");
-      }
-
-      // ✅ Update Provider ด้วย Map ใหม่
-      ref.read(userDataProvider.notifier).updateDailyFood(
-            cal: totalCal, protein: totalP, carbs: totalC, fat: totalF,
-            dailyMeals: recordedMeals, // ส่ง Map แทน
-          );
-
+      final base = Uri.parse('http://10.0.2.2:8000/meals/clear/$userId');
+      await http.delete(base.replace(queryParameters: {'date_record': dateStr, 'meal_type': mealType}));
+      if (foodNames.isNotEmpty) await _saveMealToBackend(mealType, foodNames);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('บันทึกเรียบร้อย!'), backgroundColor: Colors.green));
-        await Future.delayed(const Duration(milliseconds: 200));
-        ref.read(navIndexProvider.notifier).state = 0; // กลับหน้าแรก
-        setState(() => _isSaving = false);
+        setState(() {
+          _isSaving = false;
+          _meals[mealIndex]['saved'] = true;
+          if (foodNames.isEmpty) {
+            final list = _meals[mealIndex]['items'] as List;
+            list.clear();
+            list.add('');
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกมื้อนี้เรียบร้อย'), backgroundColor: Colors.green));
+        await _refreshHomeDailyData(_selectedDate);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red));
       }
     }
   }
 
-  // --- UI Logic ---
-  void _addNextMeal() {
+  /// ดึง daily_summary ของวันที่เลือกแล้วอัปเดต provider + ตั้งวันให้หน้า Home แสดง
+  Future<void> _refreshHomeDailyData(DateTime forDate) async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+    final dateStr = DateFormat('yyyy-MM-dd').format(forDate);
+    try {
+      final url = Uri.parse('http://10.0.2.2:8000/daily_summary/$userId?date_record=$dateStr');
+      final response = await http.get(url);
+      if (response.statusCode == 200 && mounted) {
+        final summaryData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        Map<String, String> mealsMap = {};
+        if (summaryData['meals'] != null) {
+          mealsMap = Map<String, String>.from(summaryData['meals'] as Map);
+        }
+        ref.read(userDataProvider.notifier).updateDailyFood(
+          cal: (summaryData['total_calories_intake'] as num?)?.toInt() ?? 0,
+          protein: (summaryData['total_protein'] as num?)?.toInt() ?? 0,
+          carbs: (summaryData['total_carbs'] as num?)?.toInt() ?? 0,
+          fat: (summaryData['total_fat'] as num?)?.toInt() ?? 0,
+          dailyMeals: mealsMap,
+        );
+        ref.read(homeViewDateProvider.notifier).state = forDate;
+      }
+    } catch (_) {}
+  }
+
+  /// ทำให้แต่ละมื้อมีช่องว่างสำหรับกรอกอาหารเพียง 1 ช่องเสมอ (รายการที่กรอกแล้ว + ช่องว่างเดียว)
+  void _normalizeMealItems(int mealIndex) {
+    final list = _meals[mealIndex]['items'] as List<String>;
+    final nonEmpty = list.where((s) => s.trim().isNotEmpty).toList();
+    list
+      ..clear()
+      ..addAll(nonEmpty)
+      ..add('');
+  }
+
+  void _addFoodItemInMeal(int mealIndex) {
     setState(() {
-      _meals.add({'selectedMealIndex': null, 'items': ['']});
+      final list = _meals[mealIndex]['items'] as List<String>;
+      list.add('');
     });
-  }
-
-  String _mealTypeForCard(int i) {
-    final idx = _meals[i]['selectedMealIndex'] as int?;
-    if (idx != null && idx >= 0 && idx < _mealTimeOptions.length) {
-      return _mealTimeOptions[idx]['mealType']!;
-    }
-    return _mapIndexToMealType(i);
-  }
-
-  void _addFoodItemInMeal(int index) {
-    setState(() => _meals[index]['items'].add(''));
   }
 
   void _showFoodRequestDialog() {
@@ -409,7 +434,10 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
-              onTap: () => ref.read(navIndexProvider.notifier).state = 0,
+              onTap: () {
+                ref.read(homeViewDateProvider.notifier).state = _selectedDate;
+                ref.read(navIndexProvider.notifier).state = 0;
+              },
               child: const Icon(Icons.arrow_back_ios, color: Colors.white)),
           const Text('บันทึกการกินวันนี้',
               style: TextStyle(
@@ -431,7 +459,10 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
                             onSurface: Colors.black)),
                     child: child!),
               );
-              if (d != null) setState(() => _selectedDate = d);
+              if (d != null) {
+                setState(() => _selectedDate = d);
+                _loadDayData(d);
+              }
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -453,10 +484,47 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     );
   }
 
+  Future<void> _deleteThisMeal(int mealIndex) async {
+    final selectedIndex = _meals[mealIndex]['selectedMealIndex'] as int?;
+    if (selectedIndex == null || selectedIndex < 0 || selectedIndex >= _mealTimeOptions.length) return;
+    final mealType = _mealTimeOptions[selectedIndex]['mealType']!;
+    final label = _mealTimeOptions[selectedIndex]['label']!;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ยืนยันการลบมื้อ'),
+        content: Text('ต้องการลบข้อมูลมื้อ "$label" ใช่หรือไม่?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ลบ')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    try {
+      final base = Uri.parse('http://10.0.2.2:8000/meals/clear/$userId');
+      await http.delete(base.replace(queryParameters: {'date_record': dateStr, 'meal_type': mealType}));
+      if (mounted) {
+        setState(() {
+          _meals.removeAt(mealIndex);
+          if (_meals.isEmpty) _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบมื้อแล้ว'), backgroundColor: Colors.green));
+        await _refreshHomeDailyData(_selectedDate);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red));
+    }
+  }
+
   Widget _buildMealCard(int mealIndex) {
     final items = List<String>.from(_meals[mealIndex]['items']);
     final selectedIndex = _meals[mealIndex]['selectedMealIndex'] as int?;
     final hasTimeSelected = selectedIndex != null && selectedIndex >= 0 && selectedIndex < _mealTimeOptions.length;
+    final saved = _meals[mealIndex]['saved'] == true;
     // หัวข้อ: ยังไม่เลือกช่วงเวลา = "เลือกมื้ออาหาร", เลือกแล้ว = "มื้อที่ N"
     final title = hasTimeSelected ? 'มื้อที่ ${mealIndex + 1}' : 'เลือกมื้ออาหาร';
 
@@ -472,126 +540,138 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // แถวบน: ซ้าย = หัวข้อ + ช่วงเวลาที่ทาน + dropdown, ขวา = chips + ปุ่ม +
+            // แถวบน: ซ้าย = หัวข้อ, ขวา = ช่วงเวลาที่ทาน + dropdown
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'ช่วงเวลาที่ทาน',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 44,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.black26),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<int>(
-                            value: selectedIndex,
-                            isExpanded: true,
-                            hint: const Text(
-                              'เลือกมื้ออาหาร',
-                              style: TextStyle(fontSize: 14, color: Colors.grey),
-                            ),
-                            items: List.generate(
-                              _mealTimeOptions.length,
-                              (i) => DropdownMenuItem(
-                                value: i,
-                                child: Text(
-                                  _mealTimeOptions[i]['label']!,
-                                  style: const TextStyle(fontSize: 14, color: Colors.black87),
-                                ),
-                              ),
-                            ),
-                            onChanged: (v) => setState(() => _meals[mealIndex]['selectedMealIndex'] = v),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        alignment: WrapAlignment.end,
-                        children: [
-                          ...items.where((s) => s.trim().isNotEmpty).map((name) => _buildFoodChip(mealIndex, name, items)),
-                          InkWell(
-                            onTap: () => _addFoodItemInMeal(mealIndex),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade300,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.add, size: 22, color: Colors.black87),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            // ช่องกรอกอาหารเพิ่ม (สำหรับ slot ว่าง)
-            for (int j = 0; j < items.length; j++)
-              if (items[j].trim().isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: _buildFoodField(mealIndex, j, items),
-                ),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: GestureDetector(
-                onTap: _isSaving ? null : _calculateAndSave,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF628141),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
-                    ],
-                  ),
                   child: Text(
-                    _isSaving ? '...' : 'บันทึก',
+                    title,
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'ช่วงเวลาที่ทาน',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 180,
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.black26),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: selectedIndex,
+                          isExpanded: true,
+                          hint: const Text(
+                            'เลือกมื้ออาหาร',
+                            style: TextStyle(fontSize: 14, color: Colors.grey),
+                          ),
+                          items: List.generate(
+                            _mealTimeOptions.length,
+                            (i) => DropdownMenuItem(
+                              value: i,
+                              child: Text(
+                                _mealTimeOptions[i]['label']!,
+                                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                              ),
+                            ),
+                          ),
+                          onChanged: saved ? null : (v) => setState(() => _meals[mealIndex]['selectedMealIndex'] = v),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            if (!hasTimeSelected)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'กรุณาเลือกช่วงเวลาที่ทานก่อน จึงจะกรอกอาหารได้',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
               ),
+            if (hasTimeSelected) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...List.generate(items.length, (j) => j).where((j) => items[j].trim().isNotEmpty).map((j) => _buildFoodChip(mealIndex, j, items, canDelete: !saved)),
+                  if (!saved)
+                    InkWell(
+                      onTap: () => _addFoodItemInMeal(mealIndex),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: const Color(0xFF628141).withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.add, size: 18, color: Color(0xFF628141)),
+                          SizedBox(width: 4),
+                          Text('เพิ่มเมนูอาหาร', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF628141))),
+                        ]),
+                      ),
+                    ),
+                ],
+              ),
+              if (!saved)
+                for (int j = 0; j < items.length; j++)
+                  if (items[j].trim().isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: _buildFoodField(mealIndex, j, items),
+                    ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (!saved) ...[
+                  GestureDetector(
+                    onTap: _isSaving ? null : () => _deleteThisMeal(mealIndex),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(color: Colors.red.shade300, borderRadius: BorderRadius.circular(10)),
+                      child: const Text('ลบมื้อ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                GestureDetector(
+                  onTap: _isSaving ? null : () {
+                    if (saved) {
+                      setState(() => _meals[mealIndex]['saved'] = false);
+                    } else {
+                      _saveSingleCard(mealIndex);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: saved ? Colors.grey : const Color(0xFF628141),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                    ),
+                    child: Text(
+                      _isSaving ? '...' : (saved ? 'แก้ไข' : 'บันทึก'),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -599,8 +679,9 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     );
   }
 
-  Widget _buildFoodChip(int mealIndex, String name, List<String> items) {
-    final idx = items.indexOf(name);
+  Widget _buildFoodChip(int mealIndex, int itemIndex, List<String> items, {bool canDelete = true}) {
+    if (itemIndex >= items.length || items[itemIndex].trim().isEmpty) return const SizedBox.shrink();
+    final name = items[itemIndex];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -611,58 +692,39 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(name, style: const TextStyle(fontSize: 13, color: Colors.black87), overflow: TextOverflow.ellipsis, maxLines: 1),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                final i = _meals[mealIndex]['items'] as List;
-                if (idx >= 0 && idx < i.length) i[idx] = '';
-              });
-            },
-            child: const Icon(Icons.close, size: 16, color: Colors.black54),
-          ),
+          if (canDelete) ...[
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  final i = _meals[mealIndex]['items'] as List;
+                  if (itemIndex >= 0 && itemIndex < i.length) {
+                    i[itemIndex] = '';
+                    _normalizeMealItems(mealIndex);
+                  }
+                });
+              },
+              child: const Icon(Icons.close, size: 16, color: Colors.black54),
+            ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildFoodField(int mealIndex, int itemIndex, List<String> items) {
-    return Container(
-      height: 40,
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(20)),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      alignment: Alignment.center,
-      child: Autocomplete<String>(
-        optionsBuilder: (t) {
-          if (t.text.isEmpty) return const Iterable.empty();
-          return _foodDatabase
-              .where((f) => f['food_name']
-                  .toString()
-                  .toLowerCase()
-                  .contains(t.text.toLowerCase()))
-              .map((f) => f['food_name'].toString());
-        },
-        onSelected: (s) =>
-            setState(() => _meals[mealIndex]['items'][itemIndex] = s),
-        fieldViewBuilder: (_, controller, focusNode, __) {
-          controller.text = items[itemIndex];
-          controller.selection = TextSelection.fromPosition(
-              TextPosition(offset: controller.text.length));
-          controller.addListener(() {
-            _meals[mealIndex]['items'][itemIndex] = controller.text;
-          });
-          return TextField(
-            controller: controller,
-            focusNode: focusNode,
-            decoration: const InputDecoration(
-                hintText: 'กรอกอาหารที่ทาน',
-                border: InputBorder.none,
-                isDense: true),
-            style: const TextStyle(fontSize: 12),
-          );
-        },
-      ),
+    return _FoodSearchField(
+      mealIndex: mealIndex,
+      itemIndex: itemIndex,
+      foodDatabase: _foodDatabase,
+      onSelected: (String name) {
+        final list = _meals[mealIndex]['items'] as List;
+        if (itemIndex >= 0 && itemIndex < list.length) {
+          list[itemIndex] = name;
+          _normalizeMealItems(mealIndex);
+          setState(() {});
+        }
+      },
     );
   }
 
@@ -701,6 +763,106 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
               .toList(),
         ),
       ),
+    );
+  }
+}
+
+/// ช่องค้นหาอาหาร: พิมพ์หรือวางข้อความ แล้วแสดงรายการให้เลือก เมื่อเลือกถึงจะกลายเป็นชิป
+class _FoodSearchField extends StatefulWidget {
+  final int mealIndex;
+  final int itemIndex;
+  final List<dynamic> foodDatabase;
+  final void Function(String name) onSelected;
+
+  const _FoodSearchField({
+    required this.mealIndex,
+    required this.itemIndex,
+    required this.foodDatabase,
+    required this.onSelected,
+  });
+
+  @override
+  State<_FoodSearchField> createState() => _FoodSearchFieldState();
+}
+
+class _FoodSearchFieldState extends State<_FoodSearchField> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  List<String> _getMatches(String query) {
+    if (query.trim().isEmpty) return [];
+    final q = query.trim().toLowerCase();
+    return widget.foodDatabase
+        .where((f) => f['food_name'].toString().toLowerCase().contains(q))
+        .map((f) => f['food_name'].toString())
+        .toSet()
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _controller.text;
+    final matches = _getMatches(query);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          alignment: Alignment.center,
+          child: TextField(
+            controller: _controller,
+            focusNode: _focusNode,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              hintText: 'พิมพ์หรือวางชื่ออาหาร แล้วเลือกจากรายการด้านล่าง',
+              border: InputBorder.none,
+              isDense: true,
+            ),
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+        if (matches.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Material(
+            elevation: 2,
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: matches.length,
+                itemBuilder: (context, i) {
+                  final name = matches[i];
+                  return ListTile(
+                    dense: true,
+                    title: Text(name, style: const TextStyle(fontSize: 13)),
+                    onTap: () {
+                      widget.onSelected(name);
+                      _controller.clear();
+                      setState(() {});
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

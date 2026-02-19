@@ -57,27 +57,23 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
 
   void _filterAndSortFoods() {
     final userData = ref.read(userDataProvider);
-    final targetCal = userData.targetCalories.toInt() > 0 ? userData.targetCalories.toInt() : 1500;
-
-    // Calculate macro targets based on goal
-    Map<String, int> macroTargets = _calculateMacroTargets(targetCal.toDouble(), userData.goal ?? GoalOption.loseWeight);
 
     int targetMacro = 0;
     int consumedMacro = 0;
 
     switch (widget.macroType) {
       case 'protein':
-        targetMacro = macroTargets['protein']!;
+        targetMacro = userData.targetProtein;
         consumedMacro = userData.consumedProtein;
         _allFoods.sort((a, b) => b.protein.compareTo(a.protein));
         break;
       case 'carbs':
-        targetMacro = macroTargets['carbs']!;
+        targetMacro = userData.targetCarbs;
         consumedMacro = userData.consumedCarbs;
         _allFoods.sort((a, b) => b.carbs.compareTo(a.carbs));
         break;
       case 'fat':
-        targetMacro = macroTargets['fat']!;
+        targetMacro = userData.targetFat;
         consumedMacro = userData.consumedFat;
         _allFoods.sort((a, b) => b.fat.compareTo(a.fat));
         break;
@@ -103,32 +99,6 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
           return true;
       }
     }).toList();
-  }
-
-  Map<String, int> _calculateMacroTargets(double targetCalories, GoalOption goal) {
-    double pRatio, cRatio, fRatio;
-    switch (goal) {
-      case GoalOption.loseWeight:
-        pRatio = 0.30;
-        cRatio = 0.40;
-        fRatio = 0.30;
-        break;
-      case GoalOption.maintainWeight:
-        pRatio = 0.25;
-        cRatio = 0.45;
-        fRatio = 0.30;
-        break;
-      case GoalOption.buildMuscle:
-        pRatio = 0.30;
-        cRatio = 0.50;
-        fRatio = 0.20;
-        break;
-    }
-    return {
-      'protein': (targetCalories * pRatio / 4).round(),
-      'carbs': (targetCalories * cRatio / 4).round(),
-      'fat': (targetCalories * fRatio / 9).round(),
-    };
   }
 
   String _getMacroLabel() {
@@ -178,19 +148,17 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final userData = ref.watch(userDataProvider);
-    final targetCal = userData.targetCalories.toInt() > 0 ? userData.targetCalories.toInt() : 1500;
-    final macroTargets = _calculateMacroTargets(targetCal.toDouble(), userData.goal ?? GoalOption.loseWeight);
 
     int targetMacro = 0;
     switch (widget.macroType) {
       case 'protein':
-        targetMacro = macroTargets['protein']!;
+        targetMacro = userData.targetProtein;
         break;
       case 'carbs':
-        targetMacro = macroTargets['carbs']!;
+        targetMacro = userData.targetCarbs;
         break;
       case 'fat':
-        targetMacro = macroTargets['fat']!;
+        targetMacro = userData.targetFat;
         break;
     }
 

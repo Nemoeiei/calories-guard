@@ -27,11 +27,8 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
 
   void _suggestGoalBasedOnBMI() {
     final userData = ref.read(userDataProvider);
-    double h = userData.height / 100;
-    double w = userData.weight;
-    if (h <= 0) return;
-    
-    double bmi = w / (h * h);
+    double bmi = userData.bmi;
+    if (bmi <= 0) return;
     
     // Logic แนะนำ (ปรับตามความเหมาะสม)
     if (bmi >= 23.0) {
@@ -96,9 +93,7 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final userData = ref.watch(userDataProvider);
-    double h = userData.height / 100;
-    double w = userData.weight;
-    double bmi = (h > 0) ? w / (h * h) : 0.0;
+    double bmi = userData.bmi;
     
     String bmiStatus;
     Color bmiColor;

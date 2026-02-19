@@ -178,12 +178,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   }
 
   // --- Helper Functions for BMI & Streak ---
-  double _calculateBMI(double weight, double height) {
-    if (height <= 0) return 0;
-    double h = height / 100;
-    return weight / (h * h);
-  }
-
   String _getBMIStatus(double bmi) {
     if (bmi < 18.5) return 'น้ำหนักน้อย';
     if (bmi < 22.9) return 'ปกติ';
@@ -278,10 +272,10 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   @override
   Widget build(BuildContext context) {
     final userData = ref.watch(userDataProvider);
-    double bmi = _calculateBMI(userData.weight, userData.height);
+    double bmi = userData.bmi;
     String bmiStatus = _getBMIStatus(bmi);
     Color bmiColor = _getBMIColor(bmi);
-    int streak = _calculateStreak();
+    int streak = userData.currentStreak > 0 ? userData.currentStreak : _calculateStreak();
     double targetCal = userData.targetCalories.toDouble();
     if (targetCal <= 0) targetCal = 2000;
 
@@ -348,7 +342,12 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                         const SizedBox(height: 10),
                       ] else if (_selectedTabIndex == 1) ...[
                         // --- แท็บโภชนาการ: เลื่อนสัปดาห์ + กราฟ 3 อัน (โปรตีน, คาร์บ, ไขมัน) ---
-                        _buildNutritionSection(targetCal),
+                        _buildNutritionSection(
+                          targetCal,
+                          userData.targetProtein.toDouble(),
+                          userData.targetCarbs.toDouble(),
+                          userData.targetFat.toDouble(),
+                        ),
                         const SizedBox(height: 10),
                       ],
 
@@ -476,13 +475,10 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
   // --- Widgets ---
   /// แท็บโภชนาการ: กราฟเดียว 3 แมโคร (โปรตีน/คาร์บ/ไขมัน) + แสดงผลรวมบนขวา
-  Widget _buildNutritionSection(double targetCal) {
+  Widget _buildNutritionSection(double targetCal, double targetProtein, double targetCarbs, double targetFat) {
     final weekMonday = _getChartWeekMonday();
     final weekData = _getWeekBarData(weekMonday);
     final weekNum = _getWeekNumber(weekMonday);
-    final targetProtein = 60.0;
-    final targetCarbs = 250.0;
-    final targetFat = 65.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 13),
