@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 class AdminEditMenuScreen extends StatefulWidget {
   // รับข้อมูลอาหารเดิมเข้ามาทั้งก้อน
-  final Map<String, dynamic> foodData; 
+  final Map<String, dynamic> foodData;
 
   const AdminEditMenuScreen({super.key, required this.foodData});
 
@@ -36,9 +36,9 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
     _proteinCtrl = TextEditingController(text: f['protein'].toString());
     _carbsCtrl = TextEditingController(text: f['carbs'].toString());
     _fatCtrl = TextEditingController(text: f['fat'].toString());
-    
+
     // เก็บ URL เดิมไว้ ถ้าไม่ได้เลือกรูปใหม่จะใช้ค่านี้
-    _currentImageUrl = f['image_url']; 
+    _currentImageUrl = f['image_url'];
   }
 
   Future<void> _pickImage() async {
@@ -59,8 +59,12 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
     try {
       // 2. ถ้ามีการเลือกรูปใหม่ ให้อัปโหลดและเปลี่ยน URL
       if (_selectedImage != null) {
-        var request = http.MultipartRequest('POST', Uri.parse('http://10.0.2.2:8000/upload-image/'));
-        request.files.add(await http.MultipartFile.fromPath('file', _selectedImage!.path));
+        var request = http.MultipartRequest(
+            'POST',
+            Uri.parse(
+                'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/upload-image/'));
+        request.files.add(
+            await http.MultipartFile.fromPath('file', _selectedImage!.path));
         var streamRes = await request.send();
         if (streamRes.statusCode == 200) {
           var resData = await streamRes.stream.bytesToString();
@@ -80,24 +84,29 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
       });
 
       final res = await http.put(
-        Uri.parse('http://10.0.2.2:8000/foods/$foodId'),
+        Uri.parse(
+            'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/foods/$foodId'),
         headers: {"Content-Type": "application/json"},
         body: body,
       );
 
       if (res.statusCode == 200) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('แก้ไขเรียบร้อย!'), backgroundColor: Colors.green));
-          Navigator.pop(context, true); // ส่งค่า true กลับไปบอกหน้าก่อนหน้าให้รีเฟรช
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('แก้ไขเรียบร้อย!'), backgroundColor: Colors.green));
+          Navigator.pop(
+              context, true); // ส่งค่า true กลับไปบอกหน้าก่อนหน้าให้รีเฟรช
         }
       } else {
         throw Exception('Failed to update: ${res.body}');
       }
     } catch (e) {
       print(e);
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error updating'), backgroundColor: Colors.red));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Error updating'), backgroundColor: Colors.red));
     } finally {
-      if(mounted) setState(() => _isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -105,7 +114,10 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFE8EFCF),
-      appBar: AppBar(title: const Text("แก้ไขเมนูอาหาร"), backgroundColor: Colors.transparent, elevation: 0),
+      appBar: AppBar(
+          title: const Text("แก้ไขเมนูอาหาร"),
+          backgroundColor: Colors.transparent,
+          elevation: 0),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -121,18 +133,32 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
                   borderRadius: BorderRadius.circular(15),
                   border: Border.all(color: Colors.grey.shade300),
                   image: _selectedImage != null
-                      ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover) // ✅ 2. เช็ค _selectedImage ก่อนเสมอ
-                      : (_currentImageUrl != null && _currentImageUrl!.isNotEmpty)
-                          ? DecorationImage(image: NetworkImage(_currentImageUrl!), fit: BoxFit.cover) 
+                      ? DecorationImage(
+                          image: FileImage(_selectedImage!),
+                          fit:
+                              BoxFit.cover) // ✅ 2. เช็ค _selectedImage ก่อนเสมอ
+                      : (_currentImageUrl != null &&
+                              _currentImageUrl!.isNotEmpty)
+                          ? DecorationImage(
+                              image: NetworkImage(_currentImageUrl!),
+                              fit: BoxFit.cover)
                           : null,
                 ),
-                child: (_selectedImage == null && (_currentImageUrl == null || _currentImageUrl!.isEmpty))
-                    ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_a_photo, size: 40, color: Colors.grey), Text("เพิ่มรูปภาพ")]))
+                child: (_selectedImage == null &&
+                        (_currentImageUrl == null || _currentImageUrl!.isEmpty))
+                    ? const Center(
+                        child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                            Icon(Icons.add_a_photo,
+                                size: 40, color: Colors.grey),
+                            Text("เพิ่มรูปภาพ")
+                          ]))
                     : null,
               ),
             ),
             const SizedBox(height: 20),
-            
+
             // ช่องกรอกข้อมูล (ใส่ Controller ที่เตรียมไว้)
             _buildTextField("ชื่อเมนู", _nameCtrl),
             const SizedBox(height: 10),
@@ -150,10 +176,14 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
               height: 50,
               child: ElevatedButton(
                 onPressed: _isUploading ? null : _updateMenu,
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF628141), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                child: _isUploading 
-                  ? const CircularProgressIndicator(color: Colors.white) 
-                  : const Text("บันทึกการแก้ไข", style: TextStyle(color: Colors.white, fontSize: 18)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF628141),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10))),
+                child: _isUploading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("บันทึกการแก้ไข",
+                        style: TextStyle(color: Colors.white, fontSize: 18)),
               ),
             )
           ],
@@ -162,7 +192,8 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController ctrl, {bool isNumber = false}) {
+  Widget _buildTextField(String label, TextEditingController ctrl,
+      {bool isNumber = false}) {
     return TextField(
       controller: ctrl,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
@@ -170,7 +201,9 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
         labelText: label,
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none),
       ),
     );
   }

@@ -66,17 +66,6 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ปุ่มย้อนกลับ (ถ้าต้องการ)
-            Align(
-              alignment: Alignment.topLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 20, top: 20),
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ),
-            ),
             
             const SizedBox(height: 20),
             const Text('เลือกเพศของคุณ', style: TextStyle(fontSize: 32, fontFamily: 'Inter', fontWeight: FontWeight.w500)),

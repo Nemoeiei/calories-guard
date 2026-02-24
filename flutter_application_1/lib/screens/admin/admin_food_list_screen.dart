@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'admin_edit_menu_screen.dart'; 
+import 'admin_edit_menu_screen.dart';
 
 class AdminFoodListScreen extends StatefulWidget {
   const AdminFoodListScreen({super.key});
@@ -14,16 +14,16 @@ class _AdminFoodListScreenState extends State<AdminFoodListScreen> {
   List<dynamic> _allFoods = []; // เก็บข้อมูลทั้งหมด
   List<dynamic> _filteredFoods = []; // เก็บข้อมูลที่กรองแล้ว (สำหรับแสดงผล)
   bool _isLoading = true;
-  
+
   // ตัวแปรสำหรับค้นหา
-  bool _isSearching = false; 
+  bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _fetchFoods();
-    
+
     // ฟังค่าการพิมพ์เพื่อกรองข้อมูล
     _searchController.addListener(() {
       _filterFoods(_searchController.text);
@@ -32,7 +32,8 @@ class _AdminFoodListScreenState extends State<AdminFoodListScreen> {
 
   Future<void> _fetchFoods() async {
     try {
-      final res = await http.get(Uri.parse('http://10.0.2.2:8000/foods'));
+      final res = await http.get(Uri.parse(
+          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/foods'));
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes));
         setState(() {
@@ -94,11 +95,13 @@ class _AdminFoodListScreenState extends State<AdminFoodListScreen> {
                   hintStyle: TextStyle(color: Colors.grey),
                 ),
               )
-            : const Text("จัดการเมนูอาหาร", style: TextStyle(color: Colors.black)),
+            : const Text("จัดการเมนูอาหาร",
+                style: TextStyle(color: Colors.black)),
         actions: [
           // ✅ ปุ่มแว่นขยาย / ปุ่มปิด
           IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search, color: Colors.black),
+            icon: Icon(_isSearching ? Icons.close : Icons.search,
+                color: Colors.black),
             onPressed: () {
               setState(() {
                 if (_isSearching) {
@@ -123,9 +126,10 @@ class _AdminFoodListScreenState extends State<AdminFoodListScreen> {
                 if (_isSearching)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 5),
-                    child: Text("พบ ${_filteredFoods.length} รายการ", style: const TextStyle(color: Colors.grey)),
+                    child: Text("พบ ${_filteredFoods.length} รายการ",
+                        style: const TextStyle(color: Colors.grey)),
                   ),
-                  
+
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.all(20),
@@ -138,32 +142,45 @@ class _AdminFoodListScreenState extends State<AdminFoodListScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(15),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 3))
+                            BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                offset: const Offset(0, 3))
                           ],
                         ),
                         child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 15, vertical: 5),
                           leading: Container(
-                            width: 50, height: 50,
+                            width: 50,
+                            height: 50,
                             decoration: BoxDecoration(
                               color: Colors.grey[200],
                               borderRadius: BorderRadius.circular(10),
-                              image: (food['image_url'] != null && food['image_url'].isNotEmpty)
-                                  ? DecorationImage(image: NetworkImage(food['image_url']), fit: BoxFit.cover)
+                              image: (food['image_url'] != null &&
+                                      food['image_url'].isNotEmpty)
+                                  ? DecorationImage(
+                                      image: NetworkImage(food['image_url']),
+                                      fit: BoxFit.cover)
                                   : null,
                             ),
-                            child: (food['image_url'] == null || food['image_url'].isEmpty)
+                            child: (food['image_url'] == null ||
+                                    food['image_url'].isEmpty)
                                 ? const Icon(Icons.fastfood, color: Colors.grey)
                                 : null,
                           ),
-                          title: Text(food['food_name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                          title: Text(food['food_name'],
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text("${food['calories']} kcal"),
-                          trailing: const Icon(Icons.edit, color: Color(0xFF628141)),
+                          trailing:
+                              const Icon(Icons.edit, color: Color(0xFF628141)),
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => AdminEditMenuScreen(foodData: food),
+                                builder: (context) =>
+                                    AdminEditMenuScreen(foodData: food),
                               ),
                             ).then((value) {
                               if (value == true) {

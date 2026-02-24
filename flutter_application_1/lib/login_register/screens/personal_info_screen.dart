@@ -243,8 +243,8 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
           child: GestureDetector(
             onTap: () => _openBirthDatePicker(context),
             child: Container(
-              height: 29,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              height: 45,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: const Color(0xFFEEEDED),
                 borderRadius: BorderRadius.circular(100),
@@ -254,6 +254,8 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                   Expanded(
                     child: Text(
                       displayText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 14,
@@ -262,7 +264,8 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                       ),
                     ),
                   ),
-                  const Icon(Icons.calendar_today, size: 18, color: Color(0xFF628141)),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.calendar_today, size: 18, color: Color(0xFF4C6414)),
                 ],
               ),
             ),
@@ -290,7 +293,7 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
         const SizedBox(width: 12),
         Expanded(
           child: Container(
-            height: 29,
+            height: 45,
             decoration: BoxDecoration(
               color: const Color(0xFFEEEDED),
               borderRadius: BorderRadius.circular(100),
@@ -300,13 +303,25 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
               keyboardType: isNumber
                   ? const TextInputType.numberWithOptions(decimal: true)
                   : TextInputType.text,
-              decoration: InputDecoration(
-                hintText: hintText,
-                hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w400, color: Color(0xB3000000)),
+              decoration: const InputDecoration(
+                hintText: '',
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ).copyWith(
+                hintText: hintText,
+                hintStyle: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xB3000000),
+                ),
               ),
-              style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w400, color: Colors.black),
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Colors.black,
+              ),
             ),
           ),
         ),

@@ -33,7 +33,8 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await http.get(Uri.parse('http://10.0.2.2:8000/foods'));
+      final response = await http.get(Uri.parse(
+          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/foods'));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
@@ -168,7 +169,8 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
 
     String statusMessage;
     if (isOver) {
-      statusMessage = '${_getMacroLabel()}วันนี้กินเกินแล้ว ไม่ควรกินอาหารที่มี${_getMacroLabel()}แล้ว';
+      statusMessage =
+          '${_getMacroLabel()}วันนี้กินเกินแล้ว ไม่ควรกินอาหารที่มี${_getMacroLabel()}แล้ว';
     } else {
       statusMessage = 'ขาด${_getMacroLabel()}อีก $remaining g ควรทานอะไร';
     }
@@ -179,7 +181,11 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
         backgroundColor: const Color(0xFF628141),
         title: Text(
           'รายละเอียด${_getMacroLabel()}',
-          style: const TextStyle(fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
+          style: const TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.white),
         ),
         elevation: 0,
       ),
@@ -195,15 +201,20 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
                       // --- สถานะโภชนาการ: ควรทานอะไร / กินเกินแล้ว ---
                       Container(
                         width: double.infinity,
-                        color: isOver ? const Color(0xFFD76A3C).withValues(alpha: 0.2) : const Color(0xFFE8EFCF),
-                        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+                        color: isOver
+                            ? const Color(0xFFD76A3C).withValues(alpha: 0.2)
+                            : const Color(0xFFE8EFCF),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 20, horizontal: 20),
                         child: Text(
                           statusMessage,
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: isOver ? const Color(0xFFB74D4D) : const Color(0xFF4C6414),
+                            color: isOver
+                                ? const Color(0xFFB74D4D)
+                                : const Color(0xFF4C6414),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -211,98 +222,118 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
                       // --- Remaining Macro Display (เมื่อยังไม่เกิน) ---
                       if (!isOver)
                         Container(
-                        width: double.infinity,
-                        color: const Color(0xFFE8EFCF),
-                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-                        child: Column(
-                          children: [
-                            Text(
-                              _getMacroLabel(),
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF628141),
+                          width: double.infinity,
+                          color: const Color(0xFFE8EFCF),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 24, horizontal: 20),
+                          child: Column(
+                            children: [
+                              Text(
+                                _getMacroLabel(),
+                                style: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF628141),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 16),
+                              const SizedBox(height: 16),
 
-                            // Consumed vs Target
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                Column(
-                                  children: [
-                                    const Text(
-                                      'ทานแล้ว',
-                                      style: TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black54),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      '${consumedMacro.toInt()} ${_getMacroUnit()}',
-                                      style: const TextStyle(fontFamily: 'Inter', fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black),
-                                    ),
-                                  ],
-                                ),
-                                Container(
-                                  width: 2,
-                                  height: 60,
-                                  color: Colors.black12,
-                                ),
-                                Column(
-                                  children: [
-                                    const Text(
-                                      'เป้าหมาย',
-                                      style: TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black54),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      '$targetMacro ${_getMacroUnit()}',
-                                      style: const TextStyle(fontFamily: 'Inter', fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF628141)),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // Remaining Info
-                            Container(
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFF4C6414), width: 2),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                              child: Column(
+                              // Consumed vs Target
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
                                 children: [
-                                  Text(
-                                    'สามารถทานได้อีก',
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black54,
-                                    ),
+                                  Column(
+                                    children: [
+                                      const Text(
+                                        'ทานแล้ว',
+                                        style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.black54),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        '${consumedMacro.toInt()} ${_getMacroUnit()}',
+                                        style: const TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '$remaining ${_getMacroUnit()}',
-                                    style: const TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF628141),
-                                    ),
+                                  Container(
+                                    width: 2,
+                                    height: 60,
+                                    color: Colors.black12,
+                                  ),
+                                  Column(
+                                    children: [
+                                      const Text(
+                                        'เป้าหมาย',
+                                        style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.black54),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        '$targetMacro ${_getMacroUnit()}',
+                                        style: const TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF628141)),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
+
+                              const SizedBox(height: 24),
+
+                              // Remaining Info
+                              Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: const Color(0xFF4C6414), width: 2),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 16, horizontal: 20),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      'สามารถทานได้อีก',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '$remaining ${_getMacroUnit()}',
+                                      style: const TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 36,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF628141),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
 
                       if (!isOver) ...[
                         const SizedBox(height: 20),
@@ -315,59 +346,70 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
                           alignment: Alignment.center,
                           child: Text(
                             'แนะนำอาหาร${_getMacroLabel()}สูง',
-                          style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 15),
-
-                      // --- Food Grid ---
-                      if (_filteredFoods.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-                          child: Column(
-                            children: [
-                              Icon(Icons.info_outline, size: 48, color: Colors.grey.withOpacity(0.5)),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'ไม่พบอาหารที่เหมาะสม',
-                                style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.grey),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'ลองกินอาหารอื่นก่อน หรือ ลดปริมาณ',
-                                style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: Colors.grey.withOpacity(0.7)),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        Container(
-                          color: const Color(0xFFE8EFCF),
-                          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 25),
-                          child: GridView.builder(
-                            padding: EdgeInsets.zero,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 23,
-                              mainAxisSpacing: 21,
-                              childAspectRatio: 0.60,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
                             ),
-                            itemCount: _filteredFoods.length,
-                            itemBuilder: (context, index) {
-                              return _buildFoodCard(_filteredFoods[index]);
-                            },
                           ),
                         ),
+
+                        const SizedBox(height: 15),
+
+                        // --- Food Grid ---
+                        if (_filteredFoods.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 40, horizontal: 20),
+                            child: Column(
+                              children: [
+                                Icon(Icons.info_outline,
+                                    size: 48,
+                                    color: Colors.grey.withOpacity(0.5)),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'ไม่พบอาหารที่เหมาะสม',
+                                  style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 16,
+                                      color: Colors.grey),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'ลองกินอาหารอื่นก่อน หรือ ลดปริมาณ',
+                                  style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 14,
+                                      color: Colors.grey.withOpacity(0.7)),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          Container(
+                            color: const Color(0xFFE8EFCF),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 20, horizontal: 25),
+                            child: GridView.builder(
+                              padding: EdgeInsets.zero,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 23,
+                                mainAxisSpacing: 21,
+                                childAspectRatio: 0.60,
+                              ),
+                              itemCount: _filteredFoods.length,
+                              itemBuilder: (context, index) {
+                                return _buildFoodCard(_filteredFoods[index]);
+                              },
+                            ),
+                          ),
                         const SizedBox(height: 30),
                       ],
                     ],
@@ -408,7 +450,8 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
               ),
               child: food.imageUrl == null || food.imageUrl!.isEmpty
                   ? Center(
-                      child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 40),
+                      child: Icon(Icons.image_not_supported,
+                          color: Colors.grey[400], size: 40),
                     )
                   : null,
             ),
@@ -444,7 +487,8 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
                 const SizedBox(height: 6),
                 // Macro-specific badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xFFAFD198),
                     borderRadius: BorderRadius.circular(6),
