@@ -18,42 +18,15 @@ class AdminDashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // 1. Header (ปุ่มย้อนกลับ + ชื่อ Admin)
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // ปุ่มย้อนกลับ (ชิดซ้าย) -> แก้ให้กลับไปหน้า Login
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: GestureDetector(
-                        onTap: () {
-                          // ✅ สั่งให้กลับไปหน้า Login และล้างประวัติหน้าเดิมออกให้หมด (เหมือน Logout)
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (context) => const LoginScreen()),
-                            (route) => false,
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 24),
-                        ),
-                      ),
-                    ),
-                    // Title Admin (อยู่ตรงกลางเสมอ)
-                    const Text(
-                      'Admin',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 24,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
+                // 1. Header (แสดงชื่อ Admin อย่างเดียว)
+                const Text(
+                  'Admin',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 24,
+                    color: Colors.black,
+                  ),
                 ),
 
                 const SizedBox(height: 40),
@@ -147,6 +120,42 @@ class AdminDashboardScreen extends StatelessWidget {
                         },
                       ),
                     ],
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                // 5. ปุ่มออกจากระบบ
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFFBF3B3B),
+                      elevation: 0,
+                      side: const BorderSide(color: Color(0xFFBF3B3B)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () {
+                      // ออกจากระบบแล้วกลับไปหน้า Login และล้าง stack ทั้งหมด
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const LoginScreen()),
+                        (route) => false,
+                      );
+                    },
+                    child: const Text(
+                      'ออกจากระบบ',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ],

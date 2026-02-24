@@ -3,24 +3,22 @@
   import 'login_register/screens/welcome_screen.dart';
   import 'services/notification_helper.dart'; // ✅ อย่าลืม import ไฟล์ที่สร้างเมื่อกี้
 
-  void main() async { // ✅ 1. เพิ่ม async
-    // ✅ 2. ต้องมีบรรทัดนี้เสมอถ้าใช้ Plugin (แจ้งเตือน) ก่อน runApp
+  void main() async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // ✅ 3. เริ่มต้นระบบแจ้งเตือน
-    await NotificationHelper.init();
-
-    // ✅ 4. สั่งตั้งเวลาเตือนล่วงหน้า (เช้า/เที่ยง/เย็น/ค่ำ)
-    // เรียกตรงนี้เลย พอเปิดแอปปุ๊บ ระบบจะจำเวลาเตือนไว้ตลอดไป
-    await NotificationHelper.scheduleMealReminders();
-    await NotificationHelper.scheduleDailyRecap();
-    await NotificationHelper.scheduleMorningMotivation();
-
+    // แสดง UI ทันที ไม่บล็อกด้วยการแจ้งเตือน (เลี่ยงค้างที่หน้าโลโก้บนบางเครื่อง)
     runApp(
       const ProviderScope(
         child: MyApp(),
       ),
     );
+
+    // เริ่มต้นและตั้งเวลาแจ้งเตือนในพื้นหลัง
+    NotificationHelper.init().then((_) async {
+      await NotificationHelper.scheduleMealReminders();
+      await NotificationHelper.scheduleDailyRecap();
+      await NotificationHelper.scheduleMorningMotivation();
+    });
   }
 
   class MyApp extends StatelessWidget {
@@ -29,7 +27,7 @@
     @override
     Widget build(BuildContext context) {
       return MaterialApp(
-        title: 'CleanGoal',
+        title: 'CalorieGuard',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4C6414)),

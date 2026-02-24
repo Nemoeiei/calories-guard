@@ -16,12 +16,16 @@ class ProgressScreen extends ConsumerStatefulWidget {
 class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   int _selectedTabIndex = 0;
   DateTime _currentMonth = DateTime.now();
+
   /// ออฟเซ็ตสัปดาห์ของกราฟ: 0 = สัปดาห์นี้, -1 = สัปดาห์ก่อน, 1 = สัปดาห์ถัดไป
   int _chartWeekOffset = 0;
+
   /// แท่งที่ถูกแตะ (null = ไม่แสดงแคล, 0-6 = แสดงแคลวันนั้น + เน้นแท่ง)
   int? _selectedChartDayIndex;
+
   /// แท็บโภชนาการ: แมโครที่เลือกเน้น (0=โปรตีน, 1=คาร์บ, 2=ไขมัน), null=ไม่เน้น
   int? _selectedNutritionMacroIndex;
+
   /// แท็บโภชนาการ: วันที่เลือก (0–6) เพื่อแสดงค่ากินรายวัน; null = ไม่แสดงกล่อง
   int? _selectedNutritionDayIndex;
 
@@ -58,7 +62,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   Future<void> _fetchWeeklyData({DateTime? weekStart}) async {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
-    var url = Uri.parse('http://10.0.2.2:8000/daily_logs/$userId/weekly');
+    var url = Uri.parse(
+        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_logs/$userId/weekly');
     if (weekStart != null) {
       final q = DateFormat('yyyy-MM-dd').format(weekStart);
       url = url.replace(queryParameters: {'week_start': q});
@@ -81,17 +86,20 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     if (userId == 0) return;
     // URL นี้ควร return list ของ { "date": "YYYY-MM-DD", "calories": 1500 }
     final url = Uri.parse(
-        'http://10.0.2.2:8000/daily_logs/$userId/calendar?month=${_currentMonth.month}&year=${_currentMonth.year}');
+        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_logs/$userId/calendar?month=${_currentMonth.month}&year=${_currentMonth.year}');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         setState(() {
           // ✅ แปลงข้อมูลและเก็บทั้ง date และ calories
-          _calendarData = data.map((e) => {
-            'date': DateTime.parse(e['date']),
-            'calories': e['calories'] ?? 0, // กันเหนียวถ้าไม่มี field นี้
-          }).toList();
+          _calendarData = data
+              .map((e) => {
+                    'date': DateTime.parse(e['date']),
+                    'calories':
+                        e['calories'] ?? 0, // กันเหนียวถ้าไม่มี field นี้
+                  })
+              .toList();
         });
       }
     } catch (e) {
@@ -103,9 +111,12 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   Future<void> _showDayDetails(DateTime date) async {
     final userId = ref.read(userDataProvider).userId;
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    final url = Uri.parse('http://10.0.2.2:8000/daily_logs/$userId?date_query=$dateStr');
-    
-    showDialog(context: context, builder: (c) => const Center(child: CircularProgressIndicator()));
+    final url = Uri.parse(
+        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_logs/$userId?date_query=$dateStr');
+
+    showDialog(
+        context: context,
+        builder: (c) => const Center(child: CircularProgressIndicator()));
 
     try {
       final response = await http.get(url);
@@ -122,7 +133,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   // รองรับทั้ง data['meals'] (จาก API ใหม่) และ data['breakfast_menu'] (แบบเก่า)
   String? _mealLabel(Map<String, dynamic> data, String type) {
     final meals = data['meals'];
-    if (meals is Map && meals[type] != null && meals[type].toString().trim().isNotEmpty) {
+    if (meals is Map &&
+        meals[type] != null &&
+        meals[type].toString().trim().isNotEmpty) {
       return meals[type].toString();
     }
     final key = '${type}_menu';
@@ -135,7 +148,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(20),
@@ -143,7 +157,11 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('บันทึกวันที่ ${_formatDateTh(date)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Inter')),
+              Text('บันทึกวันที่ ${_formatDateTh(date)}',
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Inter')),
               const SizedBox(height: 15),
               _buildDetailRow('แคลอรี่รวม', '${data['calories']} kcal'),
               const Divider(),
@@ -151,11 +169,16 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               _buildDetailRow('คาร์บ', '${data['carbs']} g'),
               _buildDetailRow('ไขมัน', '${data['fat']} g'),
               const SizedBox(height: 15),
-              const Text("เมนูที่ทาน:", style: TextStyle(fontWeight: FontWeight.bold)),
-              if (_mealLabel(data, 'breakfast') != null) Text("เช้า: ${_mealLabel(data, 'breakfast')}"),
-              if (_mealLabel(data, 'lunch') != null) Text("เที่ยง: ${_mealLabel(data, 'lunch')}"),
-              if (_mealLabel(data, 'dinner') != null) Text("เย็น: ${_mealLabel(data, 'dinner')}"),
-              if (_mealLabel(data, 'snack') != null) Text("ว่าง: ${_mealLabel(data, 'snack')}"),
+              const Text("เมนูที่ทาน:",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              if (_mealLabel(data, 'breakfast') != null)
+                Text("เช้า: ${_mealLabel(data, 'breakfast')}"),
+              if (_mealLabel(data, 'lunch') != null)
+                Text("เที่ยง: ${_mealLabel(data, 'lunch')}"),
+              if (_mealLabel(data, 'dinner') != null)
+                Text("เย็น: ${_mealLabel(data, 'dinner')}"),
+              if (_mealLabel(data, 'snack') != null)
+                Text("ว่าง: ${_mealLabel(data, 'snack')}"),
               const SizedBox(height: 20),
             ],
           ),
@@ -171,7 +194,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(fontFamily: 'Inter')),
-          Text(value, style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)),
+          Text(value,
+              style: const TextStyle(
+                  fontFamily: 'Inter', fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -196,7 +221,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
   int _calculateStreak() {
     if (_calendarData.isEmpty) return 0;
-    
+
     // ดึงเฉพาะวันที่ที่มีแคลอรี่ > 0 มาคิด Streak
     List<DateTime> validDates = _calendarData
         .where((e) => (e['calories'] as num) > 0)
@@ -206,15 +231,16 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     if (validDates.isEmpty) return 0;
 
     validDates.sort((a, b) => b.compareTo(a)); // เรียงจากใหม่ไปเก่า
-    
+
     int streak = 0;
-    DateTime checkDate = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-    
+    DateTime checkDate =
+        DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+
     // ถ้าวันนี้ยังไม่ได้บันทึก ให้เริ่มเช็คจากเมื่อวาน
     if (!validDates.any((d) => isSameDay(d, checkDate))) {
-       checkDate = checkDate.subtract(const Duration(days: 1));
+      checkDate = checkDate.subtract(const Duration(days: 1));
     }
-    
+
     while (true) {
       if (validDates.any((d) => isSameDay(d, checkDate))) {
         streak++;
@@ -234,7 +260,15 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   List<Map<String, dynamic>> _getWeekBarData(DateTime weekMonday) {
     final List<Map<String, dynamic>> result = [];
     final today = DateTime.now();
-    const dayNames = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+    const dayNames = [
+      'จันทร์',
+      'อังคาร',
+      'พุธ',
+      'พฤหัส',
+      'ศุกร์',
+      'เสาร์',
+      'อาทิตย์'
+    ];
     for (int i = 0; i < 7; i++) {
       final d = weekMonday.add(Duration(days: i));
       double cal = 0;
@@ -244,8 +278,10 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         final map = e as Map<String, dynamic>;
         final dateVal = map['date'];
         DateTime? docDate;
-        if (dateVal is DateTime) docDate = dateVal;
-        else if (dateVal != null) docDate = DateTime.tryParse(dateVal.toString());
+        if (dateVal is DateTime)
+          docDate = dateVal;
+        else if (dateVal != null)
+          docDate = DateTime.tryParse(dateVal.toString());
         if (docDate != null && isSameDay(docDate, d)) {
           cal = (map['calories'] as num?)?.toDouble() ?? 0;
           protein = (map['protein'] as num?)?.toDouble() ?? 0;
@@ -275,7 +311,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     double bmi = userData.bmi;
     String bmiStatus = _getBMIStatus(bmi);
     Color bmiColor = _getBMIColor(bmi);
-    int streak = userData.currentStreak > 0 ? userData.currentStreak : _calculateStreak();
+    int streak = userData.currentStreak > 0
+        ? userData.currentStreak
+        : _calculateStreak();
     double targetCal = userData.targetCalories.toDouble();
     if (targetCal <= 0) targetCal = 2000;
 
@@ -283,23 +321,45 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          Positioned(top: 100, left: 0, right: 0, bottom: 0, child: Container(color: const Color(0xFFAFD198))),
+          Positioned(
+              top: 100,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(color: const Color(0xFFAFD198))),
           Column(
             children: [
               Container(
                 color: Colors.white,
-                padding: const EdgeInsets.only(top: 50, bottom: 15, left: 20, right: 20),
+                padding: const EdgeInsets.only(
+                    top: 50, bottom: 15, left: 20, right: 20),
                 child: Row(
                   children: [
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5)]),
-                        child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black),
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 5)
+                            ]),
+                        child: const Icon(Icons.arrow_back_ios_new,
+                            size: 18, color: Colors.black),
                       ),
                     ),
-                    const Expanded(child: Text('ความคืบหน้า', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w400, color: Colors.black))),
+                    const Expanded(
+                        child: Text('ความคืบหน้า',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 24,
+                                fontWeight: FontWeight.w400,
+                                color: Colors.black))),
                     const SizedBox(width: 40),
                   ],
                 ),
@@ -315,9 +375,24 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _buildTopCard(title: 'น้ำหนักปัจจุบัน', value: '${userData.weight.toInt()}', unit: 'กิโลกรัม', icon: Icons.person, iconColor: const Color(0xFF91E47E)),
-                            _buildTopCard(title: 'น้ำหนักเป้าหมาย', value: '${userData.targetWeight.toInt()}', unit: 'กิโลกรัม', icon: Icons.flag, iconColor: const Color(0xFF465396)),
-                            _buildTopCard(title: 'ความต่อเนื่อง', value: '$streak', unit: 'วัน', icon: Icons.local_fire_department, iconColor: const Color(0xFFE4A47E)),
+                            _buildTopCard(
+                                title: 'น้ำหนักปัจจุบัน',
+                                value: '${userData.weight.toInt()}',
+                                unit: 'กิโลกรัม',
+                                icon: Icons.person,
+                                iconColor: const Color(0xFF91E47E)),
+                            _buildTopCard(
+                                title: 'น้ำหนักเป้าหมาย',
+                                value: '${userData.targetWeight.toInt()}',
+                                unit: 'กิโลกรัม',
+                                icon: Icons.flag,
+                                iconColor: const Color(0xFF465396)),
+                            _buildTopCard(
+                                title: 'ความต่อเนื่อง',
+                                value: '$streak',
+                                unit: 'วัน',
+                                icon: Icons.local_fire_department,
+                                iconColor: const Color(0xFFE4A47E)),
                           ],
                         ),
                       ),
@@ -325,7 +400,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                       Container(
                         margin: const EdgeInsets.symmetric(horizontal: 13),
                         height: 42,
-                        decoration: BoxDecoration(color: const Color(0xFF628141), borderRadius: BorderRadius.circular(50)),
+                        decoration: BoxDecoration(
+                            color: const Color(0xFF628141),
+                            borderRadius: BorderRadius.circular(50)),
                         child: Row(
                           children: [
                             _buildTabItem(0, 'ภาพรวม'),
@@ -352,114 +429,163 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                       ],
 
                       if (_selectedTabIndex == 0) ...[
-                      // --- 2. BMI Card ---
-                      _buildWhiteCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Text('BMI', style: TextStyle(fontSize: 12, fontFamily: 'Inter')),
-                                const SizedBox(width: 20),
-                                Text(bmi.toStringAsFixed(1), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                                const SizedBox(width: 10),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(color: bmiColor.withOpacity(0.2), borderRadius: BorderRadius.circular(5)),
-                                  child: Text(bmiStatus, style: TextStyle(fontSize: 10, color: bmiColor, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 15),
-                            
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                double width = constraints.maxWidth;
-                                double minBMI = 15;
-                                double maxBMI = 35;
-                                double normalizedBMI = (bmi - minBMI) / (maxBMI - minBMI);
-                                double position = normalizedBMI * width;
-                                if (position < 0) position = 0;
-                                if (position > width - 10) position = width - 10;
+                        // --- 2. BMI Card ---
+                        _buildWhiteCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text('BMI',
+                                      style: TextStyle(
+                                          fontSize: 12, fontFamily: 'Inter')),
+                                  const SizedBox(width: 20),
+                                  Text(bmi.toStringAsFixed(1),
+                                      style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold)),
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                        color: bmiColor.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(5)),
+                                    child: Text(bmiStatus,
+                                        style: TextStyle(
+                                            fontSize: 10,
+                                            color: bmiColor,
+                                            fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 15),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  double width = constraints.maxWidth;
+                                  double minBMI = 15;
+                                  double maxBMI = 35;
+                                  double normalizedBMI =
+                                      (bmi - minBMI) / (maxBMI - minBMI);
+                                  double position = normalizedBMI * width;
+                                  if (position < 0) position = 0;
+                                  if (position > width - 10)
+                                    position = width - 10;
 
-                                return Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Container(
-                                      height: 10,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(10),
-                                        gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0xFF1710ED), Color(0xFF69AE6D), Color(0xFFD3D347), Color(0xFFCAAC58), Color(0xFFFF0000),
-                                          ],
+                                  return Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      Container(
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFF1710ED),
+                                              Color(0xFF69AE6D),
+                                              Color(0xFFD3D347),
+                                              Color(0xFFCAAC58),
+                                              Color(0xFFFF0000),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    Positioned(
-                                      left: position,
-                                      top: -2,
-                                      child: Container(
-                                        width: 14, height: 14,
-                                        decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black54, width: 2), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)]),
+                                      Positioned(
+                                        left: position,
+                                        top: -2,
+                                        child: Container(
+                                          width: 14,
+                                          height: 14,
+                                          decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                  color: Colors.black54,
+                                                  width: 2),
+                                              boxShadow: const [
+                                                BoxShadow(
+                                                    color: Colors.black26,
+                                                    blurRadius: 2)
+                                              ]),
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 10),
-                            const Text('ค่า BMI ของคุณแสดงผลตามเกณฑ์มาตรฐาน', style: TextStyle(fontSize: 10, color: Colors.black87)),
-                          ],
+                                    ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 10),
+                              const Text('ค่า BMI ของคุณแสดงผลตามเกณฑ์มาตรฐาน',
+                                  style: TextStyle(
+                                      fontSize: 10, color: Colors.black87)),
+                            ],
+                          ),
                         ),
-                      ),
 
-                      const SizedBox(height: 10),
+                        const SizedBox(height: 10),
 
-                      // --- 3. Calendar Card ---
-                      _buildWhiteCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('สถิติบันทึกต่อเนื่อง', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                const Icon(Icons.local_fire_department, color: Colors.red, size: 24),
-                                const SizedBox(width: 5),
-                                Text('$streak', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                                const SizedBox(width: 5),
-                                const Text('วัน', style: TextStyle(fontSize: 12)),
-                              ],
-                            ),
-                            const SizedBox(height: 15),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.chevron_left),
-                                  onPressed: () {
-                                    setState(() => _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1));
-                                    _fetchCalendarData();
-                                  },
-                                ),
-                                Text(_formatMonthYear(_currentMonth), style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.bold)),
-                                IconButton(
-                                  icon: const Icon(Icons.chevron_right),
-                                  onPressed: () {
-                                    setState(() => _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1));
-                                    _fetchCalendarData();
-                                  },
-                                ),
-                              ],
-                            ),
-                            _buildRealCalendar(_currentMonth, targetCal),
-                            const SizedBox(height: 16),
-                            _buildCalendarLegend(),
-                          ],
+                        // --- 3. Calendar Card ---
+                        _buildWhiteCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('สถิติบันทึกต่อเนื่อง',
+                                  style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  const Icon(Icons.local_fire_department,
+                                      color: Colors.red, size: 24),
+                                  const SizedBox(width: 5),
+                                  Text('$streak',
+                                      style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold)),
+                                  const SizedBox(width: 5),
+                                  const Text('วัน',
+                                      style: TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                              const SizedBox(height: 15),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.chevron_left),
+                                    onPressed: () {
+                                      setState(() => _currentMonth = DateTime(
+                                          _currentMonth.year,
+                                          _currentMonth.month - 1));
+                                      _fetchCalendarData();
+                                    },
+                                  ),
+                                  Text(_formatMonthYear(_currentMonth),
+                                      style: const TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold)),
+                                  IconButton(
+                                    icon: const Icon(Icons.chevron_right),
+                                    onPressed: () {
+                                      setState(() => _currentMonth = DateTime(
+                                          _currentMonth.year,
+                                          _currentMonth.month + 1));
+                                      _fetchCalendarData();
+                                    },
+                                  ),
+                                ],
+                              ),
+                              _buildRealCalendar(_currentMonth, targetCal),
+                              const SizedBox(height: 16),
+                              _buildCalendarLegend(),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 40),
+                        const SizedBox(height: 40),
                       ], // end if tab 0
                       if (_selectedTabIndex == 2) const SizedBox(height: 20),
                     ],
@@ -475,7 +601,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
   // --- Widgets ---
   /// แท็บโภชนาการ: กราฟเดียว 3 แมโคร (โปรตีน/คาร์บ/ไขมัน) + แสดงผลรวมบนขวา
-  Widget _buildNutritionSection(double targetCal, double targetProtein, double targetCarbs, double targetFat) {
+  Widget _buildNutritionSection(double targetCal, double targetProtein,
+      double targetCarbs, double targetFat) {
     final weekMonday = _getChartWeekMonday();
     final weekData = _getWeekBarData(weekMonday);
     final weekNum = _getWeekNumber(weekMonday);
@@ -494,7 +621,12 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(28),
               border: Border.all(color: const Color(0xFFE8EFCF)),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 4))],
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4))
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -502,8 +634,13 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Text('โภชนาการรายสัปดาห์', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, fontFamily: 'Inter')),
-                    if (_selectedNutritionDayIndex != null && _selectedNutritionDayIndex! < weekData.length) ...[
+                    const Text('โภชนาการรายสัปดาห์',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Inter')),
+                    if (_selectedNutritionDayIndex != null &&
+                        _selectedNutritionDayIndex! < weekData.length) ...[
                       const SizedBox(width: 12),
                       _buildDayNutritionBox(
                         weekData[_selectedNutritionDayIndex!],
@@ -528,7 +665,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                       setState(() {
                         final sameDay = _selectedNutritionDayIndex == dayIndex;
                         _selectedNutritionDayIndex = sameDay ? null : dayIndex;
-                        _selectedNutritionMacroIndex = sameDay ? null : macroIndex;
+                        _selectedNutritionMacroIndex =
+                            sameDay ? null : macroIndex;
                       });
                     },
                   ),
@@ -537,11 +675,14 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _macroLegendChip(const Color(0xFF628141), 'โปรตีน', _selectedNutritionMacroIndex == 0),
+                    _macroLegendChip(const Color(0xFF628141), 'โปรตีน',
+                        _selectedNutritionMacroIndex == 0),
                     const SizedBox(width: 12),
-                    _macroLegendChip(const Color(0xFFFFB800), 'คาร์บ', _selectedNutritionMacroIndex == 1),
+                    _macroLegendChip(const Color(0xFFFFB800), 'คาร์บ',
+                        _selectedNutritionMacroIndex == 1),
                     const SizedBox(width: 12),
-                    _macroLegendChip(const Color(0xFFD76A3C), 'ไขมัน', _selectedNutritionMacroIndex == 2),
+                    _macroLegendChip(const Color(0xFFD76A3C), 'ไขมัน',
+                        _selectedNutritionMacroIndex == 2),
                   ],
                 ),
               ],
@@ -552,7 +693,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     );
   }
 
-  Widget _buildDayNutritionBox(Map<String, dynamic> dayData, double targetP, double targetC, double targetF, int dayIndex) {
+  Widget _buildDayNutritionBox(Map<String, dynamic> dayData, double targetP,
+      double targetC, double targetF, int dayIndex) {
     const dayNames = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
     final hasData = dayData['hasData'] == true;
     final p = hasData ? (dayData['protein'] as num?)?.toDouble() ?? 0 : 0.0;
@@ -570,9 +712,24 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 4),
-          Text('โปรตีน ${p.toInt()}/${targetP.toInt()}', style: const TextStyle(fontSize: 11, color: Color(0xFF628141), fontWeight: FontWeight.w600, fontFamily: 'Inter')),
-          Text('คาร์โบไฮเดรต ${c.toInt()}/${targetC.toInt()}', style: const TextStyle(fontSize: 11, color: Color(0xFFFFB800), fontWeight: FontWeight.w600, fontFamily: 'Inter')),
-          Text('ไขมัน ${f.toInt()}/${targetF.toInt()}', style: const TextStyle(fontSize: 11, color: Color(0xFFD76A3C), fontWeight: FontWeight.w600, fontFamily: 'Inter')),
+          Text('โปรตีน ${p.toInt()}/${targetP.toInt()}',
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF628141),
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Inter')),
+          Text('คาร์โบไฮเดรต ${c.toInt()}/${targetC.toInt()}',
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFFFFB800),
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Inter')),
+          Text('ไขมัน ${f.toInt()}/${targetF.toInt()}',
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFFD76A3C),
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Inter')),
         ],
       ),
     );
@@ -583,7 +740,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
       onTap: () {
         setState(() {
           final idx = label == 'โปรตีน' ? 0 : (label == 'คาร์บ' ? 1 : 2);
-          _selectedNutritionMacroIndex = _selectedNutritionMacroIndex == idx ? null : idx;
+          _selectedNutritionMacroIndex =
+              _selectedNutritionMacroIndex == idx ? null : idx;
         });
       },
       child: Container(
@@ -596,9 +754,18 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            Container(
+                width: 8,
+                height: 8,
+                decoration:
+                    BoxDecoration(color: color, shape: BoxShape.circle)),
             const SizedBox(width: 6),
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: selected ? Colors.white : color, fontFamily: 'Inter')),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? Colors.white : color,
+                    fontFamily: 'Inter')),
           ],
         ),
       ),
@@ -612,7 +779,12 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(40),
         border: Border.all(color: const Color(0xFFE8EFCF)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 2))
+        ],
       ),
       child: Row(
         children: [
@@ -632,37 +804,54 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             style: IconButton.styleFrom(
               backgroundColor: const Color(0xFF628141),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
             ),
           ),
           Expanded(
             child: Column(
               children: [
-                Text('สัปดาห์ที่ $weekNum', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87, fontFamily: 'Inter')),
+                Text('สัปดาห์ที่ $weekNum',
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                        fontFamily: 'Inter')),
                 const SizedBox(height: 2),
-                Text(_getWeekRangeText(weekMonday), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[600], fontFamily: 'Inter')),
+                Text(_getWeekRangeText(weekMonday),
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[600],
+                        fontFamily: 'Inter')),
               ],
             ),
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
-            onPressed: _chartWeekOffset >= 0 ? null : () {
-              setState(() {
-                _chartWeekOffset++;
-                _selectedChartDayIndex = null;
-                _selectedNutritionMacroIndex = null;
-                _selectedNutritionDayIndex = null;
-                _fetchWeeklyData(weekStart: _getChartWeekMonday());
-              });
-            },
+            onPressed: _chartWeekOffset >= 0
+                ? null
+                : () {
+                    setState(() {
+                      _chartWeekOffset++;
+                      _selectedChartDayIndex = null;
+                      _selectedNutritionMacroIndex = null;
+                      _selectedNutritionDayIndex = null;
+                      _fetchWeeklyData(weekStart: _getChartWeekMonday());
+                    });
+                  },
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             style: IconButton.styleFrom(
-              backgroundColor: _chartWeekOffset >= 0 ? Colors.grey.shade300 : const Color(0xFF628141),
-              foregroundColor: _chartWeekOffset >= 0 ? Colors.grey.shade600 : Colors.white,
+              backgroundColor: _chartWeekOffset >= 0
+                  ? Colors.grey.shade300
+                  : const Color(0xFF628141),
+              foregroundColor:
+                  _chartWeekOffset >= 0 ? Colors.grey.shade600 : Colors.white,
               disabledBackgroundColor: Colors.grey.shade300,
               disabledForegroundColor: Colors.grey.shade600,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
             ),
           ),
         ],
@@ -689,7 +878,12 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(40),
               border: Border.all(color: const Color(0xFFE8EFCF)),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 2))],
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 2))
+              ],
             ),
             child: Row(
               children: [
@@ -705,19 +899,31 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                     });
                   },
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
                   style: IconButton.styleFrom(
                     backgroundColor: const Color(0xFF628141),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
                   ),
                 ),
                 Expanded(
                   child: Column(
                     children: [
-                      Text('สัปดาห์ที่ $weekNum', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87, fontFamily: 'Inter')),
+                      Text('สัปดาห์ที่ $weekNum',
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                              fontFamily: 'Inter')),
                       const SizedBox(height: 2),
-                      Text(_getWeekRangeText(weekMonday), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[600], fontFamily: 'Inter')),
+                      Text(_getWeekRangeText(weekMonday),
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[600],
+                              fontFamily: 'Inter')),
                     ],
                   ),
                 ),
@@ -735,13 +941,19 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                           });
                         },
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
                   style: IconButton.styleFrom(
-                    backgroundColor: _chartWeekOffset >= 0 ? Colors.grey.shade300 : const Color(0xFF628141),
-                    foregroundColor: _chartWeekOffset >= 0 ? Colors.grey.shade600 : Colors.white,
+                    backgroundColor: _chartWeekOffset >= 0
+                        ? Colors.grey.shade300
+                        : const Color(0xFF628141),
+                    foregroundColor: _chartWeekOffset >= 0
+                        ? Colors.grey.shade600
+                        : Colors.white,
                     disabledBackgroundColor: Colors.grey.shade300,
                     disabledForegroundColor: Colors.grey.shade600,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
                   ),
                 ),
               ],
@@ -756,7 +968,12 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(28),
               border: Border.all(color: const Color(0xFFE8EFCF)),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 4))],
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4))
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -767,25 +984,59 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('เฉลี่ยรายสัปดาห์', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1, color: Colors.grey[600], fontFamily: 'Inter')),
+                        Text('เฉลี่ยรายสัปดาห์',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
+                                color: Colors.grey[600],
+                                fontFamily: 'Inter')),
                         const SizedBox(height: 4),
-                        Text('${avgCal.toInt()}', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.black87, fontFamily: 'Inter', letterSpacing: -0.5)),
-                        Text('kcal/วัน', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[600], fontFamily: 'Inter')),
+                        Text('${avgCal.toInt()}',
+                            style: const TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black87,
+                                fontFamily: 'Inter',
+                                letterSpacing: -0.5)),
+                        Text('kcal/วัน',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[600],
+                                fontFamily: 'Inter')),
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8EFCF),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF628141).withOpacity(0.3)),
+                        border: Border.all(
+                            color: const Color(0xFF628141).withOpacity(0.3)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text('▲ ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF4C6414), fontFamily: 'Inter')),
-                          Text('$onTargetPct%', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF4C6414), fontFamily: 'Inter')),
-                          const Text(' เป้าหมาย', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF4C6414), fontFamily: 'Inter')),
+                          const Text('▲ ',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF4C6414),
+                                  fontFamily: 'Inter')),
+                          Text('$onTargetPct%',
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF4C6414),
+                                  fontFamily: 'Inter')),
+                          const Text(' เป้าหมาย',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF4C6414),
+                                  fontFamily: 'Inter')),
                         ],
                       ),
                     ),
@@ -801,7 +1052,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                       selectedBarIndex: _selectedChartDayIndex,
                       onBarTapped: (index) {
                         setState(() {
-                          _selectedChartDayIndex = _selectedChartDayIndex == index ? null : index;
+                          _selectedChartDayIndex =
+                              _selectedChartDayIndex == index ? null : index;
                         });
                       },
                     ),
@@ -812,10 +1064,13 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                   spacing: 10,
                   runSpacing: 6,
                   children: [
-                    _chartLegendChipLight(const Color(0xFF628141), 'ในเป้าหมาย'),
+                    _chartLegendChipLight(
+                        const Color(0xFF628141), 'ในเป้าหมาย'),
                     _chartLegendChipLight(const Color(0xFFD76A3C), 'เกินเป้า'),
-                    _chartLegendChipLight(const Color(0xFF9E9E9E), 'ไม่ได้กรอก'),
-                    _chartLegendChipLight(const Color(0xFFA78BFA), 'ต่ำกว่าเป้า'),
+                    _chartLegendChipLight(
+                        const Color(0xFF9E9E9E), 'ไม่ได้กรอก'),
+                    _chartLegendChipLight(
+                        const Color(0xFFA78BFA), 'ต่ำกว่าเป้า'),
                     _chartLegendChipLight(const Color(0xFFFFB800), 'วันนี้'),
                   ],
                 ),
@@ -830,7 +1085,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   }
 
   /// Quick Stats กริด 2x2: รวมสัปดาห์, วันที่ผ่านเป้า, ค่าเฉลี่ย/วัน, เปลี่ยนแปลงน้ำหนัก
-  Widget _buildQuickStats(DateTime weekMonday, double targetCal, UserData userData) {
+  Widget _buildQuickStats(
+      DateTime weekMonday, double targetCal, UserData userData) {
     final totalCal = _getWeekTotalCal(weekMonday);
     final daysMet = _getWeekDaysMetGoal(weekMonday, targetCal);
     final avgCal = _getWeekAverageCal(weekMonday);
@@ -912,7 +1168,12 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE8EFCF)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -921,19 +1182,29 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           Container(
             width: 44,
             height: 44,
-            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+                color: iconBg, borderRadius: BorderRadius.circular(14)),
             alignment: Alignment.center,
             child: Icon(icon, size: 24, color: iconColor),
           ),
           const Spacer(),
           Text(
             value,
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: valueColor, fontFamily: 'Inter', letterSpacing: -0.5),
+            style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: valueColor,
+                fontFamily: 'Inter',
+                letterSpacing: -0.5),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[700], fontFamily: 'Inter'),
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+                fontFamily: 'Inter'),
           ),
         ],
       ),
@@ -951,9 +1222,17 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black87, fontFamily: 'Inter')),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                  fontFamily: 'Inter')),
         ],
       ),
     );
@@ -963,7 +1242,11 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     int daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     int firstWeekday = DateTime(month.year, month.month, 1).weekday;
     List<Widget> dayHeaders = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
-        .map((day) => Center(child: Text(day, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))).toList();
+        .map((day) => Center(
+            child: Text(day,
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.bold))))
+        .toList();
     List<Widget> dayCells = [];
 
     for (int i = 1; i < firstWeekday; i++) {
@@ -1013,8 +1296,11 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             child: Text(
               '$day',
               style: TextStyle(
-                color: isLogged || circleColor == Colors.grey.shade400 ? Colors.white : Colors.black,
-                fontWeight: isLogged || isToday ? FontWeight.bold : FontWeight.normal,
+                color: isLogged || circleColor == Colors.grey.shade400
+                    ? Colors.white
+                    : Colors.black,
+                fontWeight:
+                    isLogged || isToday ? FontWeight.bold : FontWeight.normal,
                 fontSize: 12,
               ),
             ),
@@ -1024,9 +1310,15 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     }
     return Column(
       children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: dayHeaders.map((w) => Expanded(child: w)).toList()),
+        Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: dayHeaders.map((w) => Expanded(child: w)).toList()),
         const SizedBox(height: 10),
-        GridView.count(crossAxisCount: 7, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), children: dayCells),
+        GridView.count(
+            crossAxisCount: 7,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: dayCells),
       ],
     );
   }
@@ -1049,14 +1341,20 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 14, height: 14, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 11, fontFamily: 'Inter', color: Colors.black87)),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 11, fontFamily: 'Inter', color: Colors.black87)),
       ],
     );
   }
 
-  String _formatDateTh(DateTime date) => '${date.day}/${date.month}/${date.year + 543}';
+  String _formatDateTh(DateTime date) =>
+      '${date.day}/${date.month}/${date.year + 543}';
 
   /// เฉลี่ยแคลต่อวันของสัปดาห์ที่เลือก
   double _getWeekAverageCal(DateTime weekMonday) {
@@ -1077,7 +1375,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     final data = _getWeekBarData(weekMonday);
     int onTarget = 0;
     for (final d in data) {
-      if (d['hasData'] == true && (d['calories'] as num).toDouble() <= targetCal) onTarget++;
+      if (d['hasData'] == true &&
+          (d['calories'] as num).toDouble() <= targetCal) onTarget++;
     }
     return ((onTarget / 7) * 100).round();
   }
@@ -1097,7 +1396,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     final data = _getWeekBarData(weekMonday);
     int count = 0;
     for (final d in data) {
-      if (d['hasData'] == true && (d['calories'] as num).toDouble() <= targetCal) count++;
+      if (d['hasData'] == true &&
+          (d['calories'] as num).toDouble() <= targetCal) count++;
     }
     return count;
   }
@@ -1112,32 +1412,77 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   /// ช่วงวันที่ (จ.–อา.) สำหรับแสดงใน pill
   String _getWeekRangeText(DateTime weekMonday) {
     final sunday = weekMonday.add(const Duration(days: 6));
-    List<String> months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    List<String> months = [
+      'ม.ค.',
+      'ก.พ.',
+      'มี.ค.',
+      'เม.ย.',
+      'พ.ค.',
+      'มิ.ย.',
+      'ก.ค.',
+      'ส.ค.',
+      'ก.ย.',
+      'ต.ค.',
+      'พ.ย.',
+      'ธ.ค.'
+    ];
     final m = months[weekMonday.month - 1];
     final y = weekMonday.year + 543;
-    if (weekMonday.month == sunday.month) return '${weekMonday.day}–${sunday.day} $m $y';
+    if (weekMonday.month == sunday.month)
+      return '${weekMonday.day}–${sunday.day} $m $y';
     final m2 = months[sunday.month - 1];
     return '${weekMonday.day} $m – ${sunday.day} $m2 $y';
   }
 
   String _formatMonthYear(DateTime date) {
-    List<String> months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    List<String> months = [
+      'มกราคม',
+      'กุมภาพันธ์',
+      'มีนาคม',
+      'เมษายน',
+      'พฤษภาคม',
+      'มิถุนายน',
+      'กรกฎาคม',
+      'สิงหาคม',
+      'กันยายน',
+      'ตุลาคม',
+      'พฤศจิกายน',
+      'ธันวาคม'
+    ];
     return '${months[date.month - 1]} ${date.year + 543}';
   }
 
-  Widget _buildTopCard({required String title, required String value, required String unit, required IconData icon, required Color iconColor}) {
+  Widget _buildTopCard(
+      {required String title,
+      required String value,
+      required String unit,
+      required IconData icon,
+      required Color iconColor}) {
     return Container(
-      width: 110, height: 169,
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)),
+      width: 110,
+      height: 169,
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(30)),
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(width: 40, height: 40, decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle), child: Icon(icon, color: Colors.white, size: 24)),
+          Container(
+              width: 40,
+              height: 40,
+              decoration:
+                  BoxDecoration(color: iconColor, shape: BoxShape.circle),
+              child: Icon(icon, color: Colors.white, size: 24)),
           const Spacer(),
-          Text(title, style: const TextStyle(fontSize: 12, height: 1.2, fontFamily: 'Inter')),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 12, height: 1.2, fontFamily: 'Inter')),
           const SizedBox(height: 5),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Inter')),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Inter')),
           Text(unit, style: const TextStyle(fontSize: 12, fontFamily: 'Inter')),
         ],
       ),
@@ -1149,7 +1494,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 13),
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)),
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(30)),
       child: child,
     );
   }
@@ -1162,17 +1508,24 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           setState(() {
             _selectedTabIndex = index;
             if (index != 1) {
-            _selectedNutritionMacroIndex = null;
-            _selectedNutritionDayIndex = null;
-          }
+              _selectedNutritionMacroIndex = null;
+              _selectedNutritionDayIndex = null;
+            }
           });
           if (index == 1) _fetchWeeklyData(weekStart: _getChartWeekMonday());
         },
         child: Container(
           margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(color: isActive ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(50)),
+          decoration: BoxDecoration(
+              color: isActive ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(50)),
           alignment: Alignment.center,
-          child: Text(title, style: TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: isActive ? FontWeight.bold : FontWeight.normal, color: isActive ? Colors.black : Colors.white)),
+          child: Text(title,
+              style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                  color: isActive ? Colors.black : Colors.white)),
         ),
       ),
     );
@@ -1203,7 +1556,8 @@ class _WeeklyBarChart extends StatelessWidget {
     if (weekBarData.length != 7) {
       return const SizedBox(
         height: 228,
-        child: Center(child: Text("กำลังโหลด...", style: TextStyle(color: Colors.grey))),
+        child: Center(
+            child: Text("กำลังโหลด...", style: TextStyle(color: Colors.grey))),
       );
     }
 
@@ -1229,7 +1583,9 @@ class _WeeklyBarChart extends StatelessWidget {
         barTouchData: BarTouchData(
           enabled: true,
           touchCallback: (event, response) {
-            if (response == null || response.spot == null || onBarTapped == null) return;
+            if (response == null ||
+                response.spot == null ||
+                onBarTapped == null) return;
             final groupIndex = response.spot!.touchedBarGroupIndex;
             onBarTapped!(groupIndex);
           },
@@ -1237,11 +1593,19 @@ class _WeeklyBarChart extends StatelessWidget {
             getTooltipColor: (_) => Colors.black87,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final d = weekBarData[group.x];
-              final dayName = d['dayName'] as String? ?? _getDayName((d['date'] as DateTime).weekday);
+              final dayName = d['dayName'] as String? ??
+                  _getDayName((d['date'] as DateTime).weekday);
               final hasData = d['hasData'] == true;
               final cal = (d['calories'] as num?)?.toDouble() ?? 0;
-              final text = hasData ? '$dayName: ${cal.toInt()} kcal' : '$dayName: ไม่ได้กรอก';
-              return BarTooltipItem(text, const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12));
+              final text = hasData
+                  ? '$dayName: ${cal.toInt()} kcal'
+                  : '$dayName: ไม่ได้กรอก';
+              return BarTooltipItem(
+                  text,
+                  const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12));
             },
           ),
         ),
@@ -1249,9 +1613,12 @@ class _WeeklyBarChart extends StatelessWidget {
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           show: true,
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -1273,15 +1640,22 @@ class _WeeklyBarChart extends StatelessWidget {
                         if (showValueForSelected && isSelected)
                           Text(
                             calText,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.black87, fontFamily: 'Inter'),
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black87,
+                                fontFamily: 'Inter'),
                           ),
-                        if (showValueForSelected && isSelected) const SizedBox(height: 2),
+                        if (showValueForSelected && isSelected)
+                          const SizedBox(height: 2),
                         Text(
                           _getDayName(date.weekday),
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                            color: isSelected ? Colors.black87 : Colors.grey[600],
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w600,
+                            color:
+                                isSelected ? Colors.black87 : Colors.grey[600],
                           ),
                         ),
                       ],
@@ -1304,7 +1678,10 @@ class _WeeklyBarChart extends StatelessWidget {
                 show: true,
                 alignment: Alignment.topRight,
                 labelResolver: (_) => 'เป้า ${targetCal.toInt()}',
-                style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.orange,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -1364,6 +1741,7 @@ class _CombinedMacroChart extends StatelessWidget {
   final double targetCarbs;
   final double targetFat;
   final int? selectedMacroIndex;
+
   /// (dayIndex 0-6, macroIndex 0-2)
   final void Function(int dayIndex, int macroIndex) onTapped;
 
@@ -1384,7 +1762,11 @@ class _CombinedMacroChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (weekData.length != 7) {
-      return const SizedBox(height: 220, child: Center(child: Text('กำลังโหลด...', style: TextStyle(color: Colors.grey))));
+      return const SizedBox(
+          height: 220,
+          child: Center(
+              child:
+                  Text('กำลังโหลด...', style: TextStyle(color: Colors.grey))));
     }
 
     double maxVal = 0;
@@ -1417,7 +1799,10 @@ class _CombinedMacroChart extends StatelessWidget {
             if (spot == null) return;
             final dayIndex = spot.touchedBarGroupIndex;
             final macroIndex = spot.touchedRodDataIndex;
-            if (dayIndex >= 0 && dayIndex < 7 && macroIndex >= 0 && macroIndex <= 2) onTapped(dayIndex, macroIndex);
+            if (dayIndex >= 0 &&
+                dayIndex < 7 &&
+                macroIndex >= 0 &&
+                macroIndex <= 2) onTapped(dayIndex, macroIndex);
           },
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (_) => Colors.black87,
@@ -1431,8 +1816,15 @@ class _CombinedMacroChart extends StatelessWidget {
                 (d['fat'] as num?)?.toDouble() ?? 0,
               ];
               final v = rodIndex < values.length ? values[rodIndex] : 0.0;
-              final text = hasData ? '${_dayLabels[group.x]} ${labels[rodIndex]}: ${v.toInt()} g' : '${_dayLabels[group.x]} ${labels[rodIndex]}: —';
-              return BarTooltipItem(text, const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11));
+              final text = hasData
+                  ? '${_dayLabels[group.x]} ${labels[rodIndex]}: ${v.toInt()} g'
+                  : '${_dayLabels[group.x]} ${labels[rodIndex]}: —';
+              return BarTooltipItem(
+                  text,
+                  const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11));
             },
           ),
         ),
@@ -1440,9 +1832,12 @@ class _CombinedMacroChart extends StatelessWidget {
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           show: true,
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -1452,7 +1847,11 @@ class _CombinedMacroChart extends StatelessWidget {
                 if (i >= 0 && i < _dayLabels.length) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text(_dayLabels[i], style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+                    child: Text(_dayLabels[i],
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600])),
                   );
                 }
                 return const Text('');
@@ -1467,21 +1866,45 @@ class _CombinedMacroChart extends StatelessWidget {
               color: _colorProtein.withOpacity(0.7),
               strokeWidth: 1.5,
               dashArray: [4, 4],
-              label: HorizontalLineLabel(show: true, style: TextStyle(fontSize: 9, color: _colorProtein, fontWeight: FontWeight.w600), alignment: Alignment.topRight, padding: const EdgeInsets.only(right: 4), labelResolver: (_) => 'โปรตีน'),
+              label: HorizontalLineLabel(
+                  show: true,
+                  style: TextStyle(
+                      fontSize: 9,
+                      color: _colorProtein,
+                      fontWeight: FontWeight.w600),
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(right: 4),
+                  labelResolver: (_) => 'โปรตีน'),
             ),
             HorizontalLine(
               y: targetCarbs,
               color: _colorCarbs.withOpacity(0.7),
               strokeWidth: 1.5,
               dashArray: [4, 4],
-              label: HorizontalLineLabel(show: true, style: TextStyle(fontSize: 9, color: _colorCarbs, fontWeight: FontWeight.w600), alignment: Alignment.topRight, padding: const EdgeInsets.only(right: 4), labelResolver: (_) => 'คาร์บ'),
+              label: HorizontalLineLabel(
+                  show: true,
+                  style: TextStyle(
+                      fontSize: 9,
+                      color: _colorCarbs,
+                      fontWeight: FontWeight.w600),
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(right: 4),
+                  labelResolver: (_) => 'คาร์บ'),
             ),
             HorizontalLine(
               y: targetFat,
               color: _colorFat.withOpacity(0.7),
               strokeWidth: 1.5,
               dashArray: [4, 4],
-              label: HorizontalLineLabel(show: true, style: TextStyle(fontSize: 9, color: _colorFat, fontWeight: FontWeight.w600), alignment: Alignment.topRight, padding: const EdgeInsets.only(right: 4), labelResolver: (_) => 'ไขมัน'),
+              label: HorizontalLineLabel(
+                  show: true,
+                  style: TextStyle(
+                      fontSize: 9,
+                      color: _colorFat,
+                      fontWeight: FontWeight.w600),
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(right: 4),
+                  labelResolver: (_) => 'ไขมัน'),
             ),
           ],
         ),
@@ -1489,14 +1912,21 @@ class _CombinedMacroChart extends StatelessWidget {
           int dayIndex = entry.key;
           final d = entry.value;
           final hasData = d['hasData'] == true;
-          final p = hasData ? ((d['protein'] as num?)?.toDouble() ?? 0) : (targetProtein * 0.05);
-          final c = hasData ? ((d['carbs'] as num?)?.toDouble() ?? 0) : (targetCarbs * 0.05);
-          final f = hasData ? ((d['fat'] as num?)?.toDouble() ?? 0) : (targetFat * 0.05);
+          final p = hasData
+              ? ((d['protein'] as num?)?.toDouble() ?? 0)
+              : (targetProtein * 0.05);
+          final c = hasData
+              ? ((d['carbs'] as num?)?.toDouble() ?? 0)
+              : (targetCarbs * 0.05);
+          final f = hasData
+              ? ((d['fat'] as num?)?.toDouble() ?? 0)
+              : (targetFat * 0.05);
           Color colorP = _colorProtein;
           Color colorC = _colorCarbs;
           Color colorF = _colorFat;
           if (selectedMacroIndex != null) {
-            if (selectedMacroIndex != 0) colorP = _colorProtein.withOpacity(0.35);
+            if (selectedMacroIndex != 0)
+              colorP = _colorProtein.withOpacity(0.35);
             if (selectedMacroIndex != 1) colorC = _colorCarbs.withOpacity(0.35);
             if (selectedMacroIndex != 2) colorF = _colorFat.withOpacity(0.35);
           }
@@ -1508,9 +1938,27 @@ class _CombinedMacroChart extends StatelessWidget {
           return BarChartGroupData(
             x: dayIndex,
             barRods: [
-              BarChartRodData(toY: p, color: colorP, width: 14, borderRadius: BorderRadius.circular(4), backDrawRodData: BackgroundBarChartRodData(show: true, toY: maxY, color: const Color(0xFFF5F5F5))),
-              BarChartRodData(toY: c, color: colorC, width: 14, borderRadius: BorderRadius.circular(4), backDrawRodData: BackgroundBarChartRodData(show: true, toY: maxY, color: const Color(0xFFF5F5F5))),
-              BarChartRodData(toY: f, color: colorF, width: 14, borderRadius: BorderRadius.circular(4), backDrawRodData: BackgroundBarChartRodData(show: true, toY: maxY, color: const Color(0xFFF5F5F5))),
+              BarChartRodData(
+                  toY: p,
+                  color: colorP,
+                  width: 14,
+                  borderRadius: BorderRadius.circular(4),
+                  backDrawRodData: BackgroundBarChartRodData(
+                      show: true, toY: maxY, color: const Color(0xFFF5F5F5))),
+              BarChartRodData(
+                  toY: c,
+                  color: colorC,
+                  width: 14,
+                  borderRadius: BorderRadius.circular(4),
+                  backDrawRodData: BackgroundBarChartRodData(
+                      show: true, toY: maxY, color: const Color(0xFFF5F5F5))),
+              BarChartRodData(
+                  toY: f,
+                  color: colorF,
+                  width: 14,
+                  borderRadius: BorderRadius.circular(4),
+                  backDrawRodData: BackgroundBarChartRodData(
+                      show: true, toY: maxY, color: const Color(0xFFF5F5F5))),
             ],
             showingTooltipIndicators: [],
           );

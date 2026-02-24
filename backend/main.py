@@ -6,6 +6,7 @@ import shutil
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from passlib.context import CryptContext
@@ -13,6 +14,15 @@ from database import get_db_connection
 from psycopg2.extras import RealDictCursor
 
 app = FastAPI()
+
+# --- CORS: ให้แอป Flutter / เบราว์เซอร์ จาก origin อื่น (เช่น ngrok, APK) ยิง API ได้ ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Config & Helper ---
 pwd_context = CryptContext(
@@ -192,7 +202,7 @@ async def upload_image(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
     
     # ⚠️ ถ้าใช้ Emulator ให้ใช้ 10.0.2.2, ถ้าเครื่องจริงใช้ IP เครื่อง (เช่น 192.168.1.x)
-    return {"url": f"http://10.0.2.2:8000/images/{new_filename}"}
+    return {"url": f"https://unshirred-wendolyn-audiometrically.ngrok-free.dev/images/{new_filename}"}
 
 # --- API 1: Foods List ---
 @app.get("/foods")
@@ -350,17 +360,27 @@ def update_user(user_id: int, user_update: UserUpdate):
             user_values.append(user_id)
             cur.execute(f"UPDATE users SET {', '.join(user_fields)} WHERE user_id = %s", tuple(user_values))
 
-        # If target_calories or macros were not in request, recompute and store so DB has values
+        # If target_calories or macros were not in request, (re)computeจากข้อมูลล่าสุดทุกครั้ง
         cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
         row = cur.fetchone()
         if row:
-            if user_update.target_calories is None and row.get('target_calories') is None:
+            # ถ้า client ไม่ได้ส่ง target_calories มา → ให้ระบบคิดใหม่เสมอ (เผื่อส่วนสูง/น้ำหนัก/เป้าหมายเปลี่ยน)
+            if user_update.target_calories is None:
                 computed = _compute_target_calories(dict(row))
                 cur.execute("UPDATE users SET target_calories = %s WHERE user_id = %s", (computed, user_id))
                 row = {**row, 'target_calories': computed}
-            if user_update.target_protein is None and row.get('target_protein') is None:
+
+            # ถ้า client ไม่ได้ส่ง macro มา → คิดใหม่จาก target_calories ปัจจุบัน
+            if (
+                user_update.target_protein is None
+                and user_update.target_carbs is None
+                and user_update.target_fat is None
+            ):
                 p, c, f = _compute_target_macros(dict(row))
-                cur.execute("UPDATE users SET target_protein = %s, target_carbs = %s, target_fat = %s WHERE user_id = %s", (p, c, f, user_id))
+                cur.execute(
+                    "UPDATE users SET target_protein = %s, target_carbs = %s, target_fat = %s WHERE user_id = %s",
+                    (p, c, f, user_id),
+                )
 
         # Weight Log
         if user_update.current_weight_kg is not None:
@@ -423,8 +443,13 @@ def get_user_profile(user_id: int):
 
 # --- Map meal_1..4 (Flutter) -> breakfast/lunch/dinner/snack (cleangoal enum) ---
 def _meal_type_to_enum(meal_type: str):
+    """
+    Map ค่า meal_type จากฝั่ง Flutter ให้ตรงกับ enum ใน DB.
+    - ถ้าเป็น meal_1..4 ให้แปลงเป็น breakfast/lunch/dinner/snack
+    - ถ้าเป็นชื่อมื้ออยู่แล้ว (breakfast/lunch/dinner/snack) ให้คืนค่าเดิม
+    """
     m = {"meal_1": "breakfast", "meal_2": "lunch", "meal_3": "dinner", "meal_4": "snack"}
-    return m.get(meal_type, "snack")
+    return m.get(meal_type, meal_type)
 
 # --- API 7: Record Meal (cleangoal schema: meals + detail_items, daily_summaries แค่แคล) ---
 @app.post("/meals/{user_id}")

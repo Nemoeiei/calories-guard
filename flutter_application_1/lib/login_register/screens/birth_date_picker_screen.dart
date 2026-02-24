@@ -80,131 +80,191 @@ class _BirthDatePickerScreenState extends State<BirthDatePickerScreen> {
     final yearItems = List.generate(yearCount, (i) => _maxYearBE - i);
 
     return CupertinoPageScaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: const Color(0xFFE8EFCF),
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: const Color(0xFFF2F2F7),
+        backgroundColor: const Color(0xFFE8EFCF),
         border: null,
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
-          child: const Text('ยกเลิก', style: TextStyle(color: Color(0xFF628141), fontSize: 17)),
+          child: const Text('ยกเลิก',
+              style: TextStyle(color: Color(0xFF4C6414), fontSize: 17)),
           onPressed: () => Navigator.pop(context),
         ),
-        middle: const Text('วันเกิด', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        middle: const Text('เลือกวันเกิด',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
-          child: const Text('ตกลง', style: TextStyle(color: Color(0xFF628141), fontSize: 17, fontWeight: FontWeight.w600)),
+          child: const Text('ตกลง',
+              style: TextStyle(
+                  color: Color(0xFF4C6414),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600)),
           onPressed: () => Navigator.pop(context, _selectedDate),
         ),
       ),
       child: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
+            const Text(
+              'กรุณาเลือกวัน / เดือน / ปีเกิด',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                decoration: TextDecoration.none,
+                color: Color(0xFF4C6414),
+              ),
+            ),
+            const SizedBox(height: 12),
             // แสดงวันที่เลือก
-            Text(
-              '${_selectedDay} ${_monthNames[_selectedMonth]} ${_selectedYearBE}',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Colors.black87),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2)),
+                ],
+              ),
+              child: Text(
+                '${_selectedDay} ${_monthNames[_selectedMonth]} ${_selectedYearBE}',
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
+                    color: Colors.black87),
+              ),
             ),
             const SizedBox(height: 24),
             // Wheel Picker
             Container(
-              height: 220,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
+              height: 230,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4)),
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.10),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6)),
                 ],
               ),
-              child: Row(
+              child: Column(
                 children: [
+                  // แถบ highlight ตรงกลาง
                   Expanded(
-                    child: ListWheelScrollView.useDelegate(
-                      controller: _dayController,
-                      itemExtent: 44,
-                      diameterRatio: 1.4,
-                      physics: const FixedExtentScrollPhysics(),
-                      perspective: 0.003,
-                      onSelectedItemChanged: (i) {
-                        setState(() => _selectedDay = i + 1);
-                        _clampDay();
-                      },
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: 31,
-                        builder: (context, index) {
-                          final day = index + 1;
-                          return Center(
-                            child: Text(
-                              '$day',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w500,
-                                color: _selectedDay == day ? Colors.black : Colors.black38,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  Container(width: 1, color: Colors.black12),
-                  Expanded(
-                    child: ListWheelScrollView.useDelegate(
-                      controller: _monthController,
-                      itemExtent: 44,
-                      diameterRatio: 1.4,
-                      physics: const FixedExtentScrollPhysics(),
-                      perspective: 0.003,
-                      onSelectedItemChanged: (i) {
-                        setState(() => _selectedMonth = i);
-                        _clampDay();
-                      },
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: 12,
-                        builder: (context, index) {
-                          return Center(
-                            child: Text(
-                              _monthNames[index],
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w500,
-                                color: _selectedMonth == index ? Colors.black : Colors.black38,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  Container(width: 1, color: Colors.black12),
-                  Expanded(
-                    child: ListWheelScrollView.useDelegate(
-                      controller: _yearController,
-                      itemExtent: 44,
-                      diameterRatio: 1.4,
-                      physics: const FixedExtentScrollPhysics(),
-                      perspective: 0.003,
-                      onSelectedItemChanged: (i) {
-                        setState(() => _selectedYearBE = yearItems[i]);
-                        _clampDay();
-                      },
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: yearItems.length,
-                        builder: (context, index) {
-                          final y = yearItems[index];
-                          return Center(
-                            child: Text(
-                              '$y',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w500,
-                                color: _selectedYearBE == y ? Colors.black : Colors.black38,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                    child: Stack(
+                      children: [
+                        // วงล้อเลือกวัน / เดือน / ปี
+                        Positioned.fill(
+                          child: Row(
+                            children: [
+                              Expanded(
+                                  child: ListWheelScrollView.useDelegate(
+                                controller: _dayController,
+                                itemExtent: 44,
+                                diameterRatio: 1.4,
+                                physics: const FixedExtentScrollPhysics(),
+                                perspective: 0.003,
+                                onSelectedItemChanged: (i) {
+                                  setState(() => _selectedDay = i + 1);
+                                  _clampDay();
+                                },
+                                childDelegate: ListWheelChildBuilderDelegate(
+                                  childCount: 31,
+                                  builder: (context, index) {
+                                    final day = index + 1;
+                                    final isSelected = _selectedDay == day;
+                                    return Center(
+                                      child: Text(
+                                        '$day',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w500,
+                                          decoration: TextDecoration.none,
+                                          color: isSelected
+                                              ? const Color(0xFF4C6414)
+                                              : Colors.black38,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )),
+                              Container(width: 1, color: Colors.black12),
+                              Expanded(
+                                  child: ListWheelScrollView.useDelegate(
+                                controller: _monthController,
+                                itemExtent: 44,
+                                diameterRatio: 1.4,
+                                physics: const FixedExtentScrollPhysics(),
+                                perspective: 0.003,
+                                onSelectedItemChanged: (i) {
+                                  setState(() => _selectedMonth = i);
+                                  _clampDay();
+                                },
+                                childDelegate: ListWheelChildBuilderDelegate(
+                                  childCount: 12,
+                                  builder: (context, index) {
+                                    final isSelected = _selectedMonth == index;
+                                    return Center(
+                                      child: Text(
+                                        _monthNames[index],
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w500,
+                                          decoration: TextDecoration.none,
+                                          color: isSelected
+                                              ? const Color(0xFF4C6414)
+                                              : Colors.black38,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )),
+                              Container(width: 1, color: Colors.black12),
+                              Expanded(
+                                  child: ListWheelScrollView.useDelegate(
+                                controller: _yearController,
+                                itemExtent: 44,
+                                diameterRatio: 1.4,
+                                physics: const FixedExtentScrollPhysics(),
+                                perspective: 0.003,
+                                onSelectedItemChanged: (i) {
+                                  setState(
+                                      () => _selectedYearBE = yearItems[i]);
+                                  _clampDay();
+                                },
+                                childDelegate: ListWheelChildBuilderDelegate(
+                                  childCount: yearItems.length,
+                                  builder: (context, index) {
+                                    final y = yearItems[index];
+                                    final isSelected = _selectedYearBE == y;
+                                    return Center(
+                                      child: Text(
+                                        '$y',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w500,
+                                          decoration: TextDecoration.none,
+                                          color: isSelected
+                                              ? const Color(0xFF4C6414)
+                                              : Colors.black38,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

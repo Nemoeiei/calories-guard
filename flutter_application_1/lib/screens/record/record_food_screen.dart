@@ -23,7 +23,11 @@ final List<Map<String, String>> _mealTimeOptions = [
 class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
   // ข้อมูลมื้ออาหาร: selectedMealIndex, items, saved (หลังบันทึกแล้วแสดง "แก้ไข" แทน "บันทึก")
   final List<Map<String, dynamic>> _meals = [
-    {'selectedMealIndex': null, 'items': [''], 'saved': false}
+    {
+      'selectedMealIndex': null,
+      'items': [''],
+      'saved': false
+    }
   ];
 
   bool _isSaving = false;
@@ -43,7 +47,8 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
   void initState() {
     super.initState();
     _fetchFoodsFromApi();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDayData(_selectedDate));
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _loadDayData(_selectedDate));
   }
 
   /// โหลดข้อมูลมื้ออาหารของวันที่เลือกจาก API (ถ้ามี) แล้วใส่ในฟอร์ม
@@ -52,14 +57,20 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     if (userId == 0) return;
     final dateStr = DateFormat('yyyy-MM-dd').format(forDate);
     try {
-      final url = Uri.parse('http://10.0.2.2:8000/daily_summary/$userId?date_record=$dateStr');
+      final url = Uri.parse(
+          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_summary/$userId?date_record=$dateStr');
       final res = await http.get(url);
       if (!mounted || res.statusCode != 200) return;
-      final data = json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final data =
+          json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final meals = data['meals'];
       if (meals == null || meals is! Map) {
         _meals.clear();
-        _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+        _meals.add({
+          'selectedMealIndex': null,
+          'items': [''],
+          'saved': false
+        });
         if (mounted) setState(() {});
         return;
       }
@@ -69,7 +80,11 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
       for (int i = 0; i < order.length; i++) {
         final value = map[order[i]]?.toString().trim() ?? '';
         if (value.isEmpty) continue;
-        final items = value.split(RegExp(r',\s*')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+        final items = value
+            .split(RegExp(r',\s*'))
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
         if (items.isEmpty) continue;
         items.add('');
         _meals.add({
@@ -79,13 +94,21 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
         });
       }
       if (_meals.isEmpty) {
-        _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+        _meals.add({
+          'selectedMealIndex': null,
+          'items': [''],
+          'saved': false
+        });
       }
       if (mounted) setState(() {});
     } catch (_) {
       if (mounted) {
         _meals.clear();
-        _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+        _meals.add({
+          'selectedMealIndex': null,
+          'items': [''],
+          'saved': false
+        });
         setState(() {});
       }
     }
@@ -99,7 +122,8 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
 
   Future<void> _fetchFoodsFromApi() async {
     try {
-      final res = await http.get(Uri.parse('http://10.0.2.2:8000/foods'));
+      final res = await http.get(Uri.parse(
+          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/foods'));
       if (res.statusCode == 200) {
         if (mounted) {
           setState(() {
@@ -133,7 +157,8 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
   }
 
   // ✅ บันทึกหนึ่งมื้อลง Backend (ส่ง items ทั้งมื้อครั้งเดียว)
-  Future<void> _saveMealToBackend(String mealType, List<String> menuNames) async {
+  Future<void> _saveMealToBackend(
+      String mealType, List<String> menuNames) async {
     if (menuNames.isEmpty) return;
 
     final userId = ref.read(userDataProvider).userId;
@@ -145,7 +170,8 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
       Map<String, dynamic>? food;
       for (final f in _foodDatabase) {
         final m = f as Map<String, dynamic>?;
-        if (m != null && m['food_name'].toString().toLowerCase() == name.toLowerCase()) {
+        if (m != null &&
+            m['food_name'].toString().toLowerCase() == name.toLowerCase()) {
           food = m;
           break;
         }
@@ -165,7 +191,8 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     if (itemsPayload.isEmpty) return;
 
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-    final url = Uri.parse('http://10.0.2.2:8000/meals/$userId');
+    final url = Uri.parse(
+        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/meals/$userId');
     final body = jsonEncode({
       "date": dateStr,
       "meal_type": mealType,
@@ -183,7 +210,11 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
   // --- UI Logic ---
   void _addNextMeal() {
     setState(() {
-      _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+      _meals.add({
+        'selectedMealIndex': null,
+        'items': [''],
+        'saved': false
+      });
     });
   }
 
@@ -192,19 +223,29 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     if (_isSaving) return;
     final items = List<String>.from(_meals[mealIndex]['items']);
     final selectedIndex = _meals[mealIndex]['selectedMealIndex'] as int?;
-    if (selectedIndex == null || selectedIndex < 0 || selectedIndex >= _mealTimeOptions.length) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณาเลือกช่วงเวลาที่ทาน'), backgroundColor: Colors.orange));
+    if (selectedIndex == null ||
+        selectedIndex < 0 ||
+        selectedIndex >= _mealTimeOptions.length) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('กรุณาเลือกช่วงเวลาที่ทาน'),
+            backgroundColor: Colors.orange));
       return;
     }
     final foodNames = items.where((s) => s.trim().isNotEmpty).toList();
     setState(() => _isSaving = true);
     final userId = ref.read(userDataProvider).userId;
-    if (userId == 0) { setState(() => _isSaving = false); return; }
+    if (userId == 0) {
+      setState(() => _isSaving = false);
+      return;
+    }
     final mealType = _mealTimeOptions[selectedIndex]['mealType']!;
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
     try {
-      final base = Uri.parse('http://10.0.2.2:8000/meals/clear/$userId');
-      await http.delete(base.replace(queryParameters: {'date_record': dateStr, 'meal_type': mealType}));
+      final base = Uri.parse(
+          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/meals/clear/$userId');
+      await http.delete(base.replace(
+          queryParameters: {'date_record': dateStr, 'meal_type': mealType}));
       if (foodNames.isNotEmpty) await _saveMealToBackend(mealType, foodNames);
       if (mounted) {
         setState(() {
@@ -216,13 +257,16 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
             list.add('');
           }
         });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกมื้อนี้เรียบร้อย'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('บันทึกมื้อนี้เรียบร้อย'),
+            backgroundColor: Colors.green));
         await _refreshHomeDailyData(_selectedDate);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red));
       }
     }
   }
@@ -233,21 +277,23 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     if (userId == 0) return;
     final dateStr = DateFormat('yyyy-MM-dd').format(forDate);
     try {
-      final url = Uri.parse('http://10.0.2.2:8000/daily_summary/$userId?date_record=$dateStr');
+      final url = Uri.parse(
+          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_summary/$userId?date_record=$dateStr');
       final response = await http.get(url);
       if (response.statusCode == 200 && mounted) {
-        final summaryData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        final summaryData =
+            jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         Map<String, String> mealsMap = {};
         if (summaryData['meals'] != null) {
           mealsMap = Map<String, String>.from(summaryData['meals'] as Map);
         }
         ref.read(userDataProvider.notifier).updateDailyFood(
-          cal: (summaryData['total_calories_intake'] as num?)?.toInt() ?? 0,
-          protein: (summaryData['total_protein'] as num?)?.toInt() ?? 0,
-          carbs: (summaryData['total_carbs'] as num?)?.toInt() ?? 0,
-          fat: (summaryData['total_fat'] as num?)?.toInt() ?? 0,
-          dailyMeals: mealsMap,
-        );
+              cal: (summaryData['total_calories_intake'] as num?)?.toInt() ?? 0,
+              protein: (summaryData['total_protein'] as num?)?.toInt() ?? 0,
+              carbs: (summaryData['total_carbs'] as num?)?.toInt() ?? 0,
+              fat: (summaryData['total_fat'] as num?)?.toInt() ?? 0,
+              dailyMeals: mealsMap,
+            );
         ref.read(homeViewDateProvider.notifier).state = forDate;
       }
     } catch (_) {}
@@ -486,7 +532,9 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
 
   Future<void> _deleteThisMeal(int mealIndex) async {
     final selectedIndex = _meals[mealIndex]['selectedMealIndex'] as int?;
-    if (selectedIndex == null || selectedIndex < 0 || selectedIndex >= _mealTimeOptions.length) return;
+    if (selectedIndex == null ||
+        selectedIndex < 0 ||
+        selectedIndex >= _mealTimeOptions.length) return;
     final mealType = _mealTimeOptions[selectedIndex]['mealType']!;
     final label = _mealTimeOptions[selectedIndex]['label']!;
     final ok = await showDialog<bool>(
@@ -495,8 +543,12 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
         title: const Text('ยืนยันการลบมื้อ'),
         content: Text('ต้องการลบข้อมูลมื้อ "$label" ใช่หรือไม่?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ลบ')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ลบ')),
         ],
       ),
     );
@@ -505,28 +557,41 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     if (userId == 0) return;
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
     try {
-      final base = Uri.parse('http://10.0.2.2:8000/meals/clear/$userId');
-      await http.delete(base.replace(queryParameters: {'date_record': dateStr, 'meal_type': mealType}));
+      final base = Uri.parse(
+          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/meals/clear/$userId');
+      await http.delete(base.replace(
+          queryParameters: {'date_record': dateStr, 'meal_type': mealType}));
       if (mounted) {
         setState(() {
           _meals.removeAt(mealIndex);
-          if (_meals.isEmpty) _meals.add({'selectedMealIndex': null, 'items': [''], 'saved': false});
+          if (_meals.isEmpty)
+            _meals.add({
+              'selectedMealIndex': null,
+              'items': [''],
+              'saved': false
+            });
         });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบมื้อแล้ว'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('ลบมื้อแล้ว'), backgroundColor: Colors.green));
         await _refreshHomeDailyData(_selectedDate);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red));
     }
   }
 
   Widget _buildMealCard(int mealIndex) {
     final items = List<String>.from(_meals[mealIndex]['items']);
     final selectedIndex = _meals[mealIndex]['selectedMealIndex'] as int?;
-    final hasTimeSelected = selectedIndex != null && selectedIndex >= 0 && selectedIndex < _mealTimeOptions.length;
+    final hasTimeSelected = selectedIndex != null &&
+        selectedIndex >= 0 &&
+        selectedIndex < _mealTimeOptions.length;
     final saved = _meals[mealIndex]['saved'] == true;
     // หัวข้อ: ยังไม่เลือกช่วงเวลา = "เลือกมื้ออาหาร", เลือกแล้ว = "มื้อที่ N"
-    final title = hasTimeSelected ? 'มื้อที่ ${mealIndex + 1}' : 'เลือกมื้ออาหาร';
+    final title =
+        hasTimeSelected ? 'มื้อที่ ${mealIndex + 1}' : 'เลือกมื้ออาหาร';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -585,11 +650,15 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
                               value: i,
                               child: Text(
                                 _mealTimeOptions[i]['label']!,
-                                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                                style: const TextStyle(
+                                    fontSize: 14, color: Colors.black87),
                               ),
                             ),
                           ),
-                          onChanged: saved ? null : (v) => setState(() => _meals[mealIndex]['selectedMealIndex'] = v),
+                          onChanged: saved
+                              ? null
+                              : (v) => setState(() =>
+                                  _meals[mealIndex]['selectedMealIndex'] = v),
                         ),
                       ),
                     ),
@@ -610,19 +679,32 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  ...List.generate(items.length, (j) => j).where((j) => items[j].trim().isNotEmpty).map((j) => _buildFoodChip(mealIndex, j, items, canDelete: !saved)),
+                  ...List.generate(items.length, (j) => j)
+                      .where((j) => items[j].trim().isNotEmpty)
+                      .map((j) => _buildFoodChip(mealIndex, j, items,
+                          canDelete: !saved)),
                   if (!saved)
                     InkWell(
                       onTap: () => _addFoodItemInMeal(mealIndex),
                       borderRadius: BorderRadius.circular(20),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: const Color(0xFF628141).withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.add, size: 18, color: Color(0xFF628141)),
-                          SizedBox(width: 4),
-                          Text('เพิ่มเมนูอาหาร', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF628141))),
-                        ]),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                            color: const Color(0xFF628141).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20)),
+                        child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add,
+                                  size: 18, color: Color(0xFF628141)),
+                              SizedBox(width: 4),
+                              Text('เพิ่มเมนูอาหาร',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF628141))),
+                            ]),
                       ),
                     ),
                 ],
@@ -643,31 +725,49 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
                   GestureDetector(
                     onTap: _isSaving ? null : () => _deleteThisMeal(mealIndex),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      decoration: BoxDecoration(color: Colors.red.shade300, borderRadius: BorderRadius.circular(10)),
-                      child: const Text('ลบมื้อ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                          color: Colors.red.shade300,
+                          borderRadius: BorderRadius.circular(10)),
+                      child: const Text('ลบมื้อ',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white)),
                     ),
                   ),
                   const SizedBox(width: 12),
                 ],
                 GestureDetector(
-                  onTap: _isSaving ? null : () {
-                    if (saved) {
-                      setState(() => _meals[mealIndex]['saved'] = false);
-                    } else {
-                      _saveSingleCard(mealIndex);
-                    }
-                  },
+                  onTap: _isSaving
+                      ? null
+                      : () {
+                          if (saved) {
+                            setState(() => _meals[mealIndex]['saved'] = false);
+                          } else {
+                            _saveSingleCard(mealIndex);
+                          }
+                        },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 10),
                     decoration: BoxDecoration(
                       color: saved ? Colors.grey : const Color(0xFF628141),
                       borderRadius: BorderRadius.circular(10),
-                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                      boxShadow: const [
+                        BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2))
+                      ],
                     ),
                     child: Text(
                       _isSaving ? '...' : (saved ? 'แก้ไข' : 'บันทึก'),
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white),
                     ),
                   ),
                 ),
@@ -679,8 +779,10 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     );
   }
 
-  Widget _buildFoodChip(int mealIndex, int itemIndex, List<String> items, {bool canDelete = true}) {
-    if (itemIndex >= items.length || items[itemIndex].trim().isEmpty) return const SizedBox.shrink();
+  Widget _buildFoodChip(int mealIndex, int itemIndex, List<String> items,
+      {bool canDelete = true}) {
+    if (itemIndex >= items.length || items[itemIndex].trim().isEmpty)
+      return const SizedBox.shrink();
     final name = items[itemIndex];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -691,7 +793,10 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(name, style: const TextStyle(fontSize: 13, color: Colors.black87), overflow: TextOverflow.ellipsis, maxLines: 1),
+          Text(name,
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1),
           if (canDelete) ...[
             const SizedBox(width: 6),
             GestureDetector(

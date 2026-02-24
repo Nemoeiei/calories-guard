@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.flutter_application_1"
-    compileSdk = 36   // ⭐ ใส่เป็นตัวเลขตรง ๆ ชั่วคราว
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.flutter_application_1"
@@ -16,6 +16,26 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // ใช้ค่า default
+        }
+        create("release") {
+            storeFile = file("${System.getenv("USERPROFILE")}\\.android\\debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -23,7 +43,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"   // ⭐ เปลี่ยนจาก 17 → 1.8 (สำคัญมาก)
+        jvmTarget = "1.8"
     }
 }
 
