@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_application_1/constants/constants.dart';
-import 'admin_addmenu_screen.dart'; 
+import 'admin_addmenu_screen.dart';
 
 class AdminRequestScreen extends StatefulWidget {
   const AdminRequestScreen({super.key});
@@ -22,14 +22,15 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
 
   void _fetchRequests() {
     setState(() {
-      _requestsFuture = http.get(Uri.parse('${AppConstants.baseUrl}/admin/food-requests'))
-        .then((res) {
-          if (res.statusCode == 200) {
-            return jsonDecode(res.body);
-          } else {
-            throw Exception('Failed to load requests');
-          }
-        });
+      _requestsFuture = http
+          .get(Uri.parse('${AppConstants.baseUrl}/admin/food-requests'))
+          .then((res) {
+        if (res.statusCode == 200) {
+          return jsonDecode(res.body);
+        } else {
+          throw Exception('Failed to load requests');
+        }
+      });
     });
   }
 
@@ -54,7 +55,8 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
                       child: const SizedBox(
                         width: 40,
                         height: 40,
-                        child: Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 24),
+                        child: Icon(Icons.arrow_back_ios_new,
+                            color: Colors.black, size: 24),
                       ),
                     ),
                   ),
@@ -84,18 +86,21 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
                   } else if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
                   } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text('ไม่มีคำขอเพิ่มเมนูในขณะนี้', style: TextStyle(fontSize: 16)));
+                    return const Center(
+                        child: Text('ไม่มีคำขอเพิ่มเมนูในขณะนี้',
+                            style: TextStyle(fontSize: 16)));
                   }
 
                   final requests = snapshot.data!;
                   return ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     itemCount: requests.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 15),
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 15),
                     itemBuilder: (context, index) {
                       final item = requests[index];
                       return _buildRequestCard(
-                        context: context, 
+                        context: context,
                         requestData: item,
                       );
                     },
@@ -111,7 +116,7 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
 
   // Widget สร้างการ์ดแต่ละรายการ
   Widget _buildRequestCard({
-    required BuildContext context, 
+    required BuildContext context,
     required Map<String, dynamic> requestData,
   }) {
     final menuName = requestData['food_name'] ?? 'ไม่มีชื่อเมนู';
@@ -146,7 +151,7 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
             ),
             child: const Icon(Icons.person, color: Color(0xFF6E6A6A), size: 30),
           ),
-          
+
           const SizedBox(width: 15),
 
           // ข้อความ (ชื่อคนขอ + ชื่อเมนู)
@@ -190,7 +195,8 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black54),
+              icon: const Icon(Icons.arrow_forward_ios,
+                  size: 16, color: Colors.black54),
               onPressed: () async {
                 // ✅ ส่งข้อมูลคำขอที่เลือกไปหน้าถัดไป ให้แอดมินแก้ไขโภชนาการ
                 final result = await Navigator.push(

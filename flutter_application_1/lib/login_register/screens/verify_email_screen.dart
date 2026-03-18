@@ -55,7 +55,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     if (result['success']) {
       // Use showSnackBar instead of _showError so it can be green if we want, or map _showError
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'ส่งรหัสใหม่สำเร็จ'), backgroundColor: Colors.green),
+        SnackBar(
+            content: Text(result['message'] ?? 'ส่งรหัสใหม่สำเร็จ'),
+            backgroundColor: Colors.green),
       );
       _startTimer();
     } else {
@@ -166,7 +168,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               const SizedBox(height: 20),
               Center(
                 child: TextButton(
-                  onPressed: _remainingTime > 0 || _isLoading ? null : _resendCode,
+                  onPressed:
+                      _remainingTime > 0 || _isLoading ? null : _resendCode,
                   child: Text(
                     _remainingTime > 0
                         ? 'ส่งรหัสใหม่ใน $_remainingTime วิ'
@@ -174,7 +177,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 16,
-                      color: _remainingTime > 0 ? Colors.grey : const Color(0xFF628141),
+                      color: _remainingTime > 0
+                          ? Colors.grey
+                          : const Color(0xFF628141),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
