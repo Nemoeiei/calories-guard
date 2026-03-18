@@ -1,0 +1,41 @@
+# Flutter/Dart/Pub related
+.dart_tool/
+build/
+.packages
+.pub-cache/
+.pub/
+
+# Android related
+**/android/app/src/main/res/values/secrets.xml
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+
+# iOS/XCode related
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Pods/
+*.mode1v3
+*.mode2v3
+*.pbxuser
+*.perspectivev3
+
+# Exceptions to above rules.
+!**/ios/**/default.pbxuser
+!**/ios/**/default.mode1v3
+!**/ios/**/default.mode2v3
+!**/ios/**/default.perspectivev3
+!**/ios/**/default.pbxuser
+!**/ios/**/default.mode1v3
+
+# IntelliJ
+*.iml
+.idea/
+
+# VS Code
+.vscode/
