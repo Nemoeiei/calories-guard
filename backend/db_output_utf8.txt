@@ -1,0 +1,365 @@
+﻿--- DATABASE SCHEMA ANALYSIS ---
+
+[cleangoal.allergy_flags]
+  - flag_id (integer) - Nullable: NO
+  - name (character varying) - Nullable: NO
+  - description (character varying) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.beverages]
+  - beverage_id (bigint) - Nullable: NO
+  - food_id (bigint) - Nullable: YES
+  - volume_ml (numeric) - Nullable: YES
+  - is_alcoholic (boolean) - Nullable: YES
+  - caffeine_mg (numeric) - Nullable: YES
+  - sugar_level_label (character varying) - Nullable: YES
+  - container_type (character varying) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.daily_summaries]
+  - summary_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: YES
+  - item_id (bigint) - Nullable: YES
+  - date_record (date) - Nullable: YES
+  - total_calories_intake (numeric) - Nullable: YES
+  - goal_calories (integer) - Nullable: YES
+  - is_goal_met (boolean) - Nullable: YES
+  Sample Data:
+    {'summary_id': 1, 'user_id': 1, 'item_id': None, 'date_record': datetime.date(2026, 2, 17), 'total_calories_intake': Decimal('140.00'), 'goal_calories': None, 'is_goal_met': False}
+    {'summary_id': 2, 'user_id': 1, 'item_id': None, 'date_record': datetime.date(2026, 2, 16), 'total_calories_intake': Decimal('140.00'), 'goal_calories': None, 'is_goal_met': False}
+    {'summary_id': 64, 'user_id': 2, 'item_id': None, 'date_record': datetime.date(2026, 2, 14), 'total_calories_intake': Decimal('1156.00'), 'goal_calories': None, 'is_goal_met': False}
+
+
+[cleangoal.detail_items]
+  - item_id (bigint) - Nullable: NO
+  - meal_id (bigint) - Nullable: YES
+  - plan_id (bigint) - Nullable: YES
+  - summary_id (bigint) - Nullable: YES
+  - food_id (bigint) - Nullable: YES
+  - food_name (character varying) - Nullable: YES
+  - day_number (integer) - Nullable: YES
+  - amount (numeric) - Nullable: YES
+  - unit_id (integer) - Nullable: YES
+  - cal_per_unit (numeric) - Nullable: YES
+  - note (character varying) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+    {'item_id': 1, 'meal_id': 1, 'plan_id': None, 'summary_id': None, 'food_id': 93, 'food_name': 'เบียร์ (Lager)', 'day_number': None, 'amount': Decimal('1.00'), 'unit_id': None, 'cal_per_unit': Decimal('140.00'), 'note': None, 'created_at': datetime.datetime(2026, 2, 17, 17, 40, 15, 118260)}
+    {'item_id': 2, 'meal_id': 2, 'plan_id': None, 'summary_id': None, 'food_id': 93, 'food_name': 'เบียร์ (Lager)', 'day_number': None, 'amount': Decimal('1.00'), 'unit_id': None, 'cal_per_unit': Decimal('140.00'), 'note': None, 'created_at': datetime.datetime(2026, 2, 17, 17, 40, 39, 126043)}
+    {'item_id': 3, 'meal_id': 3, 'plan_id': None, 'summary_id': None, 'food_id': 93, 'food_name': 'เบียร์ (Lager)', 'day_number': None, 'amount': Decimal('1.00'), 'unit_id': None, 'cal_per_unit': Decimal('140.00'), 'note': None, 'created_at': datetime.datetime(2026, 2, 17, 17, 41, 3, 463756)}
+
+
+[cleangoal.food_ingredients]
+  - food_ing_id (bigint) - Nullable: NO
+  - food_id (bigint) - Nullable: YES
+  - ingredient_id (bigint) - Nullable: YES
+  - amount (numeric) - Nullable: YES
+  - unit_id (integer) - Nullable: YES
+  - calculated_grams (numeric) - Nullable: YES
+  - note (character varying) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.food_requests]
+  - request_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: NO
+  - food_name (character varying) - Nullable: NO
+  - status (USER-DEFINED) - Nullable: YES
+  - ingredients_json (jsonb) - Nullable: YES
+  - reviewed_by (bigint) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.foods]
+  - food_id (bigint) - Nullable: NO
+  - food_name (character varying) - Nullable: NO
+  - food_type (USER-DEFINED) - Nullable: YES
+  - calories (numeric) - Nullable: YES
+  - protein (numeric) - Nullable: YES
+  - carbs (numeric) - Nullable: YES
+  - fat (numeric) - Nullable: YES
+  - sodium (numeric) - Nullable: YES
+  - sugar (numeric) - Nullable: YES
+  - cholesterol (numeric) - Nullable: YES
+  - serving_quantity (numeric) - Nullable: YES
+  - serving_unit (character varying) - Nullable: YES
+  - image_url (character varying) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  - updated_at (timestamp without time zone) - Nullable: YES
+  - deleted_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+    {'food_id': 3, 'food_name': 'ข้าวขาหมู', 'food_type': 'dish', 'calories': Decimal('690.00'), 'protein': Decimal('25.00'), 'carbs': Decimal('55.00'), 'fat': Decimal('38.00'), 'sodium': Decimal('1400.00'), 'sugar': Decimal('12.00'), 'cholesterol': Decimal('150.00'), 'serving_quantity': Decimal('1.00'), 'serving_unit': 'plate', 'image_url': 'https://placehold.co/400?text=Pork+Leg', 'created_at': datetime.datetime(2026, 2, 17, 17, 37, 50, 735627), 'updated_at': None, 'deleted_at': None}
+    {'food_id': 4, 'food_name': 'ข้าวหมูแดง', 'food_type': 'dish', 'calories': Decimal('540.00'), 'protein': Decimal('20.00'), 'carbs': Decimal('78.00'), 'fat': Decimal('14.00'), 'sodium': Decimal('1100.00'), 'sugar': Decimal('18.00'), 'cholesterol': Decimal('75.00'), 'serving_quantity': Decimal('1.00'), 'serving_unit': 'plate', 'image_url': 'https://placehold.co/400?text=Red+Pork', 'created_at': datetime.datetime(2026, 2, 17, 17, 37, 50, 735627), 'updated_at': None, 'deleted_at': None}
+    {'food_id': 5, 'food_name': 'ข้าวหมูกรอบ', 'food_type': 'dish', 'calories': Decimal('650.00'), 'protein': Decimal('18.00'), 'carbs': Decimal('60.00'), 'fat': Decimal('35.00'), 'sodium': Decimal('1250.00'), 'sugar': Decimal('5.00'), 'cholesterol': Decimal('110.00'), 'serving_quantity': Decimal('1.00'), 'serving_unit': 'plate', 'image_url': 'https://placehold.co/400?text=Crispy+Pork', 'created_at': datetime.datetime(2026, 2, 17, 17, 37, 50, 735627), 'updated_at': None, 'deleted_at': None}
+
+
+[cleangoal.health_contents]
+  - content_id (bigint) - Nullable: NO
+  - title (character varying) - Nullable: NO
+  - type (USER-DEFINED) - Nullable: YES
+  - thumbnail_url (character varying) - Nullable: YES
+  - resource_url (character varying) - Nullable: YES
+  - description (text) - Nullable: YES
+  - category_tag (character varying) - Nullable: YES
+  - difficulty_level (character varying) - Nullable: YES
+  - is_published (boolean) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.ingredients]
+  - ingredient_id (bigint) - Nullable: NO
+  - name (character varying) - Nullable: NO
+  - category (character varying) - Nullable: YES
+  - default_unit_id (integer) - Nullable: YES
+  - calories_per_unit (numeric) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.meals]
+  - meal_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: YES
+  - item_id (bigint) - Nullable: YES
+  - meal_type (USER-DEFINED) - Nullable: YES
+  - meal_time (timestamp without time zone) - Nullable: YES
+  - total_amount (numeric) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+    {'meal_id': 1, 'user_id': 1, 'item_id': None, 'meal_type': 'breakfast', 'meal_time': datetime.datetime(2026, 2, 17, 17, 40, 15, 117214), 'total_amount': Decimal('140.0'), 'created_at': datetime.datetime(2026, 2, 17, 17, 40, 15, 118260)}
+    {'meal_id': 2, 'user_id': 1, 'item_id': None, 'meal_type': 'breakfast', 'meal_time': datetime.datetime(2026, 2, 16, 17, 40, 39, 124623), 'total_amount': Decimal('140.0'), 'created_at': datetime.datetime(2026, 2, 17, 17, 40, 39, 126043)}
+    {'meal_id': 3, 'user_id': 1, 'item_id': None, 'meal_type': 'breakfast', 'meal_time': datetime.datetime(2026, 2, 15, 17, 41, 3, 463367), 'total_amount': Decimal('140.0'), 'created_at': datetime.datetime(2026, 2, 17, 17, 41, 3, 463756)}
+
+
+[cleangoal.notifications]
+  - notification_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: YES
+  - title (character varying) - Nullable: NO
+  - message (text) - Nullable: YES
+  - type (USER-DEFINED) - Nullable: YES
+  - is_read (boolean) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.password_reset_codes]
+  - id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: NO
+  - code (character varying) - Nullable: NO
+  - expires_at (timestamp without time zone) - Nullable: NO
+  - used (boolean) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+    {'id': 1, 'user_id': 18, 'code': '992081', 'expires_at': datetime.datetime(2026, 3, 16, 10, 37, 42, 158706), 'used': False, 'created_at': datetime.datetime(2026, 3, 16, 10, 22, 42, 153208)}
+
+
+[cleangoal.progress]
+  - progress_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: NO
+  - weight_id (bigint) - Nullable: YES
+  - daily_id (bigint) - Nullable: YES
+  - current_streak (integer) - Nullable: YES
+  - weekly_target (character varying) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.recipes]
+  - recipe_id (bigint) - Nullable: NO
+  - food_id (bigint) - Nullable: YES
+  - description (character varying) - Nullable: YES
+  - instructions (text) - Nullable: YES
+  - prep_time_minutes (integer) - Nullable: YES
+  - cooking_time_minutes (integer) - Nullable: YES
+  - serving_people (numeric) - Nullable: YES
+  - source_reference (character varying) - Nullable: YES
+  - image_url (character varying) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  - deleted_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.roles]
+  - role_id (integer) - Nullable: NO
+  - role_name (character varying) - Nullable: NO
+  Sample Data:
+    {'role_id': 1, 'role_name': 'admin'}
+    {'role_id': 2, 'role_name': 'user'}
+
+
+[cleangoal.snacks]
+  - snack_id (bigint) - Nullable: NO
+  - food_id (bigint) - Nullable: YES
+  - is_sweet (boolean) - Nullable: YES
+  - packaging_type (character varying) - Nullable: YES
+  - trans_fat (numeric) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.units]
+  - unit_id (integer) - Nullable: NO
+  - name (character varying) - Nullable: NO
+  - conversion_factor (numeric) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.user_activities]
+  - activity_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: NO
+  - activity_level (USER-DEFINED) - Nullable: NO
+  - is_current (boolean) - Nullable: YES
+  - date_record (date) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.user_allergy_preferences]
+  - user_id (bigint) - Nullable: NO
+  - flag_id (integer) - Nullable: NO
+  - preference_type (character varying) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.user_goals]
+  - goal_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: NO
+  - goal_name (character varying) - Nullable: YES
+  - goal_type (USER-DEFINED) - Nullable: NO
+  - target_weight_kg (numeric) - Nullable: YES
+  - is_current (boolean) - Nullable: YES
+  - goal_start_at (date) - Nullable: YES
+  - goal_target_date (date) - Nullable: YES
+  - goal_end_at (date) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.user_meal_plans]
+  - plan_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: YES
+  - item_id (bigint) - Nullable: YES
+  - name (character varying) - Nullable: NO
+  - description (text) - Nullable: YES
+  - source_type (character varying) - Nullable: YES
+  - is_premium (boolean) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.users]
+  - user_id (bigint) - Nullable: NO
+  - username (character varying) - Nullable: YES
+  - email (character varying) - Nullable: NO
+  - password_hash (character varying) - Nullable: NO
+  - gender (USER-DEFINED) - Nullable: YES
+  - birth_date (date) - Nullable: YES
+  - height_cm (numeric) - Nullable: YES
+  - current_weight_kg (numeric) - Nullable: YES
+  - goal_type (USER-DEFINED) - Nullable: YES
+  - target_weight_kg (numeric) - Nullable: YES
+  - target_calories (integer) - Nullable: YES
+  - activity_level (USER-DEFINED) - Nullable: YES
+  - goal_start_date (date) - Nullable: YES
+  - goal_target_date (date) - Nullable: YES
+  - last_kpi_check_date (date) - Nullable: YES
+  - current_streak (integer) - Nullable: YES
+  - last_login_date (timestamp without time zone) - Nullable: YES
+  - total_login_days (integer) - Nullable: YES
+  - avatar_url (character varying) - Nullable: YES
+  - role_id (integer) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  - updated_at (timestamp without time zone) - Nullable: YES
+  - deleted_at (timestamp without time zone) - Nullable: YES
+  - target_protein (integer) - Nullable: YES
+  - target_carbs (integer) - Nullable: YES
+  - target_fat (integer) - Nullable: YES
+  Sample Data:
+    {'user_id': 4, 'username': 'test 04', 'email': 'test04@gmail.com', 'password_hash': '$2b$12$KUBf2AnZgiDvYQGoCOOudefub6UCT6Ar4FOU52ZgbwckhVE7PeQVK', 'gender': 'male', 'birth_date': datetime.date(2000, 1, 20), 'height_cm': Decimal('180.00'), 'current_weight_kg': Decimal('80.00'), 'goal_type': 'lose_weight', 'target_weight_kg': Decimal('72.00'), 'target_calories': None, 'activity_level': 'sedentary', 'goal_start_date': datetime.date(2026, 2, 18), 'goal_target_date': datetime.date(2026, 10, 16), 'last_kpi_check_date': datetime.date(2026, 2, 18), 'current_streak': 0, 'last_login_date': None, 'total_login_days': 0, 'avatar_url': None, 'role_id': 2, 'created_at': datetime.datetime(2026, 2, 18, 23, 10, 31, 680909), 'updated_at': None, 'deleted_at': None, 'target_protein': None, 'target_carbs': None, 'target_fat': None}
+    {'user_id': 24, 'username': 'สิริศักดิ์ เผียงสูงเนิน', 'email': 'sirisak@gmail.com', 'password_hash': '$2b$12$8I6gQ9WQvtHG6N.5oVdqZ./ettdbdgNxtzuvDdRSEP/nBRurI.9Le', 'gender': 'male', 'birth_date': datetime.date(2000, 1, 1), 'height_cm': Decimal('170.00'), 'current_weight_kg': Decimal('70.00'), 'goal_type': 'lose_weight', 'target_weight_kg': Decimal('63.00'), 'target_calories': 1708, 'activity_level': 'sedentary', 'goal_start_date': datetime.date(2026, 2, 25), 'goal_target_date': datetime.date(2026, 9, 23), 'last_kpi_check_date': datetime.date(2026, 2, 25), 'current_streak': 0, 'last_login_date': None, 'total_login_days': 0, 'avatar_url': None, 'role_id': 2, 'created_at': datetime.datetime(2026, 2, 25, 14, 43, 35, 191234), 'updated_at': None, 'deleted_at': None, 'target_protein': 128, 'target_carbs': 171, 'target_fat': 57}
+    {'user_id': 13, 'username': 'test 14', 'email': 'test14@gmail.com', 'password_hash': '$2b$12$lYecjAaR93..bTZ2/ERjqOoLQaZNzG8o5C40DcFBThYpw/4l6jMfq', 'gender': 'male', 'birth_date': datetime.date(2000, 1, 20), 'height_cm': Decimal('180.00'), 'current_weight_kg': Decimal('70.00'), 'goal_type': 'maintain_weight', 'target_weight_kg': Decimal('60.00'), 'target_calories': 2000, 'activity_level': 'sedentary', 'goal_start_date': datetime.date(2026, 2, 20), 'goal_target_date': datetime.date(2026, 5, 21), 'last_kpi_check_date': datetime.date(2026, 2, 20), 'current_streak': 0, 'last_login_date': None, 'total_login_days': 0, 'avatar_url': None, 'role_id': 2, 'created_at': datetime.datetime(2026, 2, 20, 0, 23, 27, 961915), 'updated_at': None, 'deleted_at': None, 'target_protein': None, 'target_carbs': None, 'target_fat': None}
+
+
+[cleangoal.weekly_summaries]
+  - weekly_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: NO
+  - start_date (date) - Nullable: NO
+  - avg_daily_calories (integer) - Nullable: YES
+  - days_logged_count (integer) - Nullable: YES
+  Sample Data:
+
+
+[cleangoal.weight_logs]
+  - log_id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: NO
+  - weight_kg (numeric) - Nullable: NO
+  - recorded_date (date) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+    {'log_id': 1, 'user_id': 1, 'weight_kg': Decimal('70.00'), 'recorded_date': datetime.date(2026, 2, 17), 'created_at': datetime.datetime(2026, 2, 17, 17, 25, 2, 813805)}
+    {'log_id': 2, 'user_id': 2, 'weight_kg': Decimal('80.00'), 'recorded_date': datetime.date(2026, 2, 18), 'created_at': datetime.datetime(2026, 2, 18, 20, 53, 32, 673644)}
+    {'log_id': 3, 'user_id': 3, 'weight_kg': Decimal('80.00'), 'recorded_date': datetime.date(2026, 2, 18), 'created_at': datetime.datetime(2026, 2, 18, 23, 1, 29, 990938)}
+
+
+[public.password_reset_codes]
+  - id (bigint) - Nullable: NO
+  - user_id (bigint) - Nullable: NO
+  - code (character varying) - Nullable: NO
+  - expires_at (timestamp without time zone) - Nullable: NO
+  - used (boolean) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+
+
+[public.recipes]
+  - recipe_id (bigint) - Nullable: NO
+  - food_id (bigint) - Nullable: YES
+  - description (character varying) - Nullable: YES
+  - instructions (text) - Nullable: YES
+  - prep_time_minutes (integer) - Nullable: NO
+  - cooking_time_minutes (integer) - Nullable: NO
+  - serving_people (numeric) - Nullable: NO
+  - source_reference (character varying) - Nullable: YES
+  - image_url (character varying) - Nullable: YES
+  - created_at (timestamp without time zone) - Nullable: NO
+  - deleted_at (timestamp without time zone) - Nullable: YES
+  Sample Data:
+    {'recipe_id': 1, 'food_id': 1, 'description': 'Test recipe', 'instructions': None, 'prep_time_minutes': 0, 'cooking_time_minutes': 0, 'serving_people': Decimal('1.0'), 'source_reference': None, 'image_url': None, 'created_at': datetime.datetime(2026, 3, 13, 10, 7, 42, 204894), 'deleted_at': None}
+    {'recipe_id': 3, 'food_id': 0, 'description': 'string', 'instructions': 'string', 'prep_time_minutes': 0, 'cooking_time_minutes': 0, 'serving_people': Decimal('1.0'), 'source_reference': 'string', 'image_url': 'string', 'created_at': datetime.datetime(2026, 3, 13, 10, 11, 35, 993345), 'deleted_at': None}
+
+
+--- FOREIGN KEYS ---
+
+cleangoal.beverages(food_id) -> cleangoal.foods(food_id)
+cleangoal.daily_summaries(user_id) -> cleangoal.users(user_id)
+cleangoal.detail_items(food_id) -> cleangoal.foods(food_id)
+cleangoal.detail_items(meal_id) -> cleangoal.meals(meal_id)
+cleangoal.detail_items(plan_id) -> cleangoal.user_meal_plans(plan_id)
+cleangoal.detail_items(summary_id) -> cleangoal.daily_summaries(summary_id)
+cleangoal.detail_items(unit_id) -> cleangoal.units(unit_id)
+cleangoal.food_ingredients(food_id) -> cleangoal.foods(food_id)
+cleangoal.food_ingredients(ingredient_id) -> cleangoal.ingredients(ingredient_id)
+cleangoal.food_ingredients(unit_id) -> cleangoal.units(unit_id)
+cleangoal.food_requests(reviewed_by) -> cleangoal.users(user_id)
+cleangoal.food_requests(user_id) -> cleangoal.users(user_id)
+cleangoal.ingredients(default_unit_id) -> cleangoal.units(unit_id)
+cleangoal.meals(user_id) -> cleangoal.users(user_id)
+cleangoal.notifications(user_id) -> cleangoal.users(user_id)
+cleangoal.progress(daily_id) -> cleangoal.daily_summaries(summary_id)
+cleangoal.progress(user_id) -> cleangoal.users(user_id)
+cleangoal.progress(weight_id) -> cleangoal.weight_logs(log_id)
+cleangoal.recipes(food_id) -> cleangoal.foods(food_id)
+cleangoal.snacks(food_id) -> cleangoal.foods(food_id)
+cleangoal.user_activities(user_id) -> cleangoal.users(user_id)
+cleangoal.user_allergy_preferences(flag_id) -> cleangoal.allergy_flags(flag_id)
+cleangoal.user_allergy_preferences(user_id) -> cleangoal.users(user_id)
+cleangoal.user_goals(user_id) -> cleangoal.users(user_id)
+cleangoal.user_meal_plans(user_id) -> cleangoal.users(user_id)
+cleangoal.users(role_id) -> cleangoal.roles(role_id)
+cleangoal.weekly_summaries(user_id) -> cleangoal.users(user_id)
+cleangoal.weight_logs(user_id) -> cleangoal.users(user_id)
+cleangoal.password_reset_codes(user_id) -> cleangoal.users(user_id)
+cleangoal.password_reset_codes(user_id) -> cleangoal.users(user_id)

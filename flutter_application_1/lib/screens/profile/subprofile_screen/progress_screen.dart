@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_application_1/constants/constants.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '/providers/user_data_provider.dart'; // ปรับ Path ให้ตรงกับโครงสร้างของคุณ
@@ -62,8 +63,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   Future<void> _fetchWeeklyData({DateTime? weekStart}) async {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
-    var url = Uri.parse(
-        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_logs/$userId/weekly');
+    var url = Uri.parse('\${AppConstants.baseUrl}/daily_logs/$userId/weekly');
     if (weekStart != null) {
       final q = DateFormat('yyyy-MM-dd').format(weekStart);
       url = url.replace(queryParameters: {'week_start': q});
@@ -86,7 +86,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     if (userId == 0) return;
     // URL นี้ควร return list ของ { "date": "YYYY-MM-DD", "calories": 1500 }
     final url = Uri.parse(
-        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_logs/$userId/calendar?month=${_currentMonth.month}&year=${_currentMonth.year}');
+        '\${AppConstants.baseUrl}/daily_logs/$userId/calendar?month=${_currentMonth.month}&year=${_currentMonth.year}');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -112,7 +112,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     final userId = ref.read(userDataProvider).userId;
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final url = Uri.parse(
-        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_logs/$userId?date_query=$dateStr');
+        '\${AppConstants.baseUrl}/daily_logs/$userId?date_query=$dateStr');
 
     showDialog(
         context: context,
