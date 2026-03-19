@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_application_1/constants/constants.dart';
 import '/providers/user_data_provider.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
@@ -16,8 +17,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Future<void> _updateUserData(Map<String, dynamic> updateData) async {
     final userId = ref.read(userDataProvider).userId;
     // ⚠️ อย่าลืมเช็ค IP ให้ตรงกับเครื่องที่รัน (10.0.2.2 สำหรับ Android Emulator)
-    final url = Uri.parse(
-        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/users/$userId');
+    final url = Uri.parse('\${AppConstants.baseUrl}/users/$userId');
 
     try {
       final response = await http.put(

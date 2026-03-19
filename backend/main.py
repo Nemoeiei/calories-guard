@@ -2,8 +2,13 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict
 from enum import Enum
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import shutil
 from uuid import uuid4
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +19,86 @@ from database import get_db_connection
 from psycopg2.extras import RealDictCursor
 
 app = FastAPI()
+
+# --- Email Config ---
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
+FROM_NAME = os.getenv("FROM_NAME", "Calories Guard")
+
+def send_email(to_email: str, subject: str, html_body: str) -> bool:
+    """Send email via SMTP. Returns True if successful."""
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        print(f"[Email] SMTP not configured. Would send to {to_email}: {subject}")
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
+        msg["To"] = to_email
+        msg.attach(MIMEText(html_body, "html"))
+        
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(FROM_EMAIL, to_email, msg.as_string())
+        print(f"[Email] Sent to {to_email}: {subject}")
+        return True
+    except Exception as e:
+        print(f"[Email] Failed to send to {to_email}: {e}")
+        return False
+
+def send_welcome_email(email: str, username: str):
+    subject = "ยินดีต้อนรับสู่ Calories Guard!"
+    html = f"""
+    <html>
+    <body style="font-family: sans-serif; padding: 20px;">
+        <h2>สวัสดีครับ/ค่ะ {username}!</h2>
+        <p>ขอบคุณที่สมัครสมาชิก <strong>Calories Guard</strong></p>
+        <p>ตอนนี้คุณสามารถเริ่มติดตามการรับประทานอาหารและเป้าหมายสุขภาพของคุณได้แล้ว</p>
+        <p>หากมีคำถาม ติดต่อเราได้เสมอ</p>
+        <br>
+        <p>ด้วยความปรารถนาดี,<br>ทีมงาน Calories Guard</p>
+    </html>
+    """
+    send_email(email, subject, html)
+
+def send_verification_email(email: str, username: str, code: str):
+    subject = "ยืนยันอีเมลของคุณ - Calories Guard"
+    html = f"""
+    <html>
+    <body style="font-family: sans-serif; padding: 20px;">
+        <h2>สวัสดีครับ/ค่ะ {username}!</h2>
+        <p>กรุณายืนยันอีเมลของคุณเพื่อเริ่มใช้งาน</p>
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h3>รหัสยืนยันของคุณ: <strong>{code}</strong></h3>
+        </div>
+        <p>ขอบคุณที่ร่วมเป็นส่วนหนึ่งกับเรา</p>
+    </body>
+    </html>
+    """
+    send_email(email, subject, html)
+
+def send_password_reset_email(email: str, username: str, code: str):
+    subject = "รีเซ็ตรหัสผ่าน - Calories Guard"
+    html = f"""
+    <html>
+    <body style="font-family: sans-serif; padding: 20px;">
+        <h2>สวัสดีครับ/ค่ะ {username}</h2>
+        <p>คุณได้ร้องขอการรีเซ็ตรหัสผ่าน</p>
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h3>รหัสยืนยันของคุณ: <strong>{code}</strong></h3>
+        </div>
+        <p>รหัสนี้จะหมดอายุภายใน 15 นาที</p>
+        <p>หากคุณไม่ได้ร้องขอการรีเซ็ตรหัสผ่าน กรุณาเพิกเฉยต่ออีเมลนี้</p>
+        <br>
+        <p>ด้วยความปรารถนาดี,<br>ทีมงาน Calories Guard</p>
+    </body>
+    </html>
+    """
+    send_email(email, subject, html)
 
 # --- CORS: ให้แอป Flutter / เบราว์เซอร์ จาก origin อื่น (เช่น ngrok, APK) ยิง API ได้ ---
 app.add_middleware(
@@ -137,6 +222,10 @@ class UserRegister(BaseModel):
     password: str
     username: str
 
+class UserVerifyEmail(BaseModel):
+    email: str
+    code: str
+
 class UserLogin(BaseModel):
     email: str
     password: str
@@ -160,6 +249,20 @@ class UserUpdate(BaseModel):
     unit_energy: str | None = None
     unit_water: str | None = None
 
+class PasswordResetRequest(BaseModel):
+    email: str
+
+class PasswordResetVerify(BaseModel):
+    email: str
+    code: str
+    birth_date: date
+
+class PasswordResetConfirm(BaseModel):
+    email: str
+    code: str
+    birth_date: date
+    new_password: str
+
 # ✅ Model สำหรับสร้างอาหาร (รองรับรูป)
 class FoodCreate(BaseModel):
     food_name: str
@@ -168,6 +271,25 @@ class FoodCreate(BaseModel):
     carbs: float
     fat: float
     image_url: str | None = None 
+
+# ✅ Model สำหรับสร้างอาหารและส่งคำขอให้ Admin ตรวจสอบ (Auto-Add)
+class FoodAutoAdd(BaseModel):
+    user_id: int
+    food_name: str
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+
+class AdminFoodReview(BaseModel):
+    admin_id: int
+    status: str # 'approved' or 'rejected'
+    # Admin สามารถปรับแก้โภชนาการได้ก่อนกด Approve
+    calories: float | None = None
+    protein: float | None = None
+    carbs: float | None = None
+    fat: float | None = None
+    image_url: str | None = None
 
 class MealItem(BaseModel):
     food_id: int
@@ -202,7 +324,7 @@ async def upload_image(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
     
     # ⚠️ ถ้าใช้ Emulator ให้ใช้ 10.0.2.2, ถ้าเครื่องจริงใช้ IP เครื่อง (เช่น 192.168.1.x)
-    return {"url": f"https://unshirred-wendolyn-audiometrically.ngrok-free.dev/images/{new_filename}"}
+    return {"url": f"https://goosenecked-caleb-blandishingly.ngrok-free.dev/images/{new_filename}"}
 
 # --- API 1: Foods List ---
 @app.get("/foods")
@@ -234,6 +356,150 @@ def create_food(food: FoodCreate):
         return {"message": "Food added", "food_id": new_id}
     except Exception as e:
         conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API: User Auto-Add Food and Request Verification ---
+@app.post("/foods/auto-add")
+def user_auto_add_food(req: FoodAutoAdd):
+    """
+    ผู้ใช้เพิ่มเมนูเอง (บันทึกลง foods ทันทีเพื่อใช้งาน) 
+    และสร้างคำขอใน food_requests เพื่อให้ Admin ตรวจสอบโภชนาการทีหลัง
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # 1. Insert into foods for immediate use
+        cur.execute("""
+            INSERT INTO foods (food_name, calories, protein, carbs, fat)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING food_id
+        """, (req.food_name, req.calories, req.protein, req.carbs, req.fat))
+        new_food_id = cur.fetchone()['food_id']
+        
+        # 2. Insert into food_requests for Admin review
+        import json
+        metadata = json.dumps({
+            "auto_added_food_id": new_food_id,
+            "original_calories": req.calories,
+            "original_protein": req.protein,
+            "original_carbs": req.carbs,
+            "original_fat": req.fat
+        })
+        
+        cur.execute("""
+            INSERT INTO food_requests (user_id, food_name, status, ingredients_json)
+            VALUES (%s, %s, 'pending', %s)
+        """, (req.user_id, req.food_name, metadata))
+        
+        conn.commit()
+        return {"message": "Menu added locally and sent for review", "food_id": new_food_id}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API: Admin Get Food Requests ---
+@app.get("/admin/food-requests")
+def get_food_requests():
+    """ดึงรายการที่ user ขอเพิ่มเมนูทั้งหมดที่ยัง pending"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT fr.request_id, fr.food_name, fr.status, fr.ingredients_json, fr.created_at, u.username as requester_name
+            FROM food_requests fr
+            JOIN users u ON fr.user_id = u.user_id
+            WHERE fr.status = 'pending'
+            ORDER BY fr.created_at DESC
+        """)
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API: Admin Approve/Reject Food Request ---
+@app.put("/admin/food-requests/{request_id}")
+def verify_food_request(request_id: int, review: AdminFoodReview):
+    """Admin อนุมัติการตรวจสอบโภชนาการพร้อมแก้ไขค่าจริง"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # 1. เช็คคำขอ
+        cur.execute("SELECT * FROM food_requests WHERE request_id = %s", (request_id,))
+        req_record = cur.fetchone()
+        if not req_record:
+            raise HTTPException(status_code=404, detail="Request not found")
+            
+        # 2. อัปเดตสถานะใน food_requests
+        cur.execute("""
+            UPDATE food_requests 
+            SET status = %s, reviewed_by = %s 
+            WHERE request_id = %s
+        """, (review.status, review.admin_id, request_id))
+        
+        # 3. ถ้าอนุมัติ ให้แก้ไขโภชนาการใน foods ด้วย
+        if review.status == 'approved' and req_record['ingredients_json']:
+            import json
+            meta = req_record['ingredients_json']
+            if isinstance(meta, str):
+                meta = json.loads(meta)
+                
+            food_id = meta.get('auto_added_food_id')
+            if food_id and review.calories is not None:
+                cur.execute("""
+                    UPDATE foods
+                    SET calories = %s, protein = %s, carbs = %s, fat = %s, image_url = COALESCE(%s, image_url)
+                    WHERE food_id = %s
+                """, (review.calories, review.protein, review.carbs, review.fat, review.image_url, food_id))
+                
+        conn.commit()
+        return {"message": f"Request {review.status} successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API: Recommended Food ---
+@app.get("/recommended-food")
+def get_recommended_food():
+    """แนะนำอาหาร (ดึง 20 รายการแรกสำหรับการจำลอง)"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM foods ORDER BY food_id ASC LIMIT 20")
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API: Get Recipe by Food ID ---
+@app.get("/recipes/{food_id}")
+def get_recipe(food_id: int):
+    """ดึงข้อมูลวิธีการทำอาหารจากตาราง recipes"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT r.*, f.food_name, f.calories, f.protein, f.carbs, f.fat, f.image_url as food_image_url
+            FROM recipes r
+            JOIN foods f ON r.food_id = f.food_id
+            WHERE r.food_id = %s
+        """, (food_id,))
+        recipe = cur.fetchone()
+        if not recipe:
+            raise HTTPException(status_code=404, detail="Recipe not found")
+        return recipe
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn: conn.close()
@@ -277,14 +543,93 @@ def register(user: UserRegister):
         
         hashed_pw = get_password_hash(user.password)
         cur.execute("""
-            INSERT INTO users (email, password_hash, username, role_id)
-            VALUES (%s, %s, %s, 2)
+            INSERT INTO users (email, password_hash, username, role_id, is_email_verified)
+            VALUES (%s, %s, %s, 2, FALSE)
             RETURNING user_id, email, username
         """, (user.email, hashed_pw, user.username))
         new_user = cur.fetchone()
         
+        # Generate OTP Verification code
+        code = str(__import__('random').randint(100000, 999999))
+        expires = datetime.now() + timedelta(minutes=15)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS email_verification_codes (
+                id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL, code VARCHAR(10) NOT NULL,
+                expires_at TIMESTAMP NOT NULL, used BOOLEAN DEFAULT FALSE
+            )
+        """)
+        cur.execute("INSERT INTO email_verification_codes (user_id, code, expires_at) VALUES (%s, %s, %s)",
+                    (new_user['user_id'], code, expires))
+
         conn.commit()
-        return {"message": "User created", "user": new_user}
+        
+        send_verification_email(new_user['email'], new_user['username'], code)
+        
+        return {"message": "User created. Please check email for verification code.", "user": new_user}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API 3.5: Verify Email ---
+@app.post("/verify-email")
+def verify_email(req: UserVerifyEmail):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="Email not found")
+            
+        cur.execute("SELECT * FROM email_verification_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY id DESC LIMIT 1", (user['user_id'], req.code))
+        code_record = cur.fetchone()
+        
+        if not code_record or code_record['expires_at'] < datetime.now():
+            raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+        
+        cur.execute("UPDATE users SET is_email_verified = TRUE WHERE user_id = %s", (user['user_id'],))
+        cur.execute("UPDATE email_verification_codes SET used = TRUE WHERE id = %s", (code_record['id'],))
+        conn.commit()
+        
+        send_welcome_email(user['email'], user['username'])
+        
+        return {"message": "Email verified successfully", "user_id": user['user_id']}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API 3.6: Resend Verification Email ---
+@app.post("/resend-verification-email")
+def resend_verification_email(req: PasswordResetRequest):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="ไม่พบอีเมลนี้ในระบบ")
+        if user['is_email_verified']:
+            raise HTTPException(status_code=400, detail="อีเมลนี้ได้รับการยืนยันแล้ว")
+        
+        # Invalidate old codes
+        cur.execute("UPDATE email_verification_codes SET used = TRUE WHERE user_id = %s", (user['user_id'],))
+        
+        # Generate new OTP code
+        import random
+        code = str(random.randint(100000, 999999))
+        expires = datetime.now() + timedelta(minutes=15)
+        
+        cur.execute("INSERT INTO email_verification_codes (user_id, code, expires_at) VALUES (%s, %s, %s)",
+                    (user['user_id'], code, expires))
+        conn.commit()
+        
+        send_verification_email(user['email'], user['username'], code)
+        
+        return {"message": "ส่งรหัสยืนยันใหม่ไปยังอีเมลแล้ว"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -395,6 +740,126 @@ def update_user(user_id: int, user_update: UserUpdate):
         return {"message": "Update successful"}
     except Exception as e:
         conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- Password reset helpers/endpoint ---
+
+def _init_password_reset_table():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS password_reset_codes (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+            code VARCHAR(10) NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """)
+        conn.commit()
+    except Exception as e:
+        print('Could not create password reset table:', e)
+    finally:
+        conn.close()
+
+_init_password_reset_table()
+
+def _generate_code() -> str:
+    from random import randint
+    return f"{randint(100000, 999999)}"
+
+@app.post('/password-reset/request')
+def password_reset_request(req: PasswordResetRequest):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="อีเมลไม่ถูกต้อง")
+
+        code = _generate_code()
+        expires = datetime.now() + timedelta(minutes=15)
+        cur.execute(
+            "INSERT INTO password_reset_codes (user_id, code, expires_at, used) VALUES (%s, %s, %s, %s)",
+            (user['user_id'], code, expires, False),
+        )
+        conn.commit()
+        send_password_reset_email(req.email, user['username'], code)
+        return {"message": "รหัสยืนยันถูกส่งไปยังอีเมลแล้ว"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+@app.post('/password-reset/verify')
+def password_reset_verify(req: PasswordResetVerify):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+        if not user.get('birth_date'):
+            raise HTTPException(status_code=400, detail="กรุณากรอกข้อมูล วันเดือนปีเกิด ในโปรไฟล์")
+        if isinstance(user['birth_date'], datetime):
+            user_birth = user['birth_date'].date()
+        else:
+            user_birth = user['birth_date']
+        if user_birth != req.birth_date:
+            raise HTTPException(status_code=401, detail="วันเดือนปีเกิดไม่ตรงกับบัญชี")
+        cur.execute("SELECT * FROM password_reset_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY created_at DESC LIMIT 1", (user['user_id'], req.code))
+        row = cur.fetchone()
+        if not row or row['expires_at'] < datetime.now():
+            raise HTTPException(status_code=401, detail="รหัสไม่ถูกต้องหรือหมดอายุ")
+        return {"message": "ยืนยันโค้ดสำเร็จ"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+@app.post('/password-reset/confirm')
+def password_reset_confirm(req: PasswordResetConfirm):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+        if not user.get('birth_date'):
+            raise HTTPException(status_code=400, detail="กรุณากรอกข้อมูล วันเดือนปีเกิด ในโปรไฟล์")
+        if isinstance(user['birth_date'], datetime):
+            user_birth = user['birth_date'].date()
+        else:
+            user_birth = user['birth_date']
+        if user_birth != req.birth_date:
+            raise HTTPException(status_code=401, detail="วันเดือนปีเกิดไม่ตรงกับบัญชี")
+
+        cur.execute("SELECT * FROM password_reset_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY created_at DESC LIMIT 1", (user['user_id'], req.code))
+        row = cur.fetchone()
+        if not row or row['expires_at'] < datetime.now():
+            raise HTTPException(status_code=401, detail="รหัสไม่ถูกต้องหรือหมดอายุ")
+
+        new_hash = get_password_hash(req.new_password)
+        cur.execute("UPDATE users SET password_hash = %s WHERE user_id = %s", (new_hash, user['user_id']))
+        cur.execute("UPDATE password_reset_codes SET used = TRUE WHERE id = %s", (row['id'],))
+        conn.commit()
+        return {"message": "รีเซ็ตรหัสผ่านสำเร็จ"}
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn: conn.close()

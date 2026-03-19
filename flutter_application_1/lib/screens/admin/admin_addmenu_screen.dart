@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'dart:io'; // จำเป็นสำหรับการจัดการไฟล์
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart'; // ✅ ต้อง Import
+import 'package:flutter_application_1/constants/constants.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AdminAddMenuScreen extends StatefulWidget {
   final String? initialMenuName;
+  final Map<String, dynamic>? requestData;
 
-  const AdminAddMenuScreen({super.key, this.initialMenuName});
+  const AdminAddMenuScreen({super.key, this.initialMenuName, this.requestData});
 
   @override
   State<AdminAddMenuScreen> createState() => _AdminAddMenuScreenState();
@@ -25,6 +27,28 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
   File? _selectedImage; // ตัวแปรเก็บรูปที่เลือกจากเครื่อง
   bool _isUploading = false; // สถานะกำลังโหลด
 
+  @override
+  void initState() {
+    super.initState();
+    // ถ้าเป็นการเข้ามาเพื่อ Approve คำขอ (มี requestData)
+    if (widget.requestData != null) {
+      final req = widget.requestData!;
+      if (req['ingredients_json'] != null) {
+        try {
+          final meta = req['ingredients_json'] is String 
+              ? jsonDecode(req['ingredients_json']) 
+              : req['ingredients_json'];
+          if (meta != null) {
+            _caloriesCtrl.text = meta['original_calories']?.toString() ?? '';
+            _proteinCtrl.text = meta['original_protein']?.toString() ?? '';
+            _carbsCtrl.text = meta['original_carbs']?.toString() ?? '';
+            _fatCtrl.text = meta['original_fat']?.toString() ?? '';
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
   // 📸 ฟังก์ชัน 1: เลือกรูปจาก Gallery
   Future<void> _pickImage() async {
     final picker = ImagePicker();
@@ -37,7 +61,7 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
     }
   }
 
-  // 🚀 ฟังก์ชัน 2: บันทึกข้อมูล (อัปโหลดรูป -> ได้ URL -> บันทึกเมนู)
+  // 🚀 ฟังก์ชัน 2: บันทึกข้อมูล (อัปโหลดรูป -> ได้ URL -> บันทึกเมนู/อนุมัติ)
   Future<void> _saveMenu() async {
     setState(() => _isUploading = true);
 
@@ -47,9 +71,7 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
       // 1. ถ้ามีการเลือกรูป ให้อัปโหลดไปที่ API /upload-image/ ก่อน
       if (_selectedImage != null) {
         var request = http.MultipartRequest(
-            'POST',
-            Uri.parse(
-                'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/upload-image/'));
+            'POST', Uri.parse('${AppConstants.baseUrl}/upload-image/'));
         request.files.add(
             await http.MultipartFile.fromPath('file', _selectedImage!.path));
 
@@ -57,34 +79,55 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
         if (streamRes.statusCode == 200) {
           var responseData = await streamRes.stream.bytesToString();
           var json = jsonDecode(responseData);
-          imageUrl = json[
-              'url']; // ✅ ได้ URL กลับมาแล้ว! (เช่น http://.../food_xyz.jpg)
+          imageUrl = json['url']; 
         }
       }
 
-      // 2. ส่งข้อมูลเมนูทั้งหมด (รวม URL รูป) ไปบันทึกที่ API /foods
-      final body = jsonEncode({
-        "food_name": widget.initialMenuName ?? "เมนูใหม่",
-        "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
-        "protein": double.tryParse(_proteinCtrl.text) ?? 0,
-        "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
-        "fat": double.tryParse(_fatCtrl.text) ?? 0,
-        "image_url": imageUrl // ✅ ส่ง URL ที่ได้ลง Database
-      });
+      http.Response res;
+      bool isApproval = widget.requestData != null;
 
-      final res = await http.post(
-        Uri.parse(
-            'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/foods'),
-        headers: {"Content-Type": "application/json"},
-        body: body,
-      );
+      if (isApproval) {
+        // 2A. โหมดอนุมัติ (Approve Request)
+        final requestId = widget.requestData!['request_id'];
+        final body = jsonEncode({
+          "admin_id": 1, // จำลอง admin_id
+          "status": "approved",
+          "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
+          "protein": double.tryParse(_proteinCtrl.text) ?? 0,
+          "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
+          "fat": double.tryParse(_fatCtrl.text) ?? 0,
+          "image_url": imageUrl
+        });
+
+        res = await http.put(
+          Uri.parse('${AppConstants.baseUrl}/admin/food-requests/$requestId'),
+          headers: {"Content-Type": "application/json"},
+          body: body,
+        );
+      } else {
+        // 2B. โหมดสร้างเมนูใหม่ (Create Food)
+        final body = jsonEncode({
+          "food_name": widget.initialMenuName ?? "เมนูใหม่",
+          "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
+          "protein": double.tryParse(_proteinCtrl.text) ?? 0,
+          "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
+          "fat": double.tryParse(_fatCtrl.text) ?? 0,
+          "image_url": imageUrl 
+        });
+
+        res = await http.post(
+          Uri.parse('${AppConstants.baseUrl}/foods'),
+          headers: {"Content-Type": "application/json"},
+          body: body,
+        );
+      }
 
       if (res.statusCode == 200) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('บันทึกเมนูสำเร็จ!'),
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(isApproval ? 'อนุมัติเมนูสำเร็จ!' : 'บันทึกเมนูสำเร็จ!'),
               backgroundColor: Colors.green));
-          Navigator.pop(context); // ปิดหน้าจอ
+          Navigator.pop(context, true); // ปิดหน้าจอพร้อมส่งค่า true กลับไป รีเฟรช
         }
       } else {
         throw Exception('Failed to save food: ${res.body}');

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_application_1/constants/constants.dart';
 import 'package:image_picker/image_picker.dart';
 
 class AdminEditMenuScreen extends StatefulWidget {
@@ -60,9 +61,7 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
       // 2. ถ้ามีการเลือกรูปใหม่ ให้อัปโหลดและเปลี่ยน URL
       if (_selectedImage != null) {
         var request = http.MultipartRequest(
-            'POST',
-            Uri.parse(
-                'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/upload-image/'));
+            'POST', Uri.parse('${AppConstants.baseUrl}/upload-image/'));
         request.files.add(
             await http.MultipartFile.fromPath('file', _selectedImage!.path));
         var streamRes = await request.send();
@@ -84,8 +83,7 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
       });
 
       final res = await http.put(
-        Uri.parse(
-            'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/foods/$foodId'),
+        Uri.parse('${AppConstants.baseUrl}/foods/$foodId'),
         headers: {"Content-Type": "application/json"},
         body: body,
       );

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_application_1/constants/constants.dart';
 import '../../providers/user_data_provider.dart';
 
 class FoodLoggingScreen extends ConsumerStatefulWidget {
@@ -58,7 +59,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     final dateStr = DateFormat('yyyy-MM-dd').format(forDate);
     try {
       final url = Uri.parse(
-          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_summary/$userId?date_record=$dateStr');
+          '${AppConstants.baseUrl}/daily_summary/$userId?date_record=$dateStr');
       final res = await http.get(url);
       if (!mounted || res.statusCode != 200) return;
       final data =
@@ -122,8 +123,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
 
   Future<void> _fetchFoodsFromApi() async {
     try {
-      final res = await http.get(Uri.parse(
-          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/foods'));
+      final res = await http.get(Uri.parse('${AppConstants.baseUrl}/foods'));
       if (res.statusCode == 200) {
         if (mounted) {
           setState(() {
@@ -191,8 +191,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     if (itemsPayload.isEmpty) return;
 
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-    final url = Uri.parse(
-        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/meals/$userId');
+    final url = Uri.parse('${AppConstants.baseUrl}/meals/$userId');
     final body = jsonEncode({
       "date": dateStr,
       "meal_type": mealType,
@@ -242,8 +241,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     final mealType = _mealTimeOptions[selectedIndex]['mealType']!;
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
     try {
-      final base = Uri.parse(
-          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/meals/clear/$userId');
+      final base = Uri.parse('${AppConstants.baseUrl}/meals/clear/$userId');
       await http.delete(base.replace(
           queryParameters: {'date_record': dateStr, 'meal_type': mealType}));
       if (foodNames.isNotEmpty) await _saveMealToBackend(mealType, foodNames);
@@ -278,7 +276,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     final dateStr = DateFormat('yyyy-MM-dd').format(forDate);
     try {
       final url = Uri.parse(
-          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_summary/$userId?date_record=$dateStr');
+          '${AppConstants.baseUrl}/daily_summary/$userId?date_record=$dateStr');
       final response = await http.get(url);
       if (response.statusCode == 200 && mounted) {
         final summaryData =
@@ -557,8 +555,7 @@ class _FoodLoggingScreenState extends ConsumerState<FoodLoggingScreen> {
     if (userId == 0) return;
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
     try {
-      final base = Uri.parse(
-          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/meals/clear/$userId');
+      final base = Uri.parse('${AppConstants.baseUrl}/meals/clear/$userId');
       await http.delete(base.replace(
           queryParameters: {'date_record': dateStr, 'meal_type': mealType}));
       if (mounted) {
