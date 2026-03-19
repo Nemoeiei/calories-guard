@@ -20,14 +20,19 @@ class _DataConsentScreenState extends State<DataConsentScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7FBF2),
       appBar: AppBar(
-        backgroundColor: primaryGreen,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          "การยินยอมการใช้ข้อมูล",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+        leading: null,
+        title: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: 200,
+            height: 8,
+            child: LinearProgressIndicator(
+              value: 0.125, // 10% - ขั้นแรกของการสมัคร
+              backgroundColor: Colors.grey.shade200,
+              color: primaryGreen,
+            ),
           ),
         ),
         centerTitle: true,

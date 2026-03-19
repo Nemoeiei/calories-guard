@@ -105,7 +105,27 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    const Color primaryGreen = Color(0xFF628141);
     return Scaffold(
+      backgroundColor: const Color(0xFFE8EFCF),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: null,
+        title: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: 200,
+            height: 8,
+            child: LinearProgressIndicator(
+              value: 0.375, // 30% - ข้อมูลส่วนตัว
+              backgroundColor: Colors.grey.shade200,
+              color: primaryGreen,
+            ),
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -115,21 +135,6 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Align(
-                  alignment: Alignment.topLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 19, top: 12),
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(
-                        Icons.chevron_left,
-                        size: 40,
-                        color: Color(0xFF1D1B20),
-                      ),
-                    ),
-                  ),
-                ),
-
                 const SizedBox(height: 14),
                 const Text(
                   'กรอกข้อมูลส่วนตัว',
@@ -193,7 +198,7 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                     width: 259,
                     height: 54,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF4C6414),
+                      color: const Color(0xFF628141),
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(

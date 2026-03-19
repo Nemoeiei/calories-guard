@@ -197,9 +197,25 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- Progress Bar ---
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: SizedBox(
+                  height: 8,
+                  child: LinearProgressIndicator(
+                    value: 0.625, // 50% - ระดับกิจกรรม
+                    backgroundColor: Colors.grey.shade200,
+                    color: const Color(0xFF628141),
+                  ),
+                ),
+              ),
+            ),
+
             // --- Header ---
             Padding(
-              padding: const EdgeInsets.only(left: 20, top: 30, right: 20),
+              padding: const EdgeInsets.only(left: 20, top: 10, right: 20),
               child: Row(
                 children: [
                   IconButton(
