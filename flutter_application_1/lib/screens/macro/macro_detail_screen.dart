@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_application_1/constants/constants.dart';
 import '../../models/models.dart';
 import '../../providers/user_data_provider.dart';
 
@@ -33,8 +34,8 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await http.get(Uri.parse(
-          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/foods'));
+      final response =
+          await http.get(Uri.parse('${AppConstants.baseUrl}/foods'));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));

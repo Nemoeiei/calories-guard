@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart'; 
+import 'verify_email_screen.dart'; 
 import '../../services/auth_service.dart'; 
 import 'data_consent_screen.dart';
 
@@ -138,7 +139,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       if (mounted) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const DataConsentScreen()),
+          MaterialPageRoute(builder: (context) => VerifyEmailScreen(email: email)),
         );
       }
     } else {

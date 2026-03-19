@@ -1,31 +1,41 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-// อย่าลืม import หน้า add menu ให้ถูกต้อง
-import 'admin_addmenu_screen.dart'; 
+import 'package:http/http.dart' as http;
+import 'package:flutter_application_1/constants/constants.dart';
+import 'admin_addmenu_screen.dart';
 
-class AdminRequestScreen extends StatelessWidget {
+class AdminRequestScreen extends StatefulWidget {
   const AdminRequestScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // ข้อมูลจำลองสำหรับแสดงผล (Mock Data)
-    final List<Map<String, String>> requests = [
-      {
-        'menu': 'ไข่เจียวกุ้งสับ',
-        'requester': 'หวาน',
-        'image': 'https://via.placeholder.com/150' 
-      },
-      {
-        'menu': 'ข้าวผัดเบคอน',
-        'requester': 'นีโม่',
-        'image': 'https://via.placeholder.com/150'
-      },
-      {
-        'menu': 'ก๋วยเตี๋ยวหมูตุ๋น',
-        'requester': 'เฟรม',
-        'image': 'https://via.placeholder.com/150'
-      },
-    ];
+  State<AdminRequestScreen> createState() => _AdminRequestScreenState();
+}
 
+class _AdminRequestScreenState extends State<AdminRequestScreen> {
+  late Future<List<dynamic>> _requestsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRequests();
+  }
+
+  void _fetchRequests() {
+    setState(() {
+      _requestsFuture = http
+          .get(Uri.parse('${AppConstants.baseUrl}/admin/food-requests'))
+          .then((res) {
+        if (res.statusCode == 200) {
+          return jsonDecode(res.body);
+        } else {
+          throw Exception('Failed to load requests');
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFE8EFCF), // พื้นหลังสีเขียวอ่อน
       body: SafeArea(
@@ -42,10 +52,11 @@ class AdminRequestScreen extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: GestureDetector(
                       onTap: () => Navigator.pop(context),
-                      child: SizedBox(
+                      child: const SizedBox(
                         width: 40,
                         height: 40,
-                        child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 24),
+                        child: Icon(Icons.arrow_back_ios_new,
+                            color: Colors.black, size: 24),
                       ),
                     ),
                   ),
@@ -65,18 +76,34 @@ class AdminRequestScreen extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // 2. รายการคำขอ (List View)
+            // 2. รายการคำขอ (List View + FutureBuilder)
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: requests.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 15),
-                itemBuilder: (context, index) {
-                  final item = requests[index];
-                  return _buildRequestCard(
-                    context: context, // ส่ง context เข้าไปเพื่อใช้ Navigator
-                    menuName: item['menu']!,
-                    requesterName: item['requester']!,
+              child: FutureBuilder<List<dynamic>>(
+                future: _requestsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(
+                        child: Text('ไม่มีคำขอเพิ่มเมนูในขณะนี้',
+                            style: TextStyle(fontSize: 16)));
+                  }
+
+                  final requests = snapshot.data!;
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: requests.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 15),
+                    itemBuilder: (context, index) {
+                      final item = requests[index];
+                      return _buildRequestCard(
+                        context: context,
+                        requestData: item,
+                      );
+                    },
                   );
                 },
               ),
@@ -89,10 +116,12 @@ class AdminRequestScreen extends StatelessWidget {
 
   // Widget สร้างการ์ดแต่ละรายการ
   Widget _buildRequestCard({
-    required BuildContext context, 
-    required String menuName, 
-    required String requesterName
+    required BuildContext context,
+    required Map<String, dynamic> requestData,
   }) {
+    final menuName = requestData['food_name'] ?? 'ไม่มีชื่อเมนู';
+    final requesterName = requestData['requester_name'] ?? 'ผู้ใช้ไม่ระบุชื่อ';
+
     return Container(
       width: double.infinity,
       height: 90,
@@ -122,7 +151,7 @@ class AdminRequestScreen extends StatelessWidget {
             ),
             child: const Icon(Icons.person, color: Color(0xFF6E6A6A), size: 30),
           ),
-          
+
           const SizedBox(width: 15),
 
           // ข้อความ (ชื่อคนขอ + ชื่อเมนู)
@@ -166,15 +195,23 @@ class AdminRequestScreen extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black54),
-              onPressed: () {
-                // ✅ ส่งชื่อเมนูที่เลือกไปหน้าถัดไป
-                Navigator.push(
+              icon: const Icon(Icons.arrow_forward_ios,
+                  size: 16, color: Colors.black54),
+              onPressed: () async {
+                // ✅ ส่งข้อมูลคำขอที่เลือกไปหน้าถัดไป ให้แอดมินแก้ไขโภชนาการ
+                final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => AdminAddMenuScreen(initialMenuName: menuName),
+                    builder: (context) => AdminAddMenuScreen(
+                      initialMenuName: menuName,
+                      requestData: requestData,
+                    ),
                   ),
                 );
+                // Refresh data if admin approved/rejected it
+                if (result == true) {
+                  _fetchRequests();
+                }
               },
             ),
           ),
