@@ -61,8 +61,27 @@ class _GenderSelectionScreenState extends ConsumerState<GenderSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    const Color primaryGreen = Color(0xFF628141);
     return Scaffold(
       backgroundColor: const Color(0xFFE8EFCF),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: null,
+        title: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: 200,
+            height: 8,
+            child: LinearProgressIndicator(
+              value: 0.25, // 20% - เลือกเพศ
+              backgroundColor: Colors.grey.shade200,
+              color: primaryGreen,
+            ),
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: SafeArea(
         child: Column(
           children: [

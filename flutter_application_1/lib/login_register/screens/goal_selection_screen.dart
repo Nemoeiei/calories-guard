@@ -109,9 +109,25 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Progress Bar
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: SizedBox(
+                    height: 8,
+                    child: LinearProgressIndicator(
+                      value: 0.75, // 60% - เลือกเป้าหมาย
+                      backgroundColor: Colors.grey.shade200,
+                      color: const Color(0xFF628141),
+                    ),
+                  ),
+                ),
+              ),
+
               // Header
               Padding(
-                padding: const EdgeInsets.only(left: 19, top: 31),
+                padding: const EdgeInsets.only(left: 19, top: 11),
                 child: GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: const Icon(Icons.chevron_left, size: 40, color: Color(0xFF1D1B20)),

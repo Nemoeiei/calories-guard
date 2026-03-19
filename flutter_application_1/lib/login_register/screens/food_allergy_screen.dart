@@ -66,7 +66,7 @@ class _FoodAllergyScreenState extends State<FoodAllergyScreen> {
             width: 200,
             height: 8,
             child: LinearProgressIndicator(
-              value: 0.4, // แสดงความคืบหน้า 40%
+              value: 0.5, // แสดงความคืบหน้า 40%
               backgroundColor: Colors.grey.shade200,
               color: primaryGreen,
             ),

@@ -78,10 +78,8 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE8EFCF),
-      body: SafeArea(
-        child: Stack(
+    return SafeArea(
+      child: Stack(
           children: [
             SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 150),
@@ -292,7 +290,6 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }

@@ -84,37 +84,79 @@ class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
     }
 
     if (_showWeightScreen) {
-      return TargetWeightSliderScreen(
-        selectedGoal: widget.selectedGoal,
-        currentWeight: currentWeight,
-        recommendedWeight: recommendedWeight,
-        onWeightSelected: (weight) {
-          setState(() {
-            _selectedWeight = weight;
-          });
-        },
-        onNext: () {
-          setState(() {
-            _showWeightScreen = false;
-          });
-        },
+      return Scaffold(
+        backgroundColor: const Color(0xFFE8EFCF),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: null,
+          title: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              width: 200,
+              height: 8,
+              child: LinearProgressIndicator(
+                value: 0.875, // 70% - เป้าหมายน้ำหนัก
+                backgroundColor: Colors.grey.shade200,
+                color: const Color(0xFF628141),
+              ),
+            ),
+          ),
+          centerTitle: true,
+        ),
+        body: TargetWeightSliderScreen(
+          selectedGoal: widget.selectedGoal,
+          currentWeight: currentWeight,
+          recommendedWeight: recommendedWeight,
+          onWeightSelected: (weight) {
+            setState(() {
+              _selectedWeight = weight;
+            });
+          },
+          onNext: () {
+            setState(() {
+              _showWeightScreen = false;
+            });
+          },
+        ),
       );
     } else {
-      return DurationSliderScreen(
-        selectedGoal: widget.selectedGoal,
-        currentDate: DateTime.now(),
-        recommendedDurationDays: _calculateRecommendedDuration(currentWeight, _selectedWeight),
-        onBack: () {
-          setState(() {
-            _showWeightScreen = true;
-          });
-        },
-        onSubmit: _submit,
-        onDurationSelected: (days) {
-          setState(() {
-            _selectedDurationDays = days;
-          });
-        },
+      return Scaffold(
+        backgroundColor: const Color(0xFFE8EFCF),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: null,
+          title: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              width: 200,
+              height: 8,
+              child: LinearProgressIndicator(
+                value: 1.0, // 80% - ระยะเวลา
+                backgroundColor: Colors.grey.shade200,
+                color: const Color(0xFF628141),
+              ),
+            ),
+          ),
+          centerTitle: true,
+        ),
+        body: DurationSliderScreen(
+          selectedGoal: widget.selectedGoal,
+          currentDate: DateTime.now(),
+          recommendedDurationDays: _calculateRecommendedDuration(currentWeight, _selectedWeight),
+          onBack: () {
+            setState(() {
+              _showWeightScreen = true;
+            });
+          },
+          onSubmit: _submit,
+          onDurationSelected: (days) {
+            setState(() {
+              _selectedDurationDays = days;
+            });
+          },
+        ),
       );
     }
   }
