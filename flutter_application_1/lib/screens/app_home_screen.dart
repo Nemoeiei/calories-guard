@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_application_1/constants/constants.dart';
 import '../../providers/user_data_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -51,8 +52,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     if (userId == 0) return;
 
     try {
-      final url = Uri.parse(
-          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/users/$userId');
+      final url = Uri.parse('${AppConstants.baseUrl}/users/$userId');
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -72,7 +72,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     final dateStr =
         "${forDate.year}-${forDate.month.toString().padLeft(2, '0')}-${forDate.day.toString().padLeft(2, '0')}";
     final url = Uri.parse(
-        'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/daily_summary/$userId?date_record=$dateStr');
+        '\${AppConstants.baseUrl}/daily_summary/$userId?date_record=$dateStr');
 
     try {
       final response = await http.get(url);
@@ -145,7 +145,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
     try {
       final url = Uri.parse(
-          'https://unshirred-wendolyn-audiometrically.ngrok-free.dev/meals/clear/$userId?date_record=$dateStr&meal_type=$mealType');
+          '\${AppConstants.baseUrl}/meals/clear/$userId?date_record=$dateStr&meal_type=$mealType');
 
       final response = await http.delete(url);
 
