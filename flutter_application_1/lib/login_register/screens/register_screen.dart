@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart'; 
 import 'verify_email_screen.dart'; 
 import '../../services/auth_service.dart'; 
+import 'data_consent_screen.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});

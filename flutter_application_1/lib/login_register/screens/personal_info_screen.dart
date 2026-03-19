@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart';
 import '../../services/auth_service.dart'; // ✅ Import Service
-import 'activity_level_screen.dart';
 import 'birth_date_picker_screen.dart';
+import 'food_allergy_screen.dart';
 
 class PersonalInfoScreen extends ConsumerStatefulWidget {
   const PersonalInfoScreen({super.key});
@@ -90,7 +90,7 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const ActivityLevelScreen(),
+            builder: (context) => const FoodAllergyScreen(),
           ),
         );
       }
