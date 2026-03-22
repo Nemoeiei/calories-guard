@@ -210,7 +210,7 @@ class ProfileScreen extends ConsumerWidget {
                           context,
                           MaterialPageRoute(
                               builder: (context) =>
-                                  const GoalSelectionScreen()));
+                                  const GoalSelectionScreen(isEditing: true)));
                     }),
                     _buildMenuItem(Icons.directions_run, 'เเก้ไขระดับกิจกรรม',
                         showDivider: true, onTap: () {

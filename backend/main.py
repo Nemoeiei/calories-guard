@@ -141,18 +141,15 @@ def _age_from_birth(birth_date: Optional[date]) -> int:
 
 
 def _compute_target_macros(user: dict) -> tuple:
-    """คืน (target_protein, target_carbs, target_fat) จาก target_calories กับ goal (อัตราส่วนเท่า Flutter)."""
+    """คืน (target_protein, target_carbs, target_fat) จาก target_calories.
+    Updated Formula: Carbs 65%, Protein 15%, Fat 20% (ไม่แยกตาม goal)
+    """
     cal = user.get('target_calories')
     if cal is None:
         cal = _compute_target_calories(user)
     cal = int(cal) if cal else 2000
-    goal = (user.get('goal_type') or 'lose_weight').lower()
-    if goal == 'maintain_weight':
-        p_ratio, c_ratio, f_ratio = 0.25, 0.45, 0.30
-    elif goal == 'gain_muscle':
-        p_ratio, c_ratio, f_ratio = 0.30, 0.50, 0.20
-    else:
-        p_ratio, c_ratio, f_ratio = 0.30, 0.40, 0.30
+    # New standard ratios for all goals
+    p_ratio, c_ratio, f_ratio = 0.15, 0.65, 0.20
     p = int(round(cal * p_ratio / 4))
     c = int(round(cal * c_ratio / 4))
     f = int(round(cal * f_ratio / 9))
@@ -1157,7 +1154,142 @@ def get_daily_log_by_date(user_id: int, date_query: date):
     finally:
         if conn: conn.close()
 
-
+@app.get("/users/{user_id}/weight_history")
+def get_weight_history(user_id: int, limit: int = 8):
+    """
+    ดึงประวัติน้ำหนักจาก weight_logs N รายการล่าสุด เรียงจากเก่า → ใหม่
+    Flutter เรียก: GET /users/{userId}/weight_history?limit=8
+ 
+    Response:
+    [
+      { "date": "2026-01-01", "weight": 82.5 },
+      { "date": "2026-01-08", "weight": 81.0 },
+      ...
+    ]
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+ 
+        # ตรวจสอบว่า user มีอยู่จริง
+        cur.execute(
+            "SELECT user_id FROM users WHERE user_id = %s AND deleted_at IS NULL",
+            (user_id,)
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="User not found")
+ 
+        # ดึง N รายการล่าสุด จาก weight_logs
+        # table: cleangoal.weight_logs (log_id, user_id, weight_kg, recorded_date, created_at)
+        cur.execute("""
+            SELECT
+                recorded_date::text  AS date,
+                weight_kg::float     AS weight
+            FROM weight_logs
+            WHERE user_id = %s
+            ORDER BY recorded_date DESC
+            LIMIT %s
+        """, (user_id, limit))
+ 
+        rows = cur.fetchall()
+ 
+        if not rows:
+            return []  # Flutter จะแสดง empty state
+ 
+        # reverse → เรียงเก่า→ใหม่ สำหรับ LineChart ซ้ายไปขวา
+        result = [{"date": row["date"], "weight": row["weight"]} for row in rows]
+        result.reverse()
+        return result
+ 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+ 
+ 
+# --- API NEW 2: Top Foods (สำหรับ Top 5 Foods ใน Tab โภชนาการ) ---
+@app.get("/daily_logs/{user_id}/top_foods")
+def get_top_foods(user_id: int, days: int = 7, limit: int = 5):
+    """
+    นับความถี่ food_name จาก detail_items → meals ในช่วง N วัน
+    แล้วดึง avg โภชนาการจาก foods table
+ 
+    Flutter เรียก: GET /daily_logs/{userId}/top_foods?days=7
+ 
+    Response:
+    [
+      {
+        "name": "ข้าวมันไก่ต้ม",
+        "count": 5,
+        "avg_calories": 596.0,
+        "protein": 29.0,
+        "carbs": 69.0,
+        "fat": 21.0
+      },
+      ...
+    ]
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+ 
+        # ตรวจสอบ user
+        cur.execute(
+            "SELECT user_id FROM users WHERE user_id = %s AND deleted_at IS NULL",
+            (user_id,)
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="User not found")
+ 
+        # นับความถี่ food_name ในช่วง N วัน
+        # ใช้ CURRENT_DATE - N แทน INTERVAL string (ปลอดภัยกับ psycopg2)
+        cur.execute("""
+            SELECT
+                di.food_name                                            AS name,
+                COUNT(*)::int                                           AS count,
+                AVG(COALESCE(di.cal_per_unit, f.calories, 0))::float   AS avg_calories,
+                AVG(COALESCE(f.protein,  0))::float                    AS protein,
+                AVG(COALESCE(f.carbs,    0))::float                    AS carbs,
+                AVG(COALESCE(f.fat,      0))::float                    AS fat
+            FROM detail_items di
+            -- JOIN meals เพื่อกรอง user_id + ช่วงวันที่
+            JOIN meals m
+                ON di.meal_id = m.meal_id
+            -- LEFT JOIN foods เพื่อดึงโภชนาการ
+            LEFT JOIN foods f
+                ON di.food_id = f.food_id
+            WHERE
+                m.user_id  = %s
+                AND m.meal_time::date >= CURRENT_DATE - %s
+                AND di.food_name IS NOT NULL
+                AND di.food_name <> ''
+            GROUP BY di.food_name
+            ORDER BY count DESC
+            LIMIT %s
+        """, (user_id, days, limit))
+ 
+        rows = cur.fetchall()
+ 
+        return [
+            {
+                "name":         row["name"],
+                "count":        row["count"],
+                "avg_calories": round(row["avg_calories"] or 0, 1),
+                "protein":      round(row["protein"] or 0, 1),
+                "carbs":        round(row["carbs"] or 0, 1),
+                "fat":          round(row["fat"] or 0, 1),
+            }
+            for row in rows
+        ]
+ 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
 # --- API 11: Clear Meal (cleangoal: meals.meal_time, detail_items CASCADE ผ่าน FK) ---
 @app.delete("/meals/clear/{user_id}")
 def clear_meal_type(user_id: int, date_record: date, meal_type: str):
@@ -1200,3 +1332,222 @@ def clear_meal_type(user_id: int, date_record: date, meal_type: str):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn: conn.close()
+        # ══════════════════════════════════════════════════════
+#  เพิ่มใน main.py ต่อท้าย endpoint สุดท้าย
+#  GET /recipes/by_food/{food_id}
+#  ดึงข้อมูลสูตรอาหารทุกอย่างใน 1 request
+# ══════════════════════════════════════════════════════
+
+@app.get("/recipes/by_food/{food_id}")
+def get_recipe_by_food(food_id: int):
+    """
+    ดึงข้อมูลสูตรอาหารทั้งหมดจาก food_id
+    รวม: recipe info + ingredients + steps + tools + tips + reviews + favorites
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # ── 1. Recipe + Food info ──
+        cur.execute("""
+            SELECT
+                r.recipe_id,
+                r.food_id,
+                COALESCE(r.recipe_name, f.food_name) AS recipe_name,
+                r.description,
+                r.category,
+                r.cuisine,
+                r.difficulty,
+                r.prep_time_minutes,
+                r.cooking_time_minutes,
+                (r.prep_time_minutes + r.cooking_time_minutes) AS total_time_minutes,
+                r.serving_people,
+                r.avg_rating,
+                r.review_count,
+                r.favorite_count,
+                COALESCE(r.image_url, f.image_url) AS image_url,
+                f.calories,
+                f.protein,
+                f.carbs,
+                f.fat,
+                f.sodium,
+                f.sugar,
+                f.cholesterol
+            FROM recipes r
+            JOIN foods f ON r.food_id = f.food_id
+            WHERE r.food_id = %s
+              AND r.deleted_at IS NULL
+        """, (food_id,))
+        recipe = cur.fetchone()
+
+        if not recipe:
+            raise HTTPException(status_code=404, detail="Recipe not found")
+
+        recipe_id = recipe["recipe_id"]
+
+        # ── 2. Ingredients ──
+        cur.execute("""
+            SELECT
+                ing_id, ingredient_name, quantity, unit,
+                is_optional, note, sort_order
+            FROM recipe_ingredients
+            WHERE recipe_id = %s
+            ORDER BY sort_order ASC
+        """, (recipe_id,))
+        ingredients = cur.fetchall()
+
+        # ── 3. Steps ──
+        cur.execute("""
+            SELECT
+                step_id, step_number, title,
+                instruction, time_minutes, image_url, tips
+            FROM recipe_steps
+            WHERE recipe_id = %s
+            ORDER BY step_number ASC
+        """, (recipe_id,))
+        steps = cur.fetchall()
+
+        # ── 4. Tools ──
+        cur.execute("""
+            SELECT tool_id, tool_name, tool_emoji, sort_order
+            FROM recipe_tools
+            WHERE recipe_id = %s
+            ORDER BY sort_order ASC
+        """, (recipe_id,))
+        tools = cur.fetchall()
+
+        # ── 5. Tips ──
+        cur.execute("""
+            SELECT tip_id, tip_text, sort_order
+            FROM recipe_tips
+            WHERE recipe_id = %s
+            ORDER BY sort_order ASC
+        """, (recipe_id,))
+        tips = cur.fetchall()
+
+        # ── 6. Reviews (ล่าสุด 10 รายการ) ──
+        cur.execute("""
+            SELECT
+                rv.review_id, rv.rating, rv.comment,
+                rv.created_at,
+                u.username
+            FROM recipe_reviews rv
+            JOIN users u ON rv.user_id = u.user_id
+            WHERE rv.recipe_id = %s
+            ORDER BY rv.created_at DESC
+            LIMIT 10
+        """, (recipe_id,))
+        reviews = cur.fetchall()
+
+        # แปลง datetime เป็น string
+        reviews_list = []
+        for rv in reviews:
+            rv_dict = dict(rv)
+            if rv_dict.get("created_at"):
+                rv_dict["created_at"] = rv_dict["created_at"].isoformat()
+            reviews_list.append(rv_dict)
+
+        return {
+            "recipe":      dict(recipe),
+            "ingredients": [dict(i) for i in ingredients],
+            "steps":       [dict(s) for s in steps],
+            "tools":       [dict(t) for t in tools],
+            "tips":        [dict(t) for t in tips],
+            "reviews":     reviews_list,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+# ── เพิ่ม/ลบ Favorite ──
+@app.post("/recipes/{food_id}/favorite/{user_id}")
+def toggle_favorite(food_id: int, user_id: int):
+    """Toggle favorite — กด ❤️ ครั้งแรก = เพิ่ม, กดซ้ำ = ลบ"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # หา recipe_id จาก food_id
+        cur.execute("SELECT recipe_id FROM recipes WHERE food_id = %s", (food_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Recipe not found")
+        recipe_id = row["recipe_id"]
+
+        # เช็คว่า favorite อยู่แล้วมั้ย
+        cur.execute("""
+            SELECT fav_id FROM recipe_favorites
+            WHERE recipe_id = %s AND user_id = %s
+        """, (recipe_id, user_id))
+        existing = cur.fetchone()
+
+        if existing:
+            # ลบ favorite
+            cur.execute("""
+                DELETE FROM recipe_favorites
+                WHERE recipe_id = %s AND user_id = %s
+            """, (recipe_id, user_id))
+            conn.commit()
+            return {"action": "removed", "is_favorite": False}
+        else:
+            # เพิ่ม favorite
+            cur.execute("""
+                INSERT INTO recipe_favorites (recipe_id, user_id)
+                VALUES (%s, %s)
+            """, (recipe_id, user_id))
+            conn.commit()
+            return {"action": "added", "is_favorite": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+# ── เพิ่ม Review ──
+class RecipeReviewCreate(BaseModel):
+    user_id: int
+    rating: int   # 1–5
+    comment: str | None = None
+
+@app.post("/recipes/{food_id}/review")
+def add_review(food_id: int, review: RecipeReviewCreate):
+    """เพิ่มหรืออัปเดตรีวิว (1 user = 1 review ต่อ recipe)"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("SELECT recipe_id FROM recipes WHERE food_id = %s", (food_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Recipe not found")
+        recipe_id = row["recipe_id"]
+
+        if not (1 <= review.rating <= 5):
+            raise HTTPException(status_code=400, detail="Rating ต้องอยู่ระหว่าง 1–5")
+
+        cur.execute("""
+            INSERT INTO recipe_reviews (recipe_id, user_id, rating, comment)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (recipe_id, user_id)
+            DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment
+        """, (recipe_id, review.user_id, review.rating, review.comment))
+        conn.commit()
+        return {"message": "บันทึกรีวิวสำเร็จ"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+        

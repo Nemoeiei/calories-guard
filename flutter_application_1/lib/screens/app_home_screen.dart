@@ -179,11 +179,11 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
   String getBMIStatus(double bmi) {
     if (bmi <= 0) return '-';
-    if (bmi < 18.5) return 'น้ำหนักน้อย';
-    if (bmi < 22.9) return 'ปกติ';
-    if (bmi < 24.9) return 'ท้วม';
-    if (bmi < 29.9) return 'อ้วน';
-    return 'อ้วนมาก';
+    if (bmi < 18.5) return 'น้ำหนักน้อย'; // Underweight
+    if (bmi < 22.9) return 'ปกติ'; // Normal weight
+    if (bmi < 24.9) return 'ท้วม'; // Overweight
+    if (bmi < 29.9) return 'อ้วน'; // Obesity
+    return 'อ้วนมาก'; // Obesity II (>= 30)
   }
 
   // Helper: แปลง key เป็นป้ายภาษาไทย (backend ส่ง breakfast/lunch/dinner/snack)

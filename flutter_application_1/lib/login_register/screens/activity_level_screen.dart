@@ -7,12 +7,13 @@ import 'goal_selection_screen.dart';
 class ActivityLevelScreen extends ConsumerStatefulWidget {
   final bool isEditing;
   const ActivityLevelScreen({
-    super.key, 
+    super.key,
     this.isEditing = false, // ถ้าไม่ส่งมา จะถือว่าเป็น false (โหมดสมัคร)
   });
 
   @override
-  ConsumerState<ActivityLevelScreen> createState() => _ActivityLevelScreenState();
+  ConsumerState<ActivityLevelScreen> createState() =>
+      _ActivityLevelScreenState();
 }
 
 class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
@@ -75,7 +76,10 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -83,14 +87,23 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
         children: [
           Row(
             children: [
-              const Text('BMI', style: TextStyle(fontSize: 12, fontFamily: 'Inter')),
+              const Text('BMI',
+                  style: TextStyle(fontSize: 12, fontFamily: 'Inter')),
               const SizedBox(width: 20),
-              Text(bmi.toStringAsFixed(1), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(bmi.toStringAsFixed(1),
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: bmiColor.withOpacity(0.2), borderRadius: BorderRadius.circular(5)),
-                child: Text(bmiStatus, style: TextStyle(fontSize: 10, color: bmiColor, fontWeight: FontWeight.bold)),
+                decoration: BoxDecoration(
+                    color: bmiColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(5)),
+                child: Text(bmiStatus,
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: bmiColor,
+                        fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -112,7 +125,13 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF1710ED), Color(0xFF69AE6D), Color(0xFFD3D347), Color(0xFFCAAC58), Color(0xFFFF0000)],
+                        colors: [
+                          Color(0xFF1710ED),
+                          Color(0xFF69AE6D),
+                          Color(0xFFD3D347),
+                          Color(0xFFCAAC58),
+                          Color(0xFFFF0000)
+                        ],
                       ),
                     ),
                   ),
@@ -126,7 +145,9 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
                         color: Colors.white,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.black54, width: 2),
-                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black26, blurRadius: 2)
+                        ],
                       ),
                     ),
                   ),
@@ -135,7 +156,8 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
             },
           ),
           const SizedBox(height: 10),
-          const Text('ค่า BMI ของคุณแสดงผลตามเกณฑ์มาตรฐาน', style: TextStyle(fontSize: 12, color: Colors.black87)),
+          const Text('ค่า BMI ของคุณแสดงผลตามเกณฑ์มาตรฐาน',
+              style: TextStyle(fontSize: 12, color: Colors.black87)),
         ],
       ),
     );
@@ -147,7 +169,7 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
 
     // ดึงค่าภาษาอังกฤษ เช่น 'sedentary', 'light'
     final selectedValue = _activities[_selectedIndex]['value'];
-    
+
     // ดึง userId ปัจจุบัน
     final userId = ref.read(userDataProvider).userId;
 
@@ -169,13 +191,16 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
           // ถ้ามาจากการแก้ไข -> ให้ย้อนกลับไปหน้า Profile
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('อัปเดตระดับกิจกรรมเรียบร้อย'), backgroundColor: Colors.green),
+            const SnackBar(
+                content: Text('อัปเดตระดับกิจกรรมเรียบร้อย'),
+                backgroundColor: Colors.green),
           );
         } else {
           // ถ้ามาจากการสมัคร -> ไปหน้าเลือกเป้าหมายต่อ (Flow เดิม)
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const GoalSelectionScreen()),
+            MaterialPageRoute(
+                builder: (context) => const GoalSelectionScreen()),
           );
         }
       }
@@ -183,7 +208,9 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
       // แจ้งเตือนถ้าบันทึกไม่ผ่าน
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่'), backgroundColor: Colors.red),
+          const SnackBar(
+              content: Text('บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่'),
+              backgroundColor: Colors.red),
         );
       }
     }
@@ -197,21 +224,22 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Progress Bar ---
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: SizedBox(
-                  height: 8,
-                  child: LinearProgressIndicator(
-                    value: 0.625, // 50% - ระดับกิจกรรม
-                    backgroundColor: Colors.grey.shade200,
-                    color: const Color(0xFF628141),
+            // --- Progress Bar (แสดงเฉพาะตอนสมัคร) ---
+            if (!widget.isEditing)
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: SizedBox(
+                    height: 8,
+                    child: LinearProgressIndicator(
+                      value: 0.625,
+                      backgroundColor: Colors.grey.shade200,
+                      color: const Color(0xFF628141),
+                    ),
                   ),
                 ),
               ),
-            ),
 
             // --- Header ---
             Padding(
@@ -219,13 +247,18 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1D1B20)),
+                    icon: const Icon(Icons.arrow_back_ios,
+                        color: Color(0xFF1D1B20)),
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: 10),
                   const Text(
                     'ระดับกิจกรรม',
-                    style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+                    style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black),
                   ),
                 ],
               ),
@@ -235,7 +268,8 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
               padding: EdgeInsets.symmetric(horizontal: 40),
               child: Text(
                 'ข้อมูลนี้ช่วยให้เราคำนวณการเผาผลาญพลังงาน (TDEE) ได้แม่นยำขึ้น',
-                style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: Colors.black54),
+                style: TextStyle(
+                    fontFamily: 'Inter', fontSize: 14, color: Colors.black54),
               ),
             ),
             const SizedBox(height: 20),
@@ -250,7 +284,8 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
             // --- List of Cards ---
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 itemCount: _activities.length,
                 separatorBuilder: (c, i) => const SizedBox(height: 15),
                 itemBuilder: (context, index) {
@@ -265,7 +300,9 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: isSelected ? const Color(0xFF4C6414) : Colors.transparent,
+                          color: isSelected
+                              ? const Color(0xFF4C6414)
+                              : Colors.transparent,
                           width: 2,
                         ),
                         boxShadow: [
@@ -279,25 +316,45 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
                       child: Row(
                         children: [
                           Container(
-                            width: 50, height: 50,
+                            width: 50,
+                            height: 50,
                             decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFFE8EFCF) : const Color(0xFFF5F5F5),
+                              color: isSelected
+                                  ? const Color(0xFFE8EFCF)
+                                  : const Color(0xFFF5F5F5),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(item['icon'], color: isSelected ? const Color(0xFF4C6414) : Colors.grey, size: 28),
+                            child: Icon(item['icon'],
+                                color: isSelected
+                                    ? const Color(0xFF4C6414)
+                                    : Colors.grey,
+                                size: 28),
                           ),
                           const SizedBox(width: 15),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(item['title'], style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.bold, color: isSelected ? const Color(0xFF4C6414) : Colors.black)),
+                                Text(item['title'],
+                                    style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected
+                                            ? const Color(0xFF4C6414)
+                                            : Colors.black)),
                                 const SizedBox(height: 4),
-                                Text(item['subtitle'], style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black.withOpacity(0.6))),
+                                Text(item['subtitle'],
+                                    style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 12,
+                                        color: Colors.black.withOpacity(0.6))),
                               ],
                             ),
                           ),
-                          if (isSelected) const Icon(Icons.check_circle, color: Color(0xFF4C6414)),
+                          if (isSelected)
+                            const Icon(Icons.check_circle,
+                                color: Color(0xFF4C6414)),
                         ],
                       ),
                     ),
@@ -316,12 +373,18 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
                   onPressed: _isLoading ? null : _submit, // ถ้าโหลดอยู่กดไม่ได้
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF628141),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30)),
                     elevation: 5,
                   ),
-                  child: _isLoading 
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('ถัดไป', style: TextStyle(fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('ถัดไป',
+                          style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white)),
                 ),
               ),
             ),
