@@ -78,10 +78,12 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Stack(
-          children: [
-            SingleChildScrollView(
+    return Scaffold(
+      backgroundColor: const Color(0xFFE8EFCF),
+      body: SafeArea(
+        child: Stack(
+            children: [
+              SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 150),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -105,20 +107,22 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         child: RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '$_goalTitle ', 
-                                style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w500, color: _goalColor)
-                              ),
-                              TextSpan(
-                                text: _goalSubtitle, 
-                                style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w500, color: _goalColor)
-                              ),
-                            ],
-                          ),
-                        ),
+  textAlign: TextAlign.center,
+  text: TextSpan(
+    // เพิ่ม style ตรงนี้เพื่อให้ลูกๆ ใช้ค่าเริ่มต้นเดียวกัน และลบเส้นใต้สีแดง
+    style: const TextStyle(color: Colors.black, decoration: TextDecoration.none), 
+    children: [
+      TextSpan(
+        text: '$_goalTitle ', 
+        style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w500, color: _goalColor)
+      ),
+      TextSpan(
+        text: _goalSubtitle, 
+        style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w500, color: _goalColor)
+      ),
+    ],
+  ),
+),
                       ),
                     ),
 
@@ -290,6 +294,7 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
             ),
           ],
         ),
-      );
+      ),
+    );
   }
 }

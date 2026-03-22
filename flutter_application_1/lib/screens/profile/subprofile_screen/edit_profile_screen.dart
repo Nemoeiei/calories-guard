@@ -17,7 +17,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Future<void> _updateUserData(Map<String, dynamic> updateData) async {
     final userId = ref.read(userDataProvider).userId;
     // ⚠️ อย่าลืมเช็ค IP ให้ตรงกับเครื่องที่รัน (10.0.2.2 สำหรับ Android Emulator)
-    final url = Uri.parse('\${AppConstants.baseUrl}/users/$userId');
+    final url = Uri.parse('${AppConstants.baseUrl}/users/$userId');
 
     try {
       final response = await http.put(

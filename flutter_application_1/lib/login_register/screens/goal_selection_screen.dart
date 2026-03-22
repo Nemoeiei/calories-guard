@@ -5,10 +5,12 @@ import '../../services/auth_service.dart';
 import 'target_weight_screen.dart';
 
 class GoalSelectionScreen extends ConsumerStatefulWidget {
-  const GoalSelectionScreen({super.key});
+  final bool isEditing;
+  const GoalSelectionScreen({super.key, this.isEditing = false});
 
   @override
-  ConsumerState<GoalSelectionScreen> createState() => _GoalSelectionScreenState();
+  ConsumerState<GoalSelectionScreen> createState() =>
+      _GoalSelectionScreenState();
 }
 
 class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
@@ -29,7 +31,7 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
     final userData = ref.read(userDataProvider);
     double bmi = userData.bmi;
     if (bmi <= 0) return;
-    
+
     // Logic แนะนำ (ปรับตามความเหมาะสม)
     if (bmi >= 23.0) {
       setState(() {
@@ -51,9 +53,12 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
 
   String _goalToString(GoalOption goal) {
     switch (goal) {
-      case GoalOption.loseWeight: return 'lose_weight';
-      case GoalOption.maintainWeight: return 'maintain_weight';
-      case GoalOption.buildMuscle: return 'gain_muscle';
+      case GoalOption.loseWeight:
+        return 'lose_weight';
+      case GoalOption.maintainWeight:
+        return 'maintain_weight';
+      case GoalOption.buildMuscle:
+        return 'gain_muscle';
     }
   }
 
@@ -69,10 +74,16 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
     if (success) {
       ref.read(userDataProvider.notifier).setGoal(selectedGoal!);
       if (mounted) {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => TargetWeightScreen(selectedGoal: selectedGoal!)));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) =>
+                    TargetWeightScreen(selectedGoal: selectedGoal!)));
       }
     } else {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกไม่สำเร็จ')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('บันทึกไม่สำเร็จ')));
     }
   }
 
@@ -83,7 +94,10 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
         ],
       ),
       child: child,
@@ -94,13 +108,22 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
   Widget build(BuildContext context) {
     final userData = ref.watch(userDataProvider);
     double bmi = userData.bmi;
-    
+
     String bmiStatus;
     Color bmiColor;
-    if (bmi < 18.5) { bmiStatus = 'น้ำหนักน้อย'; bmiColor = Colors.blue; }
-    else if (bmi < 23) { bmiStatus = 'ปกติ'; bmiColor = Colors.green; }
-    else if (bmi < 25) { bmiStatus = 'ท้วม'; bmiColor = Colors.orange; }
-    else { bmiStatus = 'อ้วน'; bmiColor = Colors.red; }
+    if (bmi < 18.5) {
+      bmiStatus = 'น้ำหนักน้อย';
+      bmiColor = Colors.blue;
+    } else if (bmi < 23) {
+      bmiStatus = 'ปกติ';
+      bmiColor = Colors.green;
+    } else if (bmi < 25) {
+      bmiStatus = 'ท้วม';
+      bmiColor = Colors.orange;
+    } else {
+      bmiStatus = 'อ้วน';
+      bmiColor = Colors.red;
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFE8EFCF),
@@ -109,38 +132,44 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Progress Bar
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: SizedBox(
-                    height: 8,
-                    child: LinearProgressIndicator(
-                      value: 0.75, // 60% - เลือกเป้าหมาย
-                      backgroundColor: Colors.grey.shade200,
-                      color: const Color(0xFF628141),
+              // Progress Bar (แสดงเฉพาะตอนสมัคร)
+              if (!widget.isEditing)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      height: 8,
+                      child: LinearProgressIndicator(
+                        value: 0.75,
+                        backgroundColor: Colors.grey.shade200,
+                        color: const Color(0xFF628141),
+                      ),
                     ),
                   ),
                 ),
-              ),
 
               // Header
               Padding(
                 padding: const EdgeInsets.only(left: 19, top: 11),
                 child: GestureDetector(
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.chevron_left, size: 40, color: Color(0xFF1D1B20)),
+                  child: const Icon(Icons.chevron_left,
+                      size: 40, color: Color(0xFF1D1B20)),
                 ),
               ),
 
               const SizedBox(height: 20),
-              
+
               const Padding(
                 padding: EdgeInsets.only(left: 33),
                 child: Text(
                   'เป้าหมายของคุณคืออะไร?',
-                  style: TextStyle(fontFamily: 'Inter', fontSize: 32, fontWeight: FontWeight.w400, color: Colors.black),
+                  style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 32,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.black),
                 ),
               ),
 
@@ -149,10 +178,14 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 50),
                 child: Text(
                   'เลือกเป้าหมายเพื่อให้เราช่วยวางแผนที่เหมาะสม',
-                  style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w400, color: Colors.black),
+                  style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.black),
                 ),
               ),
-              
+
               const SizedBox(height: 30),
 
               // BMI Card
@@ -164,14 +197,25 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                     children: [
                       Row(
                         children: [
-                          const Text('BMI', style: TextStyle(fontSize: 12, fontFamily: 'Inter')),
+                          const Text('BMI',
+                              style:
+                                  TextStyle(fontSize: 12, fontFamily: 'Inter')),
                           const SizedBox(width: 20),
-                          Text(bmi.toStringAsFixed(1), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                          Text(bmi.toStringAsFixed(1),
+                              style: const TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold)),
                           const SizedBox(width: 10),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(color: bmiColor.withOpacity(0.2), borderRadius: BorderRadius.circular(5)),
-                            child: Text(bmiStatus, style: TextStyle(fontSize: 10, color: bmiColor, fontWeight: FontWeight.bold)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                                color: bmiColor.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(5)),
+                            child: Text(bmiStatus,
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    color: bmiColor,
+                                    fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
@@ -181,7 +225,8 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                           double width = constraints.maxWidth;
                           double minBMI = 15;
                           double maxBMI = 35;
-                          double normalizedBMI = (bmi - minBMI) / (maxBMI - minBMI);
+                          double normalizedBMI =
+                              (bmi - minBMI) / (maxBMI - minBMI);
                           double position = normalizedBMI * width;
                           if (position < 0) position = 0;
                           if (position > width - 10) position = width - 10;
@@ -194,7 +239,13 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(10),
                                   gradient: const LinearGradient(
-                                    colors: [Color(0xFF1710ED), Color(0xFF69AE6D), Color(0xFFD3D347), Color(0xFFCAAC58), Color(0xFFFF0000)],
+                                    colors: [
+                                      Color(0xFF1710ED),
+                                      Color(0xFF69AE6D),
+                                      Color(0xFFD3D347),
+                                      Color(0xFFCAAC58),
+                                      Color(0xFFFF0000)
+                                    ],
                                   ),
                                 ),
                               ),
@@ -202,8 +253,18 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                                 left: position,
                                 top: -2,
                                 child: Container(
-                                  width: 14, height: 14,
-                                  decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black54, width: 2), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)]),
+                                  width: 14,
+                                  height: 14,
+                                  decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.black54, width: 2),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                            color: Colors.black26,
+                                            blurRadius: 2)
+                                      ]),
                                 ),
                               ),
                             ],
@@ -211,7 +272,9 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                         },
                       ),
                       const SizedBox(height: 10),
-                      const Text('ค่า BMI ของคุณแสดงผลตามเกณฑ์มาตรฐาน', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                      const Text('ค่า BMI ของคุณแสดงผลตามเกณฑ์มาตรฐาน',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.black87)),
                     ],
                   ),
                 ),
@@ -228,30 +291,56 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                       goal: GoalOption.loseWeight,
                       title: 'ลดน้ำหนัก',
                       subtitle: 'ควบคุมแคลอรี่',
-                      iconUrl: 'https://api.builder.io/api/v1/image/assets/TEMP/2b36cbc83f6282347dd67152d454841cc595df15',
-                      defaultGradient: const LinearGradient(colors: [Colors.white, Colors.white]),
-                      selectedGradient: const LinearGradient(colors: [Color(0xFFDBA979), Color(0xFFD76A3C)]),
-                      isRecommended: recommendedGoal == GoalOption.loseWeight, // ✅ เช็คแนะนำ
+                      iconUrl:
+                          'https://api.builder.io/api/v1/image/assets/TEMP/2b36cbc83f6282347dd67152d454841cc595df15',
+                      defaultGradient: const LinearGradient(
+                          colors: [Colors.white, Colors.white]),
+                      selectedGradient: const LinearGradient(
+                          colors: [Color(0xFFDBA979), Color(0xFFD76A3C)]),
+                      isRecommended: recommendedGoal ==
+                          GoalOption.loseWeight, // ✅ เช็คแนะนำ
                     ),
                     const SizedBox(height: 36),
                     _buildGoalOption(
                       goal: GoalOption.maintainWeight,
                       title: 'รักษาน้ำหนัก',
                       subtitle: 'รักษาสมดุล สุขภาพดี',
-                      iconUrl: 'https://api.builder.io/api/v1/image/assets/TEMP/caa3690bf64691cf18159ea72b5ec46944c37e66',
-                      defaultGradient: const LinearGradient(colors: [Colors.white, Colors.white]),
-                      selectedGradient: const LinearGradient(colors: [Color(0xFF10337F), Color(0xFF2D58B6), Color(0xFF497CEA)], stops: [0.0, 0.36, 1.0]),
-                      isRecommended: recommendedGoal == GoalOption.maintainWeight, // ✅ เช็คแนะนำ
+                      iconUrl:
+                          'https://api.builder.io/api/v1/image/assets/TEMP/caa3690bf64691cf18159ea72b5ec46944c37e66',
+                      defaultGradient: const LinearGradient(
+                          colors: [Colors.white, Colors.white]),
+                      selectedGradient: const LinearGradient(colors: [
+                        Color(0xFF10337F),
+                        Color(0xFF2D58B6),
+                        Color(0xFF497CEA)
+                      ], stops: [
+                        0.0,
+                        0.36,
+                        1.0
+                      ]),
+                      isRecommended: recommendedGoal ==
+                          GoalOption.maintainWeight, // ✅ เช็คแนะนำ
                     ),
                     const SizedBox(height: 36),
                     _buildGoalOption(
                       goal: GoalOption.buildMuscle,
                       title: 'เพิ่มกล้ามเนื้อ',
                       subtitle: 'ลดไขมัน',
-                      iconUrl: 'https://api.builder.io/api/v1/image/assets/TEMP/3ac072bc08b89b53ec34785b4a25b0021535bdd8',
-                      defaultGradient: const LinearGradient(colors: [Colors.white, Colors.white]),
-                      selectedGradient: const LinearGradient(colors: [Color(0xFFB4AC15), Color(0xFFFFEA4B), Color(0xFFFAFC83)], stops: [0.0, 0.63, 1.0]),
-                      isRecommended: recommendedGoal == GoalOption.buildMuscle, // ✅ เช็คแนะนำ
+                      iconUrl:
+                          'https://api.builder.io/api/v1/image/assets/TEMP/3ac072bc08b89b53ec34785b4a25b0021535bdd8',
+                      defaultGradient: const LinearGradient(
+                          colors: [Colors.white, Colors.white]),
+                      selectedGradient: const LinearGradient(colors: [
+                        Color(0xFFB4AC15),
+                        Color(0xFFFFEA4B),
+                        Color(0xFFFAFC83)
+                      ], stops: [
+                        0.0,
+                        0.63,
+                        1.0
+                      ]),
+                      isRecommended: recommendedGoal ==
+                          GoalOption.buildMuscle, // ✅ เช็คแนะนำ
                     ),
                   ],
                 ),
@@ -262,18 +351,31 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
               // Button
               Center(
                 child: GestureDetector(
-                  onTap: (selectedGoal != null && !_isLoading) ? _saveAndNext : null,
+                  onTap: (selectedGoal != null && !_isLoading)
+                      ? _saveAndNext
+                      : null,
                   child: Container(
-                    width: 259, height: 54,
+                    width: 259,
+                    height: 54,
                     decoration: BoxDecoration(
                       color: const Color(0xFF4C6414),
                       borderRadius: BorderRadius.circular(24),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 4, offset: const Offset(0, 4))],
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withOpacity(0.25),
+                            blurRadius: 4,
+                            offset: const Offset(0, 4))
+                      ],
                     ),
                     child: Center(
                       child: _isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('ถัดไป', style: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white)),
+                          : const Text('ถัดไป',
+                              style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white)),
                     ),
                   ),
                 ),
@@ -304,42 +406,72 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
         children: [
           // กล่องหลัก
           Container(
-            width: 356, height: 116,
+            width: 356,
+            height: 116,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(25),
               gradient: isSelected ? selectedGradient : defaultGradient,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2))
+              ],
               // ถ้าเป็นตัวแนะนำ ให้มีขอบสีเหลือง/ทองเด่นๆ
-              border: isRecommended ? Border.all(color: const Color(0xFFF3E351), width: 2) : null,
+              border: isRecommended
+                  ? Border.all(color: const Color(0xFFF3E351), width: 2)
+                  : null,
             ),
             child: Stack(
               children: [
                 Positioned(
-                  left: 29, top: 29,
+                  left: 29,
+                  top: 29,
                   child: Container(
-                    width: 59, height: 58,
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    width: 59,
+                    height: 58,
+                    decoration: const BoxDecoration(
+                        color: Colors.white, shape: BoxShape.circle),
                     child: Center(
                       child: Image.network(
-                        iconUrl, width: 43, height: 43, fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.fitness_center, size: 43),
+                        iconUrl,
+                        width: 43,
+                        height: 43,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.fitness_center, size: 43),
                       ),
                     ),
                   ),
                 ),
                 Positioned(
-                  left: 108, top: 39,
+                  left: 108,
+                  top: 39,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : Colors.black)),
+                      Text(title,
+                          style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: isSelected ? Colors.white : Colors.black)),
                       const SizedBox(height: 4),
-                      Text(subtitle, style: TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w300, color: isSelected ? Colors.white : Colors.black)),
+                      Text(subtitle,
+                          style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w300,
+                              color: isSelected ? Colors.white : Colors.black)),
                     ],
                   ),
                 ),
                 if (isSelected)
-                  const Positioned(right: 19, top: 41, child: Icon(Icons.check_circle, color: Colors.white, size: 29)),
+                  const Positioned(
+                      right: 19,
+                      top: 41,
+                      child: Icon(Icons.check_circle,
+                          color: Colors.white, size: 29)),
               ],
             ),
           ),
@@ -360,10 +492,15 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                   children: [
                     Text(
                       'แนะนำสำหรับคุณ',
-                      style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w500, color: Colors.black),
+                      style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black),
                     ),
                     SizedBox(width: 4),
-                    Icon(Icons.error_outline, size: 14, color: Colors.black), // ไอคอนตกใจ
+                    Icon(Icons.error_outline,
+                        size: 14, color: Colors.black), // ไอคอนตกใจ
                   ],
                 ),
               ),

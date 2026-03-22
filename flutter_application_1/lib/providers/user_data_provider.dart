@@ -109,11 +109,20 @@ class UserData {
   double get tdee {
     double factor = 1.2;
     switch (activityLevel) {
-      case 'lightly_active': factor = 1.375; break;
-      case 'moderately_active': factor = 1.55; break;
-      case 'very_active': factor = 1.725; break;
-      case 'extra_active': factor = 1.9; break;
-      default: factor = 1.2;
+      case 'lightly_active':
+        factor = 1.375;
+        break;
+      case 'moderately_active':
+        factor = 1.55;
+        break;
+      case 'very_active':
+        factor = 1.725;
+        break;
+      case 'extra_active':
+        factor = 1.9;
+        break;
+      default:
+        factor = 1.2;
     }
     return bmr * factor;
   }
@@ -121,9 +130,11 @@ class UserData {
   // --- Daily Target: TDEE + (kg_per_week * (7700/7)) = TDEE + (kg_per_week * 1100) ---
   // ใช้จาก DB (storedTargetCalories) ถ้ามี ไม่ใช่คำนวณจากสูตร
   double get targetCalories {
-    if (storedTargetCalories != null && storedTargetCalories! > 0) return storedTargetCalories!.toDouble();
+    if (storedTargetCalories != null && storedTargetCalories! > 0)
+      return storedTargetCalories!.toDouble();
     double kgPerWeek = 0;
-    if (goal == GoalOption.loseWeight) kgPerWeek = -0.5;
+    if (goal == GoalOption.loseWeight)
+      kgPerWeek = -0.5;
     else if (goal == GoalOption.buildMuscle) kgPerWeek = 0.5;
     final numWeeks = _effectiveWeeks;
     if (numWeeks > 0 && targetWeight > 0 && weight > 0) {
@@ -142,21 +153,25 @@ class UserData {
   }
 
   // เป้าหมายแมโคร: ใช้จาก DB ถ้ามี ไม่ใช่คำนวณจากอัตราส่วน
+  // ✅ Updated Formula: Carbs 65%, Protein 15%, Fat 20%
   int get targetProtein {
-    if (storedTargetProtein != null && storedTargetProtein! > 0) return storedTargetProtein!;
-    double proteinCals = targetCalories * 0.30;
+    if (storedTargetProtein != null && storedTargetProtein! > 0)
+      return storedTargetProtein!;
+    double proteinCals = targetCalories * 0.15;
     return (proteinCals / 4).round();
   }
 
   int get targetCarbs {
-    if (storedTargetCarbs != null && storedTargetCarbs! > 0) return storedTargetCarbs!;
-    double carbsCals = targetCalories * 0.40;
+    if (storedTargetCarbs != null && storedTargetCarbs! > 0)
+      return storedTargetCarbs!;
+    double carbsCals = targetCalories * 0.65;
     return (carbsCals / 4).round();
   }
 
   int get targetFat {
-    if (storedTargetFat != null && storedTargetFat! > 0) return storedTargetFat!;
-    double fatCals = targetCalories * 0.30;
+    if (storedTargetFat != null && storedTargetFat! > 0)
+      return storedTargetFat!;
+    double fatCals = targetCalories * 0.20;
     return (fatCals / 9).round();
   }
 
@@ -227,9 +242,9 @@ class UserData {
 // --- Notifier ---
 class UserDataNotifier extends StateNotifier<UserData> {
   UserDataNotifier() : super(UserData());
-  
+
   void logout() {
-    state = UserData(); 
+    state = UserData();
   }
 
   void setUserId(int id) {
@@ -273,7 +288,7 @@ class UserDataNotifier extends StateNotifier<UserData> {
       duration: duration ?? state.duration,
     );
   }
-  
+
   void setActivityLevel(String level) {
     state = state.copyWith(activityLevel: level);
   }
@@ -285,7 +300,7 @@ class UserDataNotifier extends StateNotifier<UserData> {
     required int carbs,
     required int fat,
     // รับเป็น Map แทนที่จะเป็น String แยก
-    Map<String, String> dailyMeals = const {}, 
+    Map<String, String> dailyMeals = const {},
   }) {
     state = state.copyWith(
       consumedCalories: cal,
@@ -295,13 +310,13 @@ class UserDataNotifier extends StateNotifier<UserData> {
       dailyMeals: dailyMeals, // ✅ บันทึก Map
     );
   }
-  
+
   // ✅ รับค่าจาก API /daily_summary มาใส่ Provider
   void setDailySummaryFromApi(Map<String, dynamic> data) {
     // แปลงข้อมูลจาก API ('meals': {...}) มาเป็น Map<String, String>
     Map<String, String> meals = {};
     if (data['meals'] != null) {
-       meals = Map<String, String>.from(data['meals']);
+      meals = Map<String, String>.from(data['meals']);
     }
 
     state = state.copyWith(
@@ -323,7 +338,8 @@ class UserDataNotifier extends StateNotifier<UserData> {
     );
   }
 
-  void updateUnit({String? weight, String? height, String? energy, String? water}) {
+  void updateUnit(
+      {String? weight, String? height, String? energy, String? water}) {
     state = state.copyWith(
       unitWeight: weight ?? state.unitWeight,
       unitHeight: height ?? state.unitHeight,
@@ -343,7 +359,8 @@ class UserDataNotifier extends StateNotifier<UserData> {
     }
 
     GoalOption userGoal = GoalOption.loseWeight;
-    if (data['goal_type'] == 'maintain_weight') userGoal = GoalOption.maintainWeight;
+    if (data['goal_type'] == 'maintain_weight')
+      userGoal = GoalOption.maintainWeight;
     if (data['goal_type'] == 'gain_muscle') userGoal = GoalOption.buildMuscle;
 
     // Null-safe: ใช้ ?? และ default เพื่อไม่ให้เป็น null ที่แสดงผล
@@ -351,7 +368,9 @@ class UserDataNotifier extends StateNotifier<UserData> {
     final weightVal = (data['current_weight_kg'] as num?)?.toDouble();
     state = state.copyWith(
       userId: (data['user_id'] as num?)?.toInt() ?? 0,
-      name: ((data['username']?.toString() ?? '').trim().isEmpty) ? 'User' : (data['username']?.toString() ?? 'User'),
+      name: ((data['username']?.toString() ?? '').trim().isEmpty)
+          ? 'User'
+          : (data['username']?.toString() ?? 'User'),
       email: data['email']?.toString() ?? '',
       gender: data['gender']?.toString() ?? 'male',
       birthDate: bDate,
@@ -375,7 +394,8 @@ class UserDataNotifier extends StateNotifier<UserData> {
   }
 }
 
-final userDataProvider = StateNotifierProvider<UserDataNotifier, UserData>((ref) {
+final userDataProvider =
+    StateNotifierProvider<UserDataNotifier, UserData>((ref) {
   return UserDataNotifier();
 });
 final navIndexProvider = StateProvider<int>((ref) => 0);
