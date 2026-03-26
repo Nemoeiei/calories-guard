@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../providers/user_data_provider.dart'; 
-import 'verify_email_screen.dart'; 
-import '../../services/auth_service.dart'; 
+import '../../providers/user_data_provider.dart';
+import 'verify_email_screen.dart';
+import '../../services/auth_service.dart';
 import 'data_consent_screen.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -17,7 +17,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   final AuthService _authService = AuthService();
   bool _isLoading = false;
@@ -48,8 +49,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('เงื่อนไขรหัสผ่าน', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('เงื่อนไขรหัสผ่าน',
+              style:
+                  TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold)),
           content: const Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,7 +66,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('เข้าใจแล้ว', style: TextStyle(color: Color(0xFF628141), fontWeight: FontWeight.bold)),
+              child: const Text('เข้าใจแล้ว',
+                  style: TextStyle(
+                      color: Color(0xFF628141), fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -79,7 +85,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     String confirmPassword = _confirmPasswordController.text;
 
     // Validation
-    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    if (firstName.isEmpty ||
+        lastName.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
       _showError('กรุณากรอกข้อมูลให้ครบถ้วน');
       return;
     }
@@ -91,10 +101,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _showError('นามสกุลต้องมีความยาวอย่างน้อย 2 ตัวอักษร');
       return;
     }
-    if (!email.endsWith('@gmail.com')) {
-      _showError('กรุณาใช้อีเมล @gmail.com เท่านั้น');
-      return;
-    }
+    // if (!email.endsWith('@gmail.com')) {
+    //   _showError('กรุณาใช้อีเมล @gmail.com เท่านั้น');
+    //   return;
+    // }
     if (password.length < 8) {
       _showError('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร');
       return;
@@ -113,33 +123,33 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
 
     // Call API
-    setState(() => _isLoading = true); 
+    setState(() => _isLoading = true);
 
     final result = await _authService.register(fullName, email, password);
 
-    setState(() => _isLoading = false); 
+    setState(() => _isLoading = false);
 
     if (result['success']) {
-      final data = result['data']; 
-      
+      final data = result['data'];
+
       // ✅ หัวใจสำคัญ: ดึง ID จาก Backend แล้วยัดใส่ Provider ทันที
       // เช็ค Structure ให้ชัวร์: Backend ส่งกลับมาเป็น {"message": "...", "user": {"user_id": 1, ...}}
       // AuthService ของเรามักจะห่อเป็น {'success': true, 'data': response_body}
-      final int newId = data['user']['user_id']; 
-      
-      ref.read(userDataProvider.notifier).setUserId(newId); 
+      final int newId = data['user']['user_id'];
+
+      ref.read(userDataProvider.notifier).setUserId(newId);
       ref.read(userDataProvider.notifier).setLoginInfo(email, password);
       ref.read(userDataProvider.notifier).setPersonalInfo(
-          name: fullName, 
+          name: fullName,
           birthDate: DateTime.now(), // ค่าชั่วคราว เดี๋ยวไปแก้หน้า PersonalInfo
-          height: 0, 
-          weight: 0
-      );
+          height: 0,
+          weight: 0);
 
       if (mounted) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => VerifyEmailScreen(email: email)),
+          MaterialPageRoute(
+              builder: (context) => VerifyEmailScreen(email: email)),
         );
       }
     } else {
@@ -163,7 +173,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 Padding(
                   padding: const EdgeInsets.only(left: 19, top: 31),
                   child: IconButton(
-                    icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1D1B20)),
+                    icon: const Icon(Icons.arrow_back_ios,
+                        color: Color(0xFF1D1B20)),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ),
@@ -171,7 +182,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const Center(
                   child: Text(
                     'สร้างบัญชีผู้ใช้ใหม่',
-                    style: TextStyle(fontFamily: 'Inter', fontSize: 32, fontWeight: FontWeight.w400, color: Colors.black),
+                    style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 32,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.black),
                   ),
                 ),
                 const SizedBox(height: 50),
@@ -193,25 +208,38 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       _buildTextField(_passwordController, isPassword: true),
                       const SizedBox(height: 20),
                       _buildLabel('Confirm password *'),
-                      _buildTextField(_confirmPasswordController, isPassword: true),
+                      _buildTextField(_confirmPasswordController,
+                          isPassword: true),
                     ],
                   ),
                 ),
                 const SizedBox(height: 80),
                 Center(
                   child: GestureDetector(
-                    onTap: _isLoading ? null : _handleRegister, 
+                    onTap: _isLoading ? null : _handleRegister,
                     child: Container(
-                      width: 259, height: 54,
+                      width: 259,
+                      height: 54,
                       decoration: BoxDecoration(
                         color: const Color(0xFF628141),
                         borderRadius: BorderRadius.circular(24),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 4, offset: const Offset(0, 4))],
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withOpacity(0.25),
+                              blurRadius: 4,
+                              offset: const Offset(0, 4))
+                        ],
                       ),
                       child: Center(
-                        child: _isLoading 
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Done', style: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white)),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
+                            : const Text('Done',
+                                style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white)),
                       ),
                     ),
                   ),
@@ -230,12 +258,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       padding: const EdgeInsets.only(left: 8, bottom: 6),
       child: Row(
         children: [
-          Text(text, style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w400, color: Colors.black.withOpacity(0.5))),
+          Text(text,
+              style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.black.withOpacity(0.5))),
           if (onInfoTap != null) ...[
             const SizedBox(width: 8),
             GestureDetector(
               onTap: onInfoTap,
-              child: const Icon(Icons.help_outline, size: 20, color: Color(0xFF628141)),
+              child: const Icon(Icons.help_outline,
+                  size: 20, color: Color(0xFF628141)),
             )
           ]
         ],
@@ -243,17 +277,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, {bool isPassword = false}) {
+  Widget _buildTextField(TextEditingController controller,
+      {bool isPassword = false}) {
     return Container(
-      width: 266, height: 54,
+      width: 266,
+      height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(16)),
       child: Center(
         child: TextField(
           controller: controller,
           obscureText: isPassword,
-          decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-          style: const TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black),
+          decoration:
+              const InputDecoration(border: InputBorder.none, isDense: true),
+          style: const TextStyle(
+              fontFamily: 'Inter', fontSize: 16, color: Colors.black),
         ),
       ),
     );
@@ -272,7 +311,9 @@ class _RuleItem extends StatelessWidget {
         children: [
           const Icon(Icons.check_circle_outline, size: 16, color: Colors.green),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontFamily: 'Inter', fontSize: 14))),
+          Expanded(
+              child: Text(text,
+                  style: const TextStyle(fontFamily: 'Inter', fontSize: 14))),
         ],
       ),
     );
