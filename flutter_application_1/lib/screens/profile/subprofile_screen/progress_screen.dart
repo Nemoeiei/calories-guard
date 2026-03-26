@@ -139,9 +139,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     }
   }
 
-<<<<<<< Updated upstream
-  // แสดงรายละเอียดเมื่อกดวันที่ในปฏิทิน
-=======
   // ── NEW: Fetch Weight History ──
   Future<void> _fetchWeightHistory() async {
     final userId = ref.read(userDataProvider).userId;
@@ -340,7 +337,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   // ─────────────────────────────────────────────
   // Day Details (existing, unchanged)
   // ─────────────────────────────────────────────
->>>>>>> Stashed changes
   Future<void> _showDayDetails(DateTime date) async {
     final userId = ref.read(userDataProvider).userId;
     final dateStr = DateFormat('yyyy-MM-dd').format(date);

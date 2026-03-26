@@ -21,23 +21,23 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   // ── Data ──
   Map<String, dynamic>? _recipe;
   List<dynamic> _ingredients = [];
-  List<dynamic> _steps       = [];
-  List<dynamic> _tools       = [];
-  List<dynamic> _tips        = [];
-  List<dynamic> _reviews     = [];
+  List<dynamic> _steps = [];
+  List<dynamic> _tools = [];
+  List<dynamic> _tips = [];
+  List<dynamic> _reviews = [];
 
-  bool _isLoading  = true;
-  bool _isFav      = false;
+  bool _isLoading = true;
+  bool _isFav = false;
   bool _favLoading = false;
 
   // ── Colors ──
-  static const _green     = Color(0xFF628141);
-  static const _greenL    = Color(0xFFE8EFCF);
-  static const _greenMid  = Color(0xFFAFD198);
-  static const _orange    = Color(0xFFD76A3C);
-  static const _orangeL   = Color(0xFFFFF3E0);
-  static const _gold      = Color(0xFFF9A825);
-  static const _bg        = Color(0xFFF2F7F4);
+  static const _green = Color(0xFF628141);
+  static const _greenL = Color(0xFFE8EFCF);
+  static const _greenMid = Color(0xFFAFD198);
+  static const _orange = Color(0xFFD76A3C);
+  static const _orangeL = Color(0xFFFFF3E0);
+  static const _gold = Color(0xFFF9A825);
+  static const _bg = Color(0xFFF2F7F4);
 
   @override
   void initState() {
@@ -56,13 +56,13 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
-          _recipe      = data['recipe'];
+          _recipe = data['recipe'];
           _ingredients = data['ingredients'] ?? [];
-          _steps       = data['steps']       ?? [];
-          _tools       = data['tools']       ?? [];
-          _tips        = data['tips']        ?? [];
-          _reviews     = data['reviews']     ?? [];
-          _isLoading   = false;
+          _steps = data['steps'] ?? [];
+          _tools = data['tools'] ?? [];
+          _tips = data['tips'] ?? [];
+          _reviews = data['reviews'] ?? [];
+          _isLoading = false;
         });
       } else {
         setState(() => _isLoading = false);
@@ -103,11 +103,15 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     if (_recipe == null) {
       return Scaffold(
         backgroundColor: _bg,
-        appBar: AppBar(backgroundColor: Colors.white, elevation: 0,
-          leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-            onPressed: () => Navigator.pop(context))),
-        body: const Center(child: Text('ยังไม่มีสูตรอาหารนี้ในระบบ 😅',
-          style: TextStyle(fontSize: 16, color: Colors.grey))),
+        appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
+                onPressed: () => Navigator.pop(context))),
+        body: const Center(
+            child: Text('ยังไม่มีสูตรอาหารนี้ในระบบ 😅',
+                style: TextStyle(fontSize: 16, color: Colors.grey))),
       );
     }
 
@@ -126,7 +130,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     // ── Rating Row ──
                     _buildRatingRow(r),
 
@@ -137,7 +140,8 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                     _buildMetaRow(r),
 
                     // ── Nutrition Card ──
-                    _buildSection('📊 ข้อมูลโภชนาการ (ต่อจาน)', _buildNutritionCard(r)),
+                    _buildSection(
+                        '📊 ข้อมูลโภชนาการ (ต่อจาน)', _buildNutritionCard(r)),
 
                     // ── Tools ──
                     if (_tools.isNotEmpty)
@@ -182,8 +186,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   Widget _buildSliverAppBar(Map<String, dynamic> r) {
     final imageUrl = r['image_url']?.toString();
     final category = r['category']?.toString() ?? 'อาหารไทย';
-    final name     = r['recipe_name']?.toString() ?? r['food_name']?.toString() ?? '';
-    final desc     = r['description']?.toString() ?? '';
+    final name =
+        r['recipe_name']?.toString() ?? r['food_name']?.toString() ?? '';
+    final desc = r['description']?.toString() ?? '';
 
     return SliverAppBar(
       expandedHeight: 280,
@@ -197,7 +202,8 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+          child: const Icon(Icons.arrow_back_ios_new,
+              color: Colors.white, size: 18),
         ),
       ),
       actions: [
@@ -214,8 +220,11 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: _favLoading
-                ? const SizedBox(width: 20, height: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2))
                 : Icon(_isFav ? Icons.favorite : Icons.favorite_border,
                     color: Colors.white, size: 20),
           ),
@@ -228,7 +237,8 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.share_outlined, color: Colors.white, size: 20),
+          child:
+              const Icon(Icons.share_outlined, color: Colors.white, size: 20),
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
@@ -237,17 +247,23 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           children: [
             // Hero image
             imageUrl != null && imageUrl.isNotEmpty
-                ? Image.network(imageUrl, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade400,
-                      child: const Icon(Icons.restaurant, size: 80, color: Colors.white)))
-                : Container(color: Colors.grey.shade400,
-                    child: const Icon(Icons.restaurant, size: 80, color: Colors.white)),
+                ? Image.network(imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey.shade400,
+                        child: const Icon(Icons.restaurant,
+                            size: 80, color: Colors.white)))
+                : Container(
+                    color: Colors.grey.shade400,
+                    child: const Icon(Icons.restaurant,
+                        size: 80, color: Colors.white)),
 
             // Gradient overlay
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                   colors: [
                     Colors.black.withOpacity(0.35),
                     Colors.transparent,
@@ -260,30 +276,45 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
 
             // Bottom content
             Positioned(
-              left: 18, right: 18, bottom: 16,
+              left: 18,
+              right: 18,
+              bottom: 16,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Category chip
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _green, borderRadius: BorderRadius.circular(99),
+                      color: _green,
+                      borderRadius: BorderRadius.circular(99),
                     ),
                     child: Text('🍳 $category',
-                      style: const TextStyle(color: Colors.white, fontSize: 11,
-                        fontWeight: FontWeight.w600)),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 8),
                   Text(name,
-                    style: const TextStyle(color: Colors.white, fontSize: 22,
-                      fontWeight: FontWeight.w700, height: 1.2,
-                      shadows: [Shadow(color: Colors.black45, blurRadius: 8)])),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                          shadows: [
+                            Shadow(color: Colors.black45, blurRadius: 8)
+                          ])),
                   if (desc.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Text(desc, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13)),
+                    Text(desc,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 13)),
                   ],
                 ],
               ),
@@ -299,7 +330,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   // ────────────────────────────────────────────
   Widget _buildRatingRow(Map<String, dynamic> r) {
     final rating = double.tryParse(r['avg_rating']?.toString() ?? '0') ?? 0;
-    final count  = r['review_count'] ?? 0;
+    final count = r['review_count'] ?? 0;
     final favCnt = r['favorite_count'] ?? 0;
 
     return Container(
@@ -308,20 +339,29 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       child: Row(
         children: [
           // Stars
-          Row(children: List.generate(5, (i) => Icon(
-            i < rating.round() ? Icons.star : Icons.star_border,
-            color: _gold, size: 18))),
+          Row(
+              children: List.generate(
+                  5,
+                  (i) => Icon(
+                      i < rating.round() ? Icons.star : Icons.star_border,
+                      color: _gold,
+                      size: 18))),
           const SizedBox(width: 6),
           Text(rating.toStringAsFixed(1),
-            style: const TextStyle(fontFamily: 'Inter', fontSize: 16,
-              fontWeight: FontWeight.w700)),
+              style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700)),
           Text(' ($count รีวิว)',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-          Container(width: 1, height: 20, color: Colors.grey.shade300,
-            margin: const EdgeInsets.symmetric(horizontal: 10)),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          Container(
+              width: 1,
+              height: 20,
+              color: Colors.grey.shade300,
+              margin: const EdgeInsets.symmetric(horizontal: 10)),
           const Text('❤️ ', style: TextStyle(fontSize: 14)),
           Text('$favCnt บันทึก',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
           const Spacer(),
           // Review button
           GestureDetector(
@@ -329,10 +369,12 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: _greenL, borderRadius: BorderRadius.circular(99)),
+                  color: _greenL, borderRadius: BorderRadius.circular(99)),
               child: const Text('💬 รีวิว',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                  color: _green)),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _green)),
             ),
           ),
         ],
@@ -344,9 +386,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   //  TIME CHIPS
   // ────────────────────────────────────────────
   Widget _buildTimeChips(Map<String, dynamic> r) {
-    final prep   = r['prep_time_minutes']    ?? 0;
-    final cook   = r['cooking_time_minutes'] ?? 0;
-    final total  = r['total_time_minutes']   ?? (prep + cook);
+    final prep = r['prep_time_minutes'] ?? 0;
+    final cook = r['cooking_time_minutes'] ?? 0;
+    final total = r['total_time_minutes'] ?? (prep + cook);
     final cuisine = r['cuisine']?.toString() ?? 'ไทย';
 
     return Container(
@@ -369,24 +411,33 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     );
   }
 
-  Widget _timeChip(String icon, String val, String label, {bool isHighlight = false}) {
+  Widget _timeChip(String icon, String val, String label,
+      {bool isHighlight = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: isHighlight ? _green : Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08),
-          blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2))
+        ],
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Text(icon, style: const TextStyle(fontSize: 18)),
         const SizedBox(height: 2),
-        Text(val, style: TextStyle(
-          fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w700,
-          color: isHighlight ? Colors.white : Colors.black87)),
-        Text(label, style: TextStyle(
-          fontSize: 10,
-          color: isHighlight ? Colors.white70 : Colors.grey.shade500)),
+        Text(val,
+            style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: isHighlight ? Colors.white : Colors.black87)),
+        Text(label,
+            style: TextStyle(
+                fontSize: 10,
+                color: isHighlight ? Colors.white70 : Colors.grey.shade500)),
       ]),
     );
   }
@@ -395,16 +446,25 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   //  META ROW (difficulty, serving, id)
   // ────────────────────────────────────────────
   Widget _buildMetaRow(Map<String, dynamic> r) {
-    final diff    = r['difficulty']?.toString() ?? 'Easy';
+    final diff = r['difficulty']?.toString() ?? 'Easy';
     final serving = r['serving_people']?.toString() ?? '2';
-    final id      = r['recipe_id']?.toString() ?? '-';
+    final id = r['recipe_id']?.toString() ?? '-';
 
     Color diffColor;
     String diffEmoji;
     switch (diff.toLowerCase()) {
-      case 'easy':   diffColor = const Color(0xFF628141); diffEmoji = '⚡'; break;
-      case 'medium': diffColor = _orange; diffEmoji = '🔥'; break;
-      default:       diffColor = Colors.red; diffEmoji = '💪'; break;
+      case 'easy':
+        diffColor = const Color(0xFF628141);
+        diffEmoji = '⚡';
+        break;
+      case 'medium':
+        diffColor = _orange;
+        diffEmoji = '🔥';
+        break;
+      default:
+        diffColor = Colors.red;
+        diffEmoji = '💪';
+        break;
     }
 
     return Padding(
@@ -424,16 +484,25 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06),
-            blurRadius: 6, offset: const Offset(0, 2))],
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 6,
+                offset: const Offset(0, 2))
+          ],
         ),
         child: Column(children: [
-          Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+          Text(label,
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
           const SizedBox(height: 3),
-          Text(val, style: TextStyle(
-            fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w700,
-            color: valColor)),
+          Text(val,
+              style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: valColor)),
         ]),
       ),
     );
@@ -446,11 +515,16 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF1B5E35), Color(0xFF2E7D52)],
-          begin: Alignment.topLeft, end: Alignment.bottomRight),
+            colors: [Color(0xFF1B5E35), Color(0xFF2E7D52)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: const Color(0xFF2E7D52).withOpacity(0.3),
-          blurRadius: 16, offset: const Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(
+              color: const Color(0xFF2E7D52).withOpacity(0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6))
+        ],
       ),
       padding: const EdgeInsets.all(18),
       child: Column(children: [
@@ -461,14 +535,20 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(14)),
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(14)),
               child: Column(children: [
                 Text('${r['calories']?.toStringAsFixed(0) ?? '0'}',
-                  style: const TextStyle(fontFamily: 'Inter', fontSize: 28,
-                    fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
-                const Text('kcal', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                const Text('พลังงาน', style: TextStyle(fontSize: 12, color: Colors.white)),
+                    style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1)),
+                const Text('kcal',
+                    style: TextStyle(fontSize: 11, color: Colors.white70)),
+                const Text('พลังงาน',
+                    style: TextStyle(fontSize: 12, color: Colors.white)),
               ]),
             ),
           ),
@@ -477,22 +557,24 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           Expanded(
             flex: 4,
             child: GridView.count(
-              shrinkWrap: true, crossAxisCount: 2,
-              crossAxisSpacing: 6, mainAxisSpacing: 6,
+              shrinkWrap: true,
+              crossAxisCount: 2,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
               childAspectRatio: 1.8,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                _nutItem('โปรตีน', r['protein'],  'g'),
-                _nutItem('คาร์บ',   r['carbs'],    'g'),
-                _nutItem('ไขมัน',   r['fat'],      'g'),
-                _nutItem('น้ำตาล',  r['sugar'],    'g'),
+                _nutItem('โปรตีน', r['protein'], 'g'),
+                _nutItem('คาร์บ', r['carbs'], 'g'),
+                _nutItem('ไขมัน', r['fat'], 'g'),
+                _nutItem('น้ำตาล', r['sugar'], 'g'),
               ],
             ),
           ),
         ]),
         const SizedBox(height: 8),
         Row(children: [
-          Expanded(child: _nutItem2('โซเดียม',       r['sodium'],      'mg')),
+          Expanded(child: _nutItem2('โซเดียม', r['sodium'], 'mg')),
           const SizedBox(width: 6),
           Expanded(child: _nutItem2('คอเลสเตอรอล', r['cholesterol'], 'mg')),
         ]),
@@ -503,12 +585,16 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   Widget _nutItem(String label, dynamic val, String unit) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10)),
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10)),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Text('${val?.toStringAsFixed(0) ?? '0'}',
-          style: const TextStyle(fontFamily: 'Inter', fontSize: 14,
-            fontWeight: FontWeight.w700, color: Colors.white, height: 1)),
+            style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                height: 1)),
         Text(unit, style: const TextStyle(fontSize: 9, color: Colors.white60)),
         Text(label, style: const TextStyle(fontSize: 10, color: Colors.white)),
       ]),
@@ -519,14 +605,18 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10)),
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10)),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+          Text(label,
+              style: const TextStyle(fontSize: 10, color: Colors.white70)),
           Text('${val?.toStringAsFixed(0) ?? '0'} $unit',
-            style: const TextStyle(fontFamily: 'Inter', fontSize: 13,
-              fontWeight: FontWeight.w700, color: Colors.white)),
+              style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white)),
         ]),
       ]),
     );
@@ -537,22 +627,31 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   // ────────────────────────────────────────────
   Widget _buildToolsRow() {
     return Wrap(
-      spacing: 8, runSpacing: 8,
+      spacing: 8,
+      runSpacing: 8,
       children: _tools.map((t) {
         final emoji = t['tool_emoji']?.toString() ?? '🔧';
-        final name  = t['tool_name']?.toString() ?? '';
+        final name = t['tool_name']?.toString() ?? '';
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(10),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06),
-              blurRadius: 6, offset: const Offset(0, 2))],
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2))
+            ],
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Text(emoji, style: const TextStyle(fontSize: 16)),
             const SizedBox(width: 6),
-            Text(name, style: const TextStyle(fontSize: 13,
-              fontWeight: FontWeight.w600, color: Color(0xFF2E5040))),
+            Text(name,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF2E5040))),
           ]),
         );
       }).toList(),
@@ -565,51 +664,64 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   Widget _buildIngredientsList() {
     return Column(
       children: _ingredients.asMap().entries.map((entry) {
-        final i   = entry.value;
+        final i = entry.value;
         final idx = entry.key + 1;
         final isOpt = i['is_optional'] == true;
-        final name  = i['ingredient_name']?.toString() ?? '';
-        final qty   = i['quantity'];
-        final unit  = i['unit']?.toString() ?? '';
-        final note  = i['note']?.toString() ?? '';
+        final name = i['ingredient_name']?.toString() ?? '';
+        final qty = i['quantity'];
+        final unit = i['unit']?.toString() ?? '';
+        final note = i['note']?.toString() ?? '';
 
         return Container(
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: isOpt
-                ? Colors.white.withOpacity(0.6)
-                : Colors.white,
+            color: isOpt ? Colors.white.withOpacity(0.6) : Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: isOpt
                 ? Border.all(color: _greenMid, style: BorderStyle.solid)
                 : null,
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06),
-              blurRadius: 6, offset: const Offset(0, 2))],
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2))
+            ],
           ),
           child: Row(children: [
             // Index badge
             Container(
-              width: 28, height: 28,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
-                color: isOpt ? const Color(0xFFFFF3E0) : _greenL,
-                borderRadius: BorderRadius.circular(8)),
+                  color: isOpt ? const Color(0xFFFFF3E0) : _greenL,
+                  borderRadius: BorderRadius.circular(8)),
               alignment: Alignment.center,
               child: isOpt
-                  ? const Text('✦', style: TextStyle(fontSize: 10, color: _orange))
-                  : Text('$idx', style: const TextStyle(
-                      fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w700,
-                      color: _green)),
+                  ? const Text('✦',
+                      style: TextStyle(fontSize: 10, color: _orange))
+                  : Text('$idx',
+                      style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _green)),
             ),
             const SizedBox(width: 12),
             // Name + note
-            Expanded(child: Column(
+            Expanded(
+                child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontSize: 14,
-                  fontWeight: FontWeight.w600, color: Color(0xFF0D2118))),
+                Text(name,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0D2118))),
                 if (note.isNotEmpty)
-                  Text(note, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  Text(note,
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade500)),
               ],
             )),
             // Quantity
@@ -617,17 +729,25 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(99)),
-                child: const Text('เสริม', style: TextStyle(fontSize: 10,
-                  fontWeight: FontWeight.w600, color: _orange)),
+                    color: const Color(0xFFFFF3E0),
+                    borderRadius: BorderRadius.circular(99)),
+                child: const Text('เสริม',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: _orange)),
               )
             else
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text(qty != null ? '$qty' : '-',
-                  style: const TextStyle(fontFamily: 'Inter', fontSize: 14,
-                    fontWeight: FontWeight.w700, color: _green)),
-                Text(unit, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _green)),
+                Text(unit,
+                    style:
+                        TextStyle(fontSize: 11, color: Colors.grey.shade500)),
               ]),
           ]),
         );
@@ -641,14 +761,14 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   Widget _buildStepsList() {
     return Column(
       children: _steps.asMap().entries.map((entry) {
-        final i     = entry.value;
+        final i = entry.value;
         final isLast = entry.key == _steps.length - 1;
-        final num   = i['step_number'] ?? (entry.key + 1);
+        final num = i['step_number'] ?? (entry.key + 1);
         final title = i['title']?.toString() ?? 'ขั้นตอนที่ $num';
-        final inst  = i['instruction']?.toString() ?? '';
-        final time  = i['time_minutes'] ?? 0;
-        final tip   = i['tips']?.toString() ?? '';
-        final img   = i['image_url']?.toString() ?? '';
+        final inst = i['instruction']?.toString() ?? '';
+        final time = i['time_minutes'] ?? 0;
+        final tip = i['tips']?.toString() ?? '';
+        final img = i['image_url']?.toString() ?? '';
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,20 +776,27 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             // Left: number + line
             Column(children: [
               Container(
-                width: 36, height: 36,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: isLast ? const Color(0xFF4CAF79) : _green,
                   shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: _green.withOpacity(0.3),
-                    blurRadius: 8, offset: const Offset(0, 3))],
+                  boxShadow: [
+                    BoxShadow(
+                        color: _green.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3))
+                  ],
                 ),
                 alignment: Alignment.center,
-                child: Text('$num', style: const TextStyle(
-                  fontFamily: 'Inter', fontSize: 15,
-                  fontWeight: FontWeight.w700, color: Colors.white)),
+                child: Text('$num',
+                    style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white)),
               ),
-              if (!isLast)
-                Container(width: 2, height: 120, color: _greenMid),
+              if (!isLast) Container(width: 2, height: 120, color: _greenMid),
             ]),
             const SizedBox(width: 12),
             // Right: content
@@ -681,18 +808,24 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                   children: [
                     // Title + time
                     Row(children: [
-                      Text(title, style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700,
-                        color: Color(0xFF0D2118))),
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0D2118))),
                       const Spacer(),
                       if (time > 0)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 3),
                           decoration: BoxDecoration(
-                            color: _orangeL, borderRadius: BorderRadius.circular(99)),
+                              color: _orangeL,
+                              borderRadius: BorderRadius.circular(99)),
                           child: Text('⏱ $time นาที',
-                            style: const TextStyle(fontSize: 11,
-                              fontWeight: FontWeight.w600, color: _orange)),
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _orange)),
                         ),
                     ]),
                     const SizedBox(height: 6),
@@ -701,12 +834,20 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white, borderRadius: BorderRadius.circular(14),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06),
-                          blurRadius: 6, offset: const Offset(0, 2))],
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2))
+                        ],
                       ),
-                      child: Text(inst, style: const TextStyle(
-                        fontSize: 13, color: Color(0xFF2E5040), height: 1.6)),
+                      child: Text(inst,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF2E5040),
+                              height: 1.6)),
                     ),
                     // Step image
                     if (img.isNotEmpty) ...[
@@ -714,8 +855,10 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: Image.network(img,
-                          width: double.infinity, height: 130, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox()),
+                            width: double.infinity,
+                            height: 130,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox()),
                       ),
                     ],
                     // Tip box
@@ -724,14 +867,18 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFFDE7),
-                          borderRadius: BorderRadius.circular(12)),
+                            color: const Color(0xFFFFFDE7),
+                            borderRadius: BorderRadius.circular(12)),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text('💡 ', style: TextStyle(fontSize: 14)),
-                            Expanded(child: Text(tip, style: const TextStyle(
-                              fontSize: 12, color: Color(0xFF2E5040), height: 1.4))),
+                            Expanded(
+                                child: Text(tip,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF2E5040),
+                                        height: 1.4))),
                           ],
                         ),
                       ),
@@ -752,14 +899,19 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   Widget _buildTipsCard() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06),
-          blurRadius: 10, offset: const Offset(0, 3))],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 3))
+        ],
       ),
       child: Column(
         children: _tips.asMap().entries.map((entry) {
-          final idx  = entry.key;
-          final tip  = entry.value;
+          final idx = entry.key;
+          final tip = entry.value;
           final text = tip['tip_text']?.toString() ?? '';
           final isLast = idx == _tips.length - 1;
           return Column(children: [
@@ -769,16 +921,24 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 22, height: 22,
+                    width: 22,
+                    height: 22,
                     decoration: BoxDecoration(
-                      color: _greenL, borderRadius: BorderRadius.circular(7)),
+                        color: _greenL, borderRadius: BorderRadius.circular(7)),
                     alignment: Alignment.center,
-                    child: Text('${idx + 1}', style: const TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w700, color: _green)),
+                    child: Text('${idx + 1}',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _green)),
                   ),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(text,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF2E5040), height: 1.5))),
+                  Expanded(
+                      child: Text(text,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF2E5040),
+                              height: 1.5))),
                 ],
               ),
             ),
@@ -798,19 +958,28 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(99),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06),
-            blurRadius: 6, offset: const Offset(0, 2))],
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(99),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 6,
+                offset: const Offset(0, 2))
+          ],
         ),
         child: Row(children: [
-          const Expanded(child: Text('เขียนรีวิวของคุณ...',
-            style: TextStyle(fontSize: 13, color: Colors.grey))),
+          const Expanded(
+              child: Text('เขียนรีวิวของคุณ...',
+                  style: TextStyle(fontSize: 13, color: Colors.grey))),
           GestureDetector(
             onTap: () => _showReviewSheet(),
             child: Container(
-              width: 36, height: 36,
-              decoration: const BoxDecoration(color: _green, shape: BoxShape.circle),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 16)),
+                width: 36,
+                height: 36,
+                decoration:
+                    const BoxDecoration(color: _green, shape: BoxShape.circle),
+                child: const Icon(Icons.send_rounded,
+                    color: Colors.white, size: 16)),
           ),
         ]),
       ),
@@ -820,7 +989,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 20),
           child: Text('ยังไม่มีรีวิว เป็นคนแรกที่รีวิวเลย! 🎉',
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
         )
       else
         ..._reviews.map((rv) => _buildReviewItem(rv)).toList(),
@@ -828,10 +997,10 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   }
 
   Widget _buildReviewItem(Map<String, dynamic> rv) {
-    final rating   = rv['rating'] ?? 0;
-    final comment  = rv['comment']?.toString() ?? '';
+    final rating = rv['rating'] ?? 0;
+    final comment = rv['comment']?.toString() ?? '';
     final username = rv['username']?.toString() ?? 'ผู้ใช้';
-    final date     = rv['created_at']?.toString() ?? '';
+    final date = rv['created_at']?.toString() ?? '';
 
     String dateShort = '';
     try {
@@ -844,9 +1013,14 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05),
-          blurRadius: 6, offset: const Offset(0, 2))],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2))
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -854,23 +1028,30 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             radius: 16,
             backgroundColor: _greenMid,
             child: Text(username.isNotEmpty ? username[0].toUpperCase() : 'U',
-              style: const TextStyle(color: Colors.white, fontSize: 14,
-                fontWeight: FontWeight.w700)),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700)),
           ),
           const SizedBox(width: 8),
-          Text(username, style: const TextStyle(fontSize: 13,
-            fontWeight: FontWeight.w600)),
+          Text(username,
+              style:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const Spacer(),
-          Text(dateShort, style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+          Text(dateShort,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
         ]),
         const SizedBox(height: 4),
-        Row(children: List.generate(5, (i) => Icon(
-          i < rating ? Icons.star : Icons.star_border,
-          color: _gold, size: 14))),
+        Row(
+            children: List.generate(
+                5,
+                (i) => Icon(i < rating ? Icons.star : Icons.star_border,
+                    color: _gold, size: 14))),
         if (comment.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(comment, style: const TextStyle(
-            fontSize: 13, color: Color(0xFF2E5040), height: 1.4)),
+          Text(comment,
+              style: const TextStyle(
+                  fontSize: 13, color: Color(0xFF2E5040), height: 1.4)),
         ],
       ]),
     );
@@ -883,94 +1064,115 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณาเข้าสู่ระบบก่อนรีวิว')));
+          const SnackBar(content: Text('กรุณาเข้าสู่ระบบก่อนรีวิว')));
       return;
     }
 
     int selectedRating = 5;
-    final commentCtrl  = TextEditingController();
-    bool isSaving      = false;
+    final commentCtrl = TextEditingController();
+    bool isSaving = false;
 
     showModalBottomSheet(
-      context: context, isScrollControlled: true,
+      context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: Container(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               // Handle
-              Center(child: Container(width: 40, height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(99)))),
+              Center(
+                  child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(99)))),
               const SizedBox(height: 16),
               const Text('⭐ เขียนรีวิว',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               // Stars
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (i) => GestureDetector(
-                  onTap: () => setSheet(() => selectedRating = i + 1),
-                  child: Icon(
-                    i < selectedRating ? Icons.star : Icons.star_border,
-                    color: _gold, size: 36),
-                )),
+                children: List.generate(
+                    5,
+                    (i) => GestureDetector(
+                          onTap: () => setSheet(() => selectedRating = i + 1),
+                          child: Icon(
+                              i < selectedRating
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              color: _gold,
+                              size: 36),
+                        )),
               ),
               const SizedBox(height: 16),
               // Comment
               TextField(
                 controller: commentCtrl,
-                maxLines: 3, autofocus: true,
+                maxLines: 3,
+                autofocus: true,
                 decoration: InputDecoration(
                   hintText: 'บอกเล่าประสบการณ์ของคุณ...',
-                  filled: true, fillColor: _greenL,
+                  filled: true,
+                  fillColor: _greenL,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none),
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none),
                 ),
               ),
               const SizedBox(height: 16),
               // Submit
               SizedBox(
-                width: double.infinity, height: 52,
+                width: double.infinity,
+                height: 52,
                 child: ElevatedButton(
-                  onPressed: isSaving ? null : () async {
-                    setSheet(() => isSaving = true);
-                    try {
-                      final res = await http.post(
-                        Uri.parse('${AppConstants.baseUrl}/recipes/${widget.foodId}/review'),
-                        headers: {'Content-Type': 'application/json'},
-                        body: jsonEncode({
-                          'user_id': userId,
-                          'rating':  selectedRating,
-                          'comment': commentCtrl.text.trim(),
-                        }),
-                      );
-                      if (res.statusCode == 200 && mounted) {
-                        Navigator.pop(ctx);
-                        _fetchRecipe(); // refresh
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('✅ บันทึกรีวิวแล้ว!')));
-                      }
-                    } catch (_) {}
-                    setSheet(() => isSaving = false);
-                  },
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          setSheet(() => isSaving = true);
+                          try {
+                            final res = await http.post(
+                              Uri.parse(
+                                  '${AppConstants.baseUrl}/recipes/${widget.foodId}/review'),
+                              headers: {'Content-Type': 'application/json'},
+                              body: jsonEncode({
+                                'user_id': userId,
+                                'rating': selectedRating,
+                                'comment': commentCtrl.text.trim(),
+                              }),
+                            );
+                            if (res.statusCode == 200 && mounted) {
+                              Navigator.pop(ctx);
+                              _fetchRecipe(); // refresh
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('✅ บันทึกรีวิวแล้ว!')));
+                            }
+                          } catch (_) {}
+                          setSheet(() => isSaving = false);
+                        },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16))),
+                      backgroundColor: _green,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16))),
                   child: isSaving
-                      ? const SizedBox(width: 22, height: 22,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
                       : const Text('ส่งรีวิว',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                            color: Colors.white)),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white)),
                 ),
               ),
             ]),
@@ -984,287 +1186,55 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   //  ADD TO MEAL BAR
   // ────────────────────────────────────────────
   Widget _buildAddMealBar(Map<String, dynamic> r) {
-    final cal  = r['calories']?.toStringAsFixed(0) ?? '0';
+    final cal = r['calories']?.toStringAsFixed(0) ?? '0';
     final name = r['recipe_name']?.toString() ?? '';
 
     return Positioned(
-      bottom: 0, left: 0, right: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
       child: Container(
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF1B5E35), Color(0xFF2E7D52)],
-            begin: Alignment.centerLeft, end: Alignment.centerRight),
+              colors: [Color(0xFF1B5E35), Color(0xFF2E7D52)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(
-            color: const Color(0xFF2E7D52).withOpacity(0.4),
-            blurRadius: 20, offset: const Offset(0, 6))],
+          boxShadow: [
+            BoxShadow(
+                color: const Color(0xFF2E7D52).withOpacity(0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 6))
+          ],
         ),
         child: Row(children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('$cal kcal / จาน',
-              style: const TextStyle(fontFamily: 'Inter', fontSize: 15,
-                fontWeight: FontWeight.w700, color: Colors.white)),
+                style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white)),
             Text('เพิ่ม "$name" ในบันทึกอาหาร',
-              style: const TextStyle(fontSize: 11, color: Colors.white70)),
-          ]),
-          const Spacer(),
-          ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('✅ เพิ่ม "$name" แล้ว!')));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF1B5E35),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              elevation: 0,
-            ),
-            child: const Text('+ บันทึก',
-              style: TextStyle(fontFamily: 'Inter', fontSize: 14,
-                fontWeight: FontWeight.w700)),
-          ),
-        ]),
-      ),
-    );
-  }
-<<<<<<< Updated upstream
-}
-=======
-
-  // ────────────────────────────────────────────
-  //  REVIEWS
-  // ────────────────────────────────────────────
-  Widget _buildReviews() {
-    return Column(children: [
-      // ── Comment input ──
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(99),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06),
-            blurRadius: 6, offset: const Offset(0, 2))],
-        ),
-        child: Row(children: [
-          const Expanded(child: Text('เขียนรีวิวของคุณ...',
-            style: TextStyle(fontSize: 13, color: Colors.grey))),
-          GestureDetector(
-            onTap: () => _showReviewSheet(),
-            child: Container(
-              width: 36, height: 36,
-              decoration: const BoxDecoration(color: _green, shape: BoxShape.circle),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 16)),
-          ),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      // ── Review list ──
-      if (_reviews.isEmpty)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Text('ยังไม่มีรีวิว เป็นคนแรกที่รีวิวเลย! 🎉',
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-        )
-      else
-        ..._reviews.map((rv) => _buildReviewItem(rv)).toList(),
-    ]);
-  }
-
-  Widget _buildReviewItem(Map<String, dynamic> rv) {
-    final rating   = rv['rating'] ?? 0;
-    final comment  = rv['comment']?.toString() ?? '';
-    final username = rv['username']?.toString() ?? 'ผู้ใช้';
-    final date     = rv['created_at']?.toString() ?? '';
-
-    String dateShort = '';
-    try {
-      final d = DateTime.parse(date);
-      final diff = DateTime.now().difference(d).inDays;
-      dateShort = diff == 0 ? 'วันนี้' : '$diff วันที่แล้ว';
-    } catch (_) {}
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05),
-          blurRadius: 6, offset: const Offset(0, 2))],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: _greenMid,
-            child: Text(username.isNotEmpty ? username[0].toUpperCase() : 'U',
-              style: const TextStyle(color: Colors.white, fontSize: 14,
-                fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(width: 8),
-          Text(username, style: const TextStyle(fontSize: 13,
-            fontWeight: FontWeight.w600)),
-          const Spacer(),
-          Text(dateShort, style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-        ]),
-        const SizedBox(height: 4),
-        Row(children: List.generate(5, (i) => Icon(
-          i < rating ? Icons.star : Icons.star_border,
-          color: _gold, size: 14))),
-        if (comment.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(comment, style: const TextStyle(
-            fontSize: 13, color: Color(0xFF2E5040), height: 1.4)),
-        ],
-      ]),
-    );
-  }
-
-  // ────────────────────────────────────────────
-  //  REVIEW SHEET
-  // ────────────────────────────────────────────
-  void _showReviewSheet() {
-    final userId = ref.read(userDataProvider).userId;
-    if (userId == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณาเข้าสู่ระบบก่อนรีวิว')));
-      return;
-    }
-
-    int selectedRating = 5;
-    final commentCtrl  = TextEditingController();
-    bool isSaving      = false;
-
-    showModalBottomSheet(
-      context: context, isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              // Handle
-              Center(child: Container(width: 40, height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(99)))),
-              const SizedBox(height: 16),
-              const Text('⭐ เขียนรีวิว',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              // Stars
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (i) => GestureDetector(
-                  onTap: () => setSheet(() => selectedRating = i + 1),
-                  child: Icon(
-                    i < selectedRating ? Icons.star : Icons.star_border,
-                    color: _gold, size: 36),
-                )),
-              ),
-              const SizedBox(height: 16),
-              // Comment
-              TextField(
-                controller: commentCtrl,
-                maxLines: 3, autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'บอกเล่าประสบการณ์ของคุณ...',
-                  filled: true, fillColor: _greenL,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Submit
-              SizedBox(
-                width: double.infinity, height: 52,
-                child: ElevatedButton(
-                  onPressed: isSaving ? null : () async {
-                    setSheet(() => isSaving = true);
-                    try {
-                      final res = await http.post(
-                        Uri.parse('${AppConstants.baseUrl}/recipes/${widget.foodId}/review'),
-                        headers: {'Content-Type': 'application/json'},
-                        body: jsonEncode({
-                          'user_id': userId,
-                          'rating':  selectedRating,
-                          'comment': commentCtrl.text.trim(),
-                        }),
-                      );
-                      if (res.statusCode == 200 && mounted) {
-                        Navigator.pop(ctx);
-                        _fetchRecipe(); // refresh
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('✅ บันทึกรีวิวแล้ว!')));
-                      }
-                    } catch (_) {}
-                    setSheet(() => isSaving = false);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16))),
-                  child: isSaving
-                      ? const SizedBox(width: 22, height: 22,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('ส่งรีวิว',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                            color: Colors.white)),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ────────────────────────────────────────────
-  //  ADD TO MEAL BAR
-  // ────────────────────────────────────────────
-  Widget _buildAddMealBar(Map<String, dynamic> r) {
-    final cal  = r['calories']?.toStringAsFixed(0) ?? '0';
-    final name = r['recipe_name']?.toString() ?? '';
-
-    return Positioned(
-      bottom: 0, left: 0, right: 0,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1B5E35), Color(0xFF2E7D52)],
-            begin: Alignment.centerLeft, end: Alignment.centerRight),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(
-            color: const Color(0xFF2E7D52).withOpacity(0.4),
-            blurRadius: 20, offset: const Offset(0, 6))],
-        ),
-        child: Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$cal kcal / จาน',
-              style: const TextStyle(fontFamily: 'Inter', fontSize: 15,
-                fontWeight: FontWeight.w700, color: Colors.white)),
-            Text('เพิ่ม "$name" ในบันทึกอาหาร',
-              style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                style: const TextStyle(fontSize: 11, color: Colors.white70)),
           ]),
           const Spacer(),
           ElevatedButton(
             onPressed: () {
               showModalBottomSheet(
-                context: context, 
-                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                context: context,
+                shape: const RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(20))),
                 builder: (ctx) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('เลือกมื้ออาหารที่ต้องการบันทึก', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text('เลือกมื้ออาหารที่ต้องการบันทึก',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     _mealOption(ctx, '☀️ อาหารเช้า', 'meal_1', r),
                     _mealOption(ctx, '🌤️ อาหารกลางวัน', 'meal_2', r),
@@ -1278,13 +1248,15 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
               backgroundColor: Colors.white,
               foregroundColor: const Color(0xFF1B5E35),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               elevation: 0,
             ),
             child: const Text('+ บันทึก',
-              style: TextStyle(fontFamily: 'Inter', fontSize: 14,
-                fontWeight: FontWeight.w700)),
+                style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700)),
           ),
         ]),
       ),
@@ -1294,27 +1266,30 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   // ────────────────────────────────────────────
   //  HELPER: Record to Meal Log
   // ────────────────────────────────────────────
-  Widget _mealOption(BuildContext ctx, String label, String mealType, Map<String, dynamic> r) {
+  Widget _mealOption(
+      BuildContext ctx, String label, String mealType, Map<String, dynamic> r) {
     return ListTile(
       title: Text(label, style: const TextStyle(fontSize: 16)),
       trailing: const Icon(Icons.add_circle, color: _green),
       onTap: () async {
-        Navigator.pop(ctx); 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กำลังบันทึก...')));
+        Navigator.pop(ctx);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('กำลังบันทึก...')));
 
         final userId = ref.read(userDataProvider).userId;
         if (userId == 0) return;
 
         final foodId = widget.foodId;
-        final name   = r['recipe_name']?.toString() ?? r['food_name']?.toString() ?? '';
-        final cal    = double.tryParse(r['calories']?.toString() ?? '0') ?? 0.0;
-        final pro    = double.tryParse(r['protein']?.toString() ?? '0') ?? 0.0;
-        final carb   = double.tryParse(r['carbs']?.toString() ?? '0') ?? 0.0;
-        final fat    = double.tryParse(r['fat']?.toString() ?? '0') ?? 0.0;
-        
-        final now    = DateTime.now();
-        final dateStr= "${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}";
+        final name =
+            r['recipe_name']?.toString() ?? r['food_name']?.toString() ?? '';
+        final cal = double.tryParse(r['calories']?.toString() ?? '0') ?? 0.0;
+        final pro = double.tryParse(r['protein']?.toString() ?? '0') ?? 0.0;
+        final carb = double.tryParse(r['carbs']?.toString() ?? '0') ?? 0.0;
+        final fat = double.tryParse(r['fat']?.toString() ?? '0') ?? 0.0;
+
+        final now = DateTime.now();
+        final dateStr =
+            "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
         try {
           final res = await http.post(
@@ -1338,14 +1313,15 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           );
           if (res.statusCode == 200 && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('✅ เพิ่ม "$name" สำเร็จ')));
+                SnackBar(content: Text('✅ เพิ่ม "$name" สำเร็จ')));
           } else if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('❌ บันทึกไม่สำเร็จ')));
+                const SnackBar(content: Text('❌ บันทึกไม่สำเร็จ')));
           }
         } catch (_) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('❌ ระบบขัดข้อง')));
+          if (mounted)
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('❌ ระบบขัดข้อง')));
         }
       },
     );
@@ -1360,14 +1336,20 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Section title with accent line
         Row(children: [
-          Text(title, style: const TextStyle(fontFamily: 'Inter', fontSize: 16,
-            fontWeight: FontWeight.w700, color: Color(0xFF0D2118))),
+          Text(title,
+              style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0D2118))),
           const SizedBox(width: 8),
-          Expanded(child: Container(height: 2,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [_greenMid, Colors.transparent]),
-              borderRadius: BorderRadius.circular(99)))),
+          Expanded(
+              child: Container(
+                  height: 2,
+                  decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                          colors: [_greenMid, Colors.transparent]),
+                      borderRadius: BorderRadius.circular(99)))),
         ]),
         const SizedBox(height: 12),
         child,
@@ -1375,4 +1357,3 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     );
   }
 }
->>>>>>> Stashed changes
