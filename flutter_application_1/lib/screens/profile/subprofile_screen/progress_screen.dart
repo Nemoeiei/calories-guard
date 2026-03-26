@@ -139,6 +139,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     }
   }
 
+<<<<<<< Updated upstream
+  // แสดงรายละเอียดเมื่อกดวันที่ในปฏิทิน
+=======
   // ── NEW: Fetch Weight History ──
   Future<void> _fetchWeightHistory() async {
     final userId = ref.read(userDataProvider).userId;
@@ -209,16 +212,17 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     final daysMet = _getWeekDaysMetGoal(weekMonday, targetCal);
 
     // คำนวณ % ความคืบหน้าน้ำหนัก
-    // ใช้ weight ปัจจุบัน vs targetWeight (ถ้าลดน้ำหนัก)
-    final totalWeightToLose = userData.weight - userData.targetWeight;
-    // ถ้าน้ำหนักลดลงจาก session ก็ใช้ weightHistory แทน แต่ตอนนี้ใช้ approximation
-    final weightLostSoFar = _weightHistory.length >= 2
-        ? (_weightHistory.first['weight'] as num).toDouble() -
-            (_weightHistory.last['weight'] as num).toDouble()
-        : 0.0;
-    final weightProgress = totalWeightToLose > 0
-        ? (weightLostSoFar / totalWeightToLose).clamp(0.0, 1.0)
-        : 0.0;
+    double weightProgress = 0.0;
+    if (_weightHistory.length >= 2) {
+      final firstW = (_weightHistory.first['weight'] as num).toDouble();
+      final currentW = (_weightHistory.last['weight'] as num).toDouble();
+      final targetW = userData.targetWeight.toDouble();
+      final totalDiff = (targetW - firstW).abs();
+      final moved = (currentW - firstW).abs();
+      if (totalDiff > 0) {
+        weightProgress = (moved / totalDiff).clamp(0.0, 1.0);
+      }
+    }
 
     _badges = [
       AchievementBadge(
@@ -336,6 +340,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   // ─────────────────────────────────────────────
   // Day Details (existing, unchanged)
   // ─────────────────────────────────────────────
+>>>>>>> Stashed changes
   Future<void> _showDayDetails(DateTime date) async {
     final userId = ref.read(userDataProvider).userId;
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
