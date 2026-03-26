@@ -44,7 +44,106 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   Future<void> _fetchAllData() async {
     await _fetchUserData();
     await _fetchDailyData(_viewDate);
+    await _fetchProgressAndWeightStatus();
     if (mounted) setState(() => _isLoading = false);
+  }
+
+  double _weightProgressPercent = 0.0;
+  bool _hasWarnedWeight = false;
+
+  Future<void> _fetchProgressAndWeightStatus() async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+    
+    // 1. Progress Summary
+    try {
+      final progUrl = Uri.parse('${AppConstants.baseUrl}/progress_summary/$userId');
+      final progRes = await http.get(progUrl);
+      if (progRes.statusCode == 200) {
+        final progData = json.decode(utf8.decode(progRes.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _weightProgressPercent = (progData['progress_percent'] as num?)?.toDouble() ?? 0.0;
+          });
+        }
+      }
+    } catch (e) {
+      print("Error fetching progress: $e");
+    }
+
+    // 2. Weight Status Notification
+    if (!_hasWarnedWeight) {
+      try {
+        final stUrl = Uri.parse('${AppConstants.baseUrl}/weight_status/$userId');
+        final stRes = await http.get(stUrl);
+        if (stRes.statusCode == 200) {
+          final stData = json.decode(utf8.decode(stRes.bodyBytes));
+          if (stData['requires_update'] == true && mounted) {
+            _hasWarnedWeight = true; // Mark as warned this session
+            _showUpdateWeightDialog();
+          }
+        }
+      } catch (e) {
+        print("Error fetching weight status: $e");
+      }
+    }
+  }
+
+  void _showUpdateWeightDialog() {
+    final TextEditingController weightCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('อัปเดตน้ำหนักของคุณ', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('คุณไม่ได้อัปเดตน้ำหนักมาสักพักแล้ว (หรือยังไม่เคยบันทึก) เพื่อติดตามผลแม่นยำ กรุณากรอกน้ำหนักปัจจุบันครับ', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.black87)),
+            const SizedBox(height: 15),
+            TextField(
+              controller: weightCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'น้ำหนัก (kg)', border: OutlineInputBorder()),
+            )
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('ข้ามไปก่อน', style: TextStyle(color: Colors.grey, fontFamily: 'Inter'))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF628141)),
+            onPressed: () async {
+              double? w = double.tryParse(weightCtrl.text);
+              if (w != null && w > 0) {
+                Navigator.pop(context);
+                setState(() => _isLoading = true);
+                await _submitWeightLog(w);
+              }
+            },
+            child: const Text('บันทึก', style: TextStyle(color: Colors.white, fontFamily: 'Inter')),
+          )
+        ],
+      )
+    );
+  }
+
+  Future<void> _submitWeightLog(double weight) async {
+    final userId = ref.read(userDataProvider).userId;
+    try {
+      final url = Uri.parse('${AppConstants.baseUrl}/weight_logs/$userId');
+      final res = await http.post(url, 
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({"weight_kg": weight})
+      );
+      if (res.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('อัปเดตน้ำหนักสำเร็จแล้ว! 🎉'), backgroundColor: Colors.green));
+          await _fetchAllData();
+        }
+      }
+    } catch(e) {
+      print("Submit weight error: $e");
+    }
   }
 
   Future<void> _fetchUserData() async {
@@ -258,7 +357,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               const SizedBox(height: 4),
               Stack(children: [
                 Container(
-                    width: 140,
+                    width: double.infinity,
                     height: 2,
                     decoration: BoxDecoration(
                         color: const Color(0xFF979797).withOpacity(0.5),
@@ -274,7 +373,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               ]),
               const SizedBox(height: 2),
               SizedBox(
-                  width: 140,
+                  width: double.infinity,
                   child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -456,16 +555,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     String weightAction =
         (userData.weight > userData.targetWeight) ? "ลดอีก" : "เพิ่มอีก";
 
-    double weightProgress = 0.0;
-    if (userData.weight > 0 && userData.targetWeight > 0) {
-      if (userData.goal == GoalOption.loseWeight &&
-          userData.weight >= userData.targetWeight) {
-        double startWeight = userData.weight + 5;
-        double totalToLose = startWeight - userData.targetWeight;
-        double lost = startWeight - userData.weight;
-        weightProgress = (totalToLose > 0) ? (lost / totalToLose) : 0;
-      }
-    }
+    double weightProgress = _weightProgressPercent;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -662,104 +752,87 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                                         context,
                                         MaterialPageRoute(
                                             builder: (context) =>
-                                                const ProgressScreen()))),
+                                                const ProgressScreen())).then((_) => _fetchAllData())),
                               ],
                             ),
                           ),
-                          SizedBox(
-                            height: 250,
-                            child: Stack(
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Positioned(
-                                  left: 5,
-                                  top: 18,
+                                // Left side: Circular Progress
+                                Expanded(
+                                  flex: 5,
                                   child: Column(
                                     children: [
                                       SizedBox(
-                                        width: 170,
-                                        height: 170,
+                                        width: 150,
+                                        height: 150,
                                         child: Stack(
                                           alignment: Alignment.center,
                                           children: [
                                             const SizedBox(
                                                 width: 150,
                                                 height: 150,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                        value: 1.0,
-                                                        strokeWidth: 12,
-                                                        color:
-                                                            Color(0xFF8BAE66))),
+                                                child: CircularProgressIndicator(
+                                                    value: 1.0, strokeWidth: 12, color: Color(0xFF8BAE66))),
                                             SizedBox(
                                                 width: 150,
                                                 height: 150,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                        value: progress.clamp(
-                                                            0.0, 1.0),
-                                                        strokeWidth: 12,
-                                                        color: progressColor,
-                                                        strokeCap:
-                                                            StrokeCap.round)),
+                                                child: CircularProgressIndicator(
+                                                    value: progress.clamp(0.0, 1.0),
+                                                    strokeWidth: 12,
+                                                    color: progressColor,
+                                                    strokeCap: StrokeCap.round)),
                                             Column(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
+                                              mainAxisAlignment: MainAxisAlignment.center,
                                               children: [
                                                 Text('$currentCal',
                                                     style: TextStyle(
                                                         fontFamily: 'Inter',
-                                                        fontSize: 48,
-                                                        fontWeight:
-                                                            FontWeight.w500,
+                                                        fontSize: 40,
+                                                        fontWeight: FontWeight.w700,
                                                         color: calorieTextColor,
                                                         height: 1)),
                                                 Text('/ $targetCal KCAL',
                                                     style: const TextStyle(
-                                                        fontFamily: 'Inter',
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.w500)),
+                                                        fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500)),
                                               ],
                                             ),
                                           ],
                                         ),
                                       ),
-                                      const SizedBox(height: 30),
-                                      Text(getAdvice(),
-                                          style: TextStyle(
-                                              color: calorieTextColor,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 12)),
+                                      const SizedBox(height: 16),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                        child: Text(getAdvice(),
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                                color: calorieTextColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                                      ),
                                     ],
                                   ),
                                 ),
-                                Positioned(
-                                    left: 226,
-                                    top: 41,
-                                    child: _buildNutrientLabel(
-                                        'โปรตีน',
-                                        userData.consumedProtein,
-                                        targetP,
-                                        'assets/images/icon/meat.png',
-                                        'protein')),
-                                Positioned(
-                                    left: 226,
-                                    top: 102,
-                                    child: _buildNutrientLabel(
-                                        'คาร์บ',
-                                        userData.consumedCarbs,
-                                        targetC,
-                                        'assets/images/icon/rice.png',
-                                        'carbs')),
-                                Positioned(
-                                    left: 226,
-                                    top: 166,
-                                    child: _buildNutrientLabel(
-                                        'ไขมัน',
-                                        userData.consumedFat,
-                                        targetF,
-                                        'assets/images/icon/oil.png',
-                                        'fat')),
+                                const SizedBox(width: 8),
+                                // Right side: Macros
+                                Expanded(
+                                  flex: 4,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    children: [
+                                      _buildNutrientLabel(
+                                          'โปรตีน', userData.consumedProtein, targetP, 'assets/images/icon/meat.png', 'protein'),
+                                      const SizedBox(height: 16),
+                                      _buildNutrientLabel(
+                                          'คาร์บ', userData.consumedCarbs, targetC, 'assets/images/icon/rice.png', 'carbs'),
+                                      const SizedBox(height: 16),
+                                      _buildNutrientLabel(
+                                          'ไขมัน', userData.consumedFat, targetF, 'assets/images/icon/oil.png', 'fat'),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -770,161 +843,97 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                     Container(height: 20, color: Colors.white),
 
                     // ✅ --- Stats Section (Green Theme) ---
-                    SizedBox(
-                      height: 119,
+                    Container(
+                      constraints: const BoxConstraints(minHeight: 119),
                       width: double.infinity,
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                              child: Container(color: const Color(0xFFE8EFCF))),
-                          Positioned(
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: 159,
-                            child: Container(color: const Color(0xFFAFD198)),
-                          ),
-                          Positioned(
-                            left: 7,
-                            top: 5,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                  color: const Color(0xFFE8EFCF),
-                                  borderRadius: BorderRadius.circular(10)),
-                              child: const Text('เป้าหมายนํ้าหนักตัว',
-                                  style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black)),
+                      color: const Color(0xFFE8EFCF),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Left Box
+                            Expanded(
+                              flex: 5,
+                              child: Container(
+                                color: const Color(0xFFAFD198),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(color: const Color(0xFFE8EFCF), borderRadius: BorderRadius.circular(10)),
+                                      child: const Text('เป้าหมายนํ้าหนักตัว',
+                                          style: TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black)),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                                      textBaseline: TextBaseline.alphabetic,
+                                      children: [
+                                        Text(userData.weight.toStringAsFixed(1),
+                                            style: const TextStyle(fontFamily: 'Inter', fontSize: 32, fontWeight: FontWeight.w700, color: Colors.black)),
+                                        const Text(' / ', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black)),
+                                        Text('${userData.targetWeight.toStringAsFixed(1)} กก.',
+                                            style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black54)),
+
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text('$weightAction ${weightDiff.toStringAsFixed(1)} กก.',
+                                        style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black)),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                          Positioned(
-                            left: 29,
-                            top: 44,
-                            child: Text('${userData.weight.toInt()}',
-                                style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black)),
-                          ),
-                          const Positioned(
-                              left: 72,
-                              top: 58,
-                              child: Text('/',
-                                  style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black))),
-                          Positioned(
-                              left: 84,
-                              top: 59,
-                              child: Text(
-                                  '${userData.targetWeight.toInt()} กก.',
-                                  style: const TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color.fromRGBO(0, 0, 0, 0.7)))),
-                          Positioned(
-                            left: 30,
-                            top: 92,
-                            child: Text(
-                                '$weightAction ${weightDiff.toStringAsFixed(1)} กก.',
-                                style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black)),
-                          ),
-                          Positioned(
-                            left: 159,
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: Container(
-                              color: const Color(0xFFE8EFCF),
+                            // Right Boxes
+                            Expanded(
+                              flex: 6,
                               child: Row(
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         Text('BMI ${bmi.toStringAsFixed(1)}',
-                                            style: const TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black)),
-                                        const SizedBox(height: 7),
+                                            style: const TextStyle(fontFamily: 'Inter', fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black)),
+                                        const SizedBox(height: 6),
                                         Text(bmiStatus,
-                                            style: const TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black)),
-                                        const SizedBox(height: 7),
+                                            style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black54)),
+                                        const SizedBox(height: 6),
                                         Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 4),
-                                            color: Colors.white,
-                                            child: const Text('ต้องลดอีก 2.7',
-                                                style: TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.black)))
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
+                                            child: const Text('ต้องลดอีก 2.7', // Should be dynamic in the future!
+                                                style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black)))
                                       ],
                                     ),
                                   ),
-                                  Container(
-                                      width: 1,
-                                      height: 80,
-                                      color: Colors.black12),
+                                  Container(width: 1, height: 80, color: Colors.black12),
                                   Expanded(
                                     child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Text(
-                                            '${(weightProgress * 100).toInt()}%',
-                                            style: const TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black)),
-                                        const SizedBox(height: 7),
+                                        Text('${(weightProgress * 100).toInt()}%',
+                                            style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black)),
+                                        const SizedBox(height: 6),
                                         const Text('ความคืบหน้า',
-                                            style: TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black)),
-                                        const SizedBox(height: 7),
+                                            style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black54)),
+                                        const SizedBox(height: 6),
                                         Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 4),
-                                            color: Colors.white,
-                                            child: Text(
-                                                'เหลืออีก ${(100 - (weightProgress * 100)).toInt()}%',
-                                                style: const TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.black)))
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
+                                            child: Text('เหลืออีก ${(100 - (weightProgress * 100)).toInt()}%',
+                                                style: const TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black)))
                                       ],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
 

@@ -7,3 +7,8 @@ python-dotenv
 passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
+# --- For AI Chatbot Coaching ---
+google-generativeai
+scikit-learn
+pandas
+numpy

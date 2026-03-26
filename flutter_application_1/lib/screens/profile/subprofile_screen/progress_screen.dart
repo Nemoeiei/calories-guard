@@ -107,7 +107,208 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     }
   }
 
+<<<<<<< Updated upstream
   // แสดงรายละเอียดเมื่อกดวันที่ในปฏิทิน
+=======
+  // ── NEW: Fetch Weight History ──
+  Future<void> _fetchWeightHistory() async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+
+    // ❗ เพิ่ม endpoint นี้ใน backend:
+    // GET /users/{userId}/weight_history?limit=8
+    final url = Uri.parse(
+        '${AppConstants.baseUrl}/users/$userId/weight_history?limit=8');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _weightHistory = data
+              .map((e) => {
+                    'date': DateTime.parse(e['date']),
+                    'weight': (e['weight'] as num).toDouble(),
+                  })
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching weight history: $e");
+      // ถ้า API ยังไม่มี: ใช้ข้อมูลจำลองเพื่อ dev
+      // _weightHistory = _getMockWeightHistory();
+    }
+  }
+
+  // ── NEW: Fetch Top Foods ──
+  Future<void> _fetchTopFoods() async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+
+    // ❗ เพิ่ม endpoint นี้ใน backend:
+    // GET /daily_logs/{userId}/top_foods?days=7
+    final url = Uri.parse(
+        '${AppConstants.baseUrl}/daily_logs/$userId/top_foods?days=7');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _topFoods = data
+              .map((e) => {
+                    'name': e['name'] ?? '',
+                    'count': e['count'] ?? 0,
+                    'avg_calories':
+                        (e['avg_calories'] as num?)?.toDouble() ?? 0,
+                    'protein': (e['protein'] as num?)?.toDouble() ?? 0,
+                    'carbs': (e['carbs'] as num?)?.toDouble() ?? 0,
+                    'fat': (e['fat'] as num?)?.toDouble() ?? 0,
+                  })
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching top foods: $e");
+    }
+  }
+
+  // ── NEW: คำนวณ Badges จากข้อมูลที่มี ──
+  void _computeBadges() {
+    final streak = _calculateStreak();
+    final userData = ref.read(userDataProvider);
+    final targetCal = userData.targetCalories.toDouble();
+    final weekMonday = _getChartWeekMonday();
+    final daysMet = _getWeekDaysMetGoal(weekMonday, targetCal);
+
+    // คำนวณ % ความคืบหน้าน้ำหนัก
+    double weightProgress = 0.0;
+    if (_weightHistory.length >= 2) {
+      final firstW = (_weightHistory.first['weight'] as num).toDouble();
+      final currentW = (_weightHistory.last['weight'] as num).toDouble();
+      final targetW = userData.targetWeight.toDouble();
+      final totalDiff = (targetW - firstW).abs();
+      final moved = (currentW - firstW).abs();
+      if (totalDiff > 0) {
+        weightProgress = (moved / totalDiff).clamp(0.0, 1.0);
+      }
+    }
+
+    _badges = [
+      AchievementBadge(
+        id: 'streak7',
+        title: 'Streak 7 วัน',
+        description: 'บันทึกติดต่อกัน 7 วัน',
+        emoji: '🔥',
+        color: const Color(0xFFF9A825),
+        current: streak.clamp(0, 7),
+        total: 7,
+        unlocked: streak >= 7,
+      ),
+      AchievementBadge(
+        id: 'streak30',
+        title: 'Streak 30 วัน',
+        description: 'บันทึกติดต่อกัน 30 วัน',
+        emoji: '🌙',
+        color: const Color(0xFF4CAF79),
+        current: streak.clamp(0, 30),
+        total: 30,
+        unlocked: streak >= 30,
+      ),
+      AchievementBadge(
+        id: 'ontarget',
+        title: 'On Target',
+        description: 'แคลอรี่พอดีเป้า 3 วันติด',
+        emoji: '🎯',
+        color: const Color(0xFF628141),
+        current: daysMet.clamp(0, 3),
+        total: 3,
+        unlocked: daysMet >= 3,
+      ),
+      AchievementBadge(
+        id: 'firstgoal',
+        title: 'First Goal',
+        description: 'ลดน้ำหนักครั้งแรกสำเร็จ',
+        emoji: '⚖️',
+        color: const Color(0xFF1565C0),
+        current: weightProgress >= 0.1 ? 1 : 0,
+        total: 1,
+        unlocked: weightProgress >= 0.1,
+      ),
+      AchievementBadge(
+        id: 'halfgoal',
+        title: 'Half Way',
+        description: 'ลดน้ำหนักถึง 50% ของเป้าหมาย',
+        emoji: '🏅',
+        color: const Color(0xFF6A1B9A),
+        current: (weightProgress * 100).toInt().clamp(0, 50),
+        total: 50,
+        unlocked: weightProgress >= 0.5,
+      ),
+      AchievementBadge(
+        id: 'perfectweek',
+        title: 'Perfect Week',
+        description: 'Macro + แคลอรี่ครบ 7 วัน',
+        emoji: '⭐',
+        color: const Color(0xFFF9A825),
+        current: daysMet.clamp(0, 7),
+        total: 7,
+        unlocked: daysMet == 7,
+      ),
+      AchievementBadge(
+        id: 'foodexplorer',
+        title: 'Food Explorer',
+        description: 'กินอาหาร 10 ชนิด/สัปดาห์',
+        emoji: '🥗',
+        color: const Color(0xFF8B6FD4),
+        current: _topFoods.length.clamp(0, 10),
+        total: 10,
+        unlocked: _topFoods.length >= 10,
+      ),
+      AchievementBadge(
+        id: 'cardioking',
+        title: 'Cardio King',
+        description: 'ออกกำลังกาย 5 ครั้ง/สัปดาห์',
+        emoji: '🏃',
+        color: const Color(0xFFF57C00),
+        current: 0,
+        total: 5,
+        unlocked: false,
+        // ❗ ต้องการ API exercise logging
+      ),
+    ];
+  }
+
+  // ── NEW: คำนวณวันถึงเป้า ──
+  int _estimateDaysToGoal(UserData userData) {
+    final weekMonday = _getChartWeekMonday();
+    final avgCal = _getWeekAverageCal(weekMonday);
+    final targetCal = userData.targetCalories.toDouble();
+    final weightToLose = userData.weight - userData.targetWeight;
+    if (weightToLose <= 0) return 0;
+    if (avgCal <= 0 || targetCal <= 0) return -1;
+    // 7700 kcal = 1 kg fat
+    // deficit = kcal ที่กินน้อยกว่า TDEE จริง (ใช้ targetCal เป็น proxy)
+    final calDeficitPerDay = userData.tdee - avgCal;
+    if (calDeficitPerDay <= 0) return -1;
+    return ((weightToLose * 7700) / calDeficitPerDay).ceil();
+  }
+
+  // ── NEW: XP คำนวณจาก streak + days met ──
+  int _calculateXP(int streak, int daysMet) {
+    return (streak * 10) + (daysMet * 15);
+  }
+
+  int _calculateLevel(int xp) {
+    if (xp < 100) return 1;
+    if (xp < 300) return 2;
+    if (xp < 600) return 3;
+    if (xp < 1000) return 4;
+    return 5;
+  }
+
+  // ─────────────────────────────────────────────
+  // Day Details (existing, unchanged)
+  // ─────────────────────────────────────────────
+>>>>>>> Stashed changes
   Future<void> _showDayDetails(DateTime date) async {
     final userId = ref.read(userDataProvider).userId;
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
