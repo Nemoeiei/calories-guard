@@ -33,19 +33,11 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
     // ถ้าเป็นการเข้ามาเพื่อ Approve คำขอ (มี requestData)
     if (widget.requestData != null) {
       final req = widget.requestData!;
-      if (req['ingredients_json'] != null) {
-        try {
-          final meta = req['ingredients_json'] is String 
-              ? jsonDecode(req['ingredients_json']) 
-              : req['ingredients_json'];
-          if (meta != null) {
-            _caloriesCtrl.text = meta['original_calories']?.toString() ?? '';
-            _proteinCtrl.text = meta['original_protein']?.toString() ?? '';
-            _carbsCtrl.text = meta['original_carbs']?.toString() ?? '';
-            _fatCtrl.text = meta['original_fat']?.toString() ?? '';
-          }
-        } catch (_) {}
-      }
+      // อ่านข้อมูลโภชนาการจากฟิลด์ที่ user กรอกมา
+      _caloriesCtrl.text = req['calories']?.toString() ?? '';
+      _proteinCtrl.text = req['protein']?.toString() ?? '';
+      _carbsCtrl.text = req['carbs']?.toString() ?? '';
+      _fatCtrl.text = req['fat']?.toString() ?? '';
     }
   }
 
@@ -79,7 +71,7 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
         if (streamRes.statusCode == 200) {
           var responseData = await streamRes.stream.bytesToString();
           var json = jsonDecode(responseData);
-          imageUrl = json['url']; 
+          imageUrl = json['url'];
         }
       }
 
@@ -112,7 +104,7 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
           "protein": double.tryParse(_proteinCtrl.text) ?? 0,
           "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
           "fat": double.tryParse(_fatCtrl.text) ?? 0,
-          "image_url": imageUrl 
+          "image_url": imageUrl
         });
 
         res = await http.post(
@@ -125,9 +117,11 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
       if (res.statusCode == 200) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(isApproval ? 'อนุมัติเมนูสำเร็จ!' : 'บันทึกเมนูสำเร็จ!'),
+              content:
+                  Text(isApproval ? 'อนุมัติเมนูสำเร็จ!' : 'บันทึกเมนูสำเร็จ!'),
               backgroundColor: Colors.green));
-          Navigator.pop(context, true); // ปิดหน้าจอพร้อมส่งค่า true กลับไป รีเฟรช
+          Navigator.pop(
+              context, true); // ปิดหน้าจอพร้อมส่งค่า true กลับไป รีเฟรช
         }
       } else {
         throw Exception('Failed to save food: ${res.body}');

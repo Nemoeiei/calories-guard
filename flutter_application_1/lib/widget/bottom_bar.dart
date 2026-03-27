@@ -23,7 +23,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   // รายชื่อหน้า (เรียงตามลำดับ 0, 1, 2, 3)
   final List<Widget> _pages = [
     const AppHomeScreen(),            // Index 0: หน้าหลัก
-    const FoodLoggingScreen(),        // Index 1: หน้าบันทึก
+    const FoodLogScreen(),        // Index 1: หน้าบันทึก
     const RecommendedFoodScreen(),    // Index 2: อาหารแนะนำ
     const ExerciseRecommendationScreen(), // Index 3: ออกกำลังกาย
   ];
