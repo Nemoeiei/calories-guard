@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // ✅ 1. เพิ่ม import riverpod
+
 import '../../providers/user_data_provider.dart'; // ✅ 2. import provider
 
 // sub-screens imports
+
 import 'subprofile_screen/progress_screen.dart';
+
 import 'subprofile_screen/edit_profile_screen.dart';
+
 import 'subprofile_screen/unit_settings_screen.dart';
+
 import 'subprofile_screen/setting_screen.dart';
+
 import 'subprofile_screen/article_screen.dart';
 
 import '/login_register/screens/goal_selection_screen.dart';
+
 import '/login_register/screens/activity_level_screen.dart';
 
 // ✅ 3. เปลี่ยนจาก StatelessWidget เป็น ConsumerWidget
+
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -23,33 +32,45 @@ class ProfileScreen extends ConsumerWidget {
     // ✅ 4. เพิ่ม WidgetRef ref
 
     // ✅ 5. ดึงข้อมูล User จาก Provider
+
     final userData = ref.watch(userDataProvider);
 
     // ✅ 6. Logic คำนวณวันที่เหลือ
+
     String daysLeftText = "0";
+
     if (userData.targetDate != null) {
       final now = DateTime.now();
+
       // เอาแค่วันที่ (ตัดเวลาทิ้ง) เพื่อความแม่นยำ
+
       final today = DateTime(now.year, now.month, now.day);
+
       final target = DateTime(userData.targetDate!.year,
           userData.targetDate!.month, userData.targetDate!.day);
 
       final difference = target.difference(today).inDays;
 
       // ถ้าวันเป้าหมายผ่านไปแล้ว ให้เป็น 0 หรือติดลบตามต้องการ
+
       daysLeftText = difference > 0 ? difference.toString() : "0";
     }
 
     // แปลงเป้าหมายเป็นข้อความ (optional)
+
     String goalText = "ลดน้ำหนัก";
+
     Color goalColor = Colors.red; // Default: ลดน้ำหนัก = แดง
 
     if (userData.goal == GoalOption.maintainWeight) {
       goalText = "รักษาน้ำหนัก";
+
       goalColor = Colors.blue; // รักษาน้ำหนัก = น้ำเงิน
     } else if (userData.goal == GoalOption.buildMuscle) {
       goalText = "เพิ่มกล้ามเนื้อ";
+
       // ใช้ Colors.amber[700] หรือรหัสสีส้มเหลือง เพื่อให้อ่านออกบนพื้นขาว
+
       goalColor = const Color(0xFFFBC02D); // เหลืองเข้ม
     }
 
@@ -64,6 +85,7 @@ class ProfileScreen extends ConsumerWidget {
               const SizedBox(height: 37),
 
               // --- 1. Header ---
+
               Row(
                 children: [
                   IconButton(
@@ -90,6 +112,7 @@ class ProfileScreen extends ConsumerWidget {
               const SizedBox(height: 30),
 
               // --- 2. Profile Section ---
+
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -111,6 +134,7 @@ class ProfileScreen extends ConsumerWidget {
                     children: [
                       Text(
                         userData.name, // ✅ ใช้ชื่อจริง
+
                         style: const TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 20,
@@ -120,6 +144,7 @@ class ProfileScreen extends ConsumerWidget {
                       const SizedBox(height: 5),
                       Text(
                         'อายุ ${userData.age} • สูง ${userData.height.toInt()} ซม.', // ✅ ใช้ข้อมูลจริง
+
                         style: const TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 15,
@@ -139,9 +164,13 @@ class ProfileScreen extends ConsumerWidget {
                           'เป้าหมาย: $goalText',
                           style: TextStyle(
                             // ⚠️ ลบ const ตรงนี้ออก
+
                             fontFamily: 'Inter',
+
                             fontSize: 16,
+
                             fontWeight: FontWeight.w400,
+
                             color: goalColor, // หรือจะเปลี่ยนสีตามเป้าหมายก็ได้
                           ),
                         ),
@@ -154,6 +183,7 @@ class ProfileScreen extends ConsumerWidget {
               const SizedBox(height: 25),
 
               // --- 3. Stats Card ---
+
               Container(
                 height: 103,
                 width: double.infinity,
@@ -169,10 +199,14 @@ class ProfileScreen extends ConsumerWidget {
                         '${userData.weight.toInt()}',
                         'น้ำหนักปัจจุบัน',
                         const Color(0xFF47DB67)), // ✅ ใช้ข้อมูลจริง
+
                     _buildVerticalDivider(),
+
                     _buildStatItem('${userData.targetWeight.toInt()}',
                         'เป้าหมาย', const Color(0xFFB74D4D)), // ✅ ใช้ข้อมูลจริง
+
                     _buildVerticalDivider(),
+
                     _buildStatItem(daysLeftText, 'วันที่เหลือ',
                         const Color(0xFF344CE6)), // ✅ ใช้วันที่คำนวณได้
                   ],
@@ -182,11 +216,13 @@ class ProfileScreen extends ConsumerWidget {
               const SizedBox(height: 25),
 
               // --- 4. Menu Group 1: ข้อมูลส่วนตัว ---
+
               const Text('ข้อมูลส่วนตัว',
                   style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 16,
                       color: Color(0xFF6E6A6A))),
+
               const SizedBox(height: 10),
 
               Container(
@@ -210,7 +246,7 @@ class ProfileScreen extends ConsumerWidget {
                           context,
                           MaterialPageRoute(
                               builder: (context) =>
-                                  const GoalSelectionScreen(isEditing: true)));
+                                  const GoalSelectionScreen()));
                     }),
                     _buildMenuItem(Icons.directions_run, 'เเก้ไขระดับกิจกรรม',
                         showDivider: true, onTap: () {
@@ -234,11 +270,13 @@ class ProfileScreen extends ConsumerWidget {
               const SizedBox(height: 20),
 
               // --- 5. Menu Group 2: การแสดงผลข้อมูล ---
+
               const Text('การเเสดงผลข้อมูล',
                   style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 16,
                       color: Color(0xFF6E6A6A))),
+
               const SizedBox(height: 10),
 
               Container(
@@ -277,6 +315,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   // --- Helper Widgets ---
+
   Widget _buildStatItem(String value, String label, Color valueColor) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,

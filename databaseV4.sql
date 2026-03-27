@@ -2,12 +2,12 @@
 -- PostgreSQL database dump
 --
 
-\restrict lXH7fKppWeDyWaPdgalqk5iTlWU75RGrdHtGbjZhZFtT2jZMPbyGAgrXKNZmZ9v
+\restrict JZGjW12U9yIRBfMzyLoAC32F7rWMC82dUEf7N3flP1kO0R0Yns7sywc1weZOHgF
 
 -- Dumped from database version 18.1
 -- Dumped by pg_dump version 18.1
 
--- Started on 2026-03-22 17:05:24
+-- Started on 2026-03-26 20:51:01
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -458,7 +458,11 @@ CREATE TABLE cleangoal.food_requests (
     status cleangoal.request_status DEFAULT 'pending'::cleangoal.request_status,
     ingredients_json jsonb,
     reviewed_by bigint,
-    created_at timestamp without time zone DEFAULT now()
+    created_at timestamp without time zone DEFAULT now(),
+    calories numeric(6,2),
+    protein numeric(6,2),
+    carbs numeric(6,2),
+    fat numeric(6,2)
 );
 
 
@@ -1853,7 +1857,7 @@ COPY cleangoal.food_ingredients (food_ing_id, food_id, ingredient_id, amount, un
 -- Data for Name: food_requests; Type: TABLE DATA; Schema: cleangoal; Owner: postgres
 --
 
-COPY cleangoal.food_requests (request_id, user_id, food_name, status, ingredients_json, reviewed_by, created_at) FROM stdin;
+COPY cleangoal.food_requests (request_id, user_id, food_name, status, ingredients_json, reviewed_by, created_at, calories, protein, carbs, fat) FROM stdin;
 \.
 
 
@@ -2369,12 +2373,12 @@ COPY cleangoal.user_meal_plans (plan_id, user_id, item_id, name, description, so
 
 COPY cleangoal.users (user_id, username, email, password_hash, gender, birth_date, height_cm, current_weight_kg, goal_type, target_weight_kg, target_calories, activity_level, goal_start_date, goal_target_date, last_kpi_check_date, current_streak, last_login_date, total_login_days, avatar_url, role_id, created_at, updated_at, deleted_at, target_protein, target_carbs, target_fat, is_email_verified) FROM stdin;
 34	tt tt	tt@gmail.com	$2b$12$YRqh5mD2Uxdv7d77m.UutO9XMP5AqL1QeapPSUhwKCIyt05kU7daS	male	2000-01-01	180.00	80.00	lose_weight	72.00	1903	sedentary	2026-03-19	2026-11-14	2026-03-19	1	2026-03-19 00:00:00	1	\N	2	2026-03-19 21:22:39.672879	\N	\N	143	190	63	f
-5	admin 01	admin@gmail.com	$2b$12$90ARneLODLqolWadO3Jc6eB/ENSltqVV2KklQep6hY4i17wjNe232	male	2000-01-20	170.00	80.00	lose_weight	72.00	\N	sedentary	2026-02-19	2026-10-17	2026-02-19	2	2026-03-20 00:00:00	8	\N	1	2026-02-19 00:00:38.217958	\N	\N	\N	\N	\N	f
 36	test 01	nemozanarak123@gmail.com	$2b$12$kxsMziH.zEaUsTQq7EE3xeBwVj.g0JErtL/YDdTjKyIz4qGI2KiqO	male	2000-01-01	1.00	1.00	lose_weight	0.00	-130	sedentary	2026-03-20	2026-04-19	2026-03-20	1	2026-03-20 00:00:00	1	\N	2	2026-03-20 20:17:56.363682	\N	\N	-5	-21	-3	t
-37	test nemo	l3ackbolt@gmail.com	$2b$12$4cmjKahvE/r8ZF4Ty7KF3O3xe9/hSbVpjHRqO7QY6pO61l0ydsmwm	male	2000-01-01	180.00	75.00	lose_weight	71.94	2003	sedentary	2026-03-20	2026-11-17	2026-03-20	1	2026-03-22 00:00:00	4	\N	2	2026-03-20 22:05:13.353336	\N	\N	75	325	45	t
 33	ts 01	ts01@gmail.com	$2b$12$nmE.Aru6s7Hd/iuW5K2CLuE1kECQT5biU5RzXnE8MVoKRCemW8vQS	male	\N	\N	\N	\N	\N	2000	\N	2026-03-19	\N	2026-03-19	0	\N	0	\N	2	2026-03-19 21:07:59.358752	\N	\N	150	200	67	f
 35	nemo eiei	leonielmygoat10@gmail.com	$2b$12$7xH9eF0aghmY5jLKssg1X.udWDXtQcWQ7zQiJLAb7FEmY4C3mxK9i	male	2000-01-01	180.00	80.00	lose_weight	\N	2160	sedentary	2026-03-20	\N	2026-03-20	0	\N	0	\N	2	2026-03-20 20:01:49.661691	\N	\N	162	216	72	t
+37	test nemo	l3ackbolt@gmail.com	$2b$12$4cmjKahvE/r8ZF4Ty7KF3O3xe9/hSbVpjHRqO7QY6pO61l0ydsmwm	male	2000-01-01	180.00	75.00	lose_weight	71.94	2003	sedentary	2026-03-20	2026-11-17	2026-03-20	1	2026-03-26 00:00:00	8	\N	2	2026-03-20 22:05:13.353336	\N	\N	75	325	45	t
 31	test 01	test01@gmail.com	$2b$12$0hkKDSOeWgF2SjdFphevt.8dxh3glmRBViEb7kND8Rltxozkasd4G	male	2000-01-01	180.00	80.00	lose_weight	72.00	1903	sedentary	2026-03-19	2026-11-14	2026-03-19	0	\N	0	\N	2	2026-03-19 20:59:55.492792	\N	\N	143	190	63	f
+5	admin 01	admin@gmail.com	$2b$12$90ARneLODLqolWadO3Jc6eB/ENSltqVV2KklQep6hY4i17wjNe232	male	2000-01-20	170.00	80.00	lose_weight	72.00	\N	sedentary	2026-02-19	2026-10-17	2026-02-19	1	2026-03-26 00:00:00	10	\N	1	2026-02-19 00:00:38.217958	\N	\N	\N	\N	\N	f
 32	test 02	test02@gmail.com	$2b$12$xHwq32EMoHTFRbqt3JQPJ.k6jXaIUR8dF8pVbqkg39nOGLnmrXiZi	male	2000-01-01	1.00	1.00	\N	\N	-130	\N	2026-03-19	\N	2026-03-19	0	\N	0	\N	2	2026-03-19 21:02:17.215407	\N	\N	-10	-13	-4	f
 \.
 
@@ -2466,7 +2470,7 @@ SELECT pg_catalog.setval('cleangoal.food_ingredients_food_ing_id_seq', 1, false)
 -- Name: food_requests_request_id_seq; Type: SEQUENCE SET; Schema: cleangoal; Owner: postgres
 --
 
-SELECT pg_catalog.setval('cleangoal.food_requests_request_id_seq', 1, false);
+SELECT pg_catalog.setval('cleangoal.food_requests_request_id_seq', 2, true);
 
 
 --
@@ -2475,7 +2479,7 @@ SELECT pg_catalog.setval('cleangoal.food_requests_request_id_seq', 1, false);
 -- Name: foods_food_id_seq; Type: SEQUENCE SET; Schema: cleangoal; Owner: postgres
 --
 
-SELECT pg_catalog.setval('cleangoal.foods_food_id_seq', 100, true);
+SELECT pg_catalog.setval('cleangoal.foods_food_id_seq', 102, true);
 
 
 --
@@ -3460,11 +3464,11 @@ ALTER TABLE ONLY cleangoal.weight_logs
     ADD CONSTRAINT weight_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES cleangoal.users(user_id) ON DELETE CASCADE;
 
 
--- Completed on 2026-03-22 17:05:25
+-- Completed on 2026-03-26 20:51:01
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict lXH7fKppWeDyWaPdgalqk5iTlWU75RGrdHtGbjZhZFtT2jZMPbyGAgrXKNZmZ9v
+\unrestrict JZGjW12U9yIRBfMzyLoAC32F7rWMC82dUEf7N3flP1kO0R0Yns7sywc1weZOHgF
 

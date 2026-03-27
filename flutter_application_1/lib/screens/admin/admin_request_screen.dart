@@ -121,10 +121,14 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
   }) {
     final menuName = requestData['food_name'] ?? 'ไม่มีชื่อเมนู';
     final requesterName = requestData['requester_name'] ?? 'ผู้ใช้ไม่ระบุชื่อ';
+    final calories = requestData['calories']?.toString() ?? '0';
+    final protein = requestData['protein']?.toString() ?? '0';
+    final carbs = requestData['carbs']?.toString() ?? '0';
+    final fat = requestData['fat']?.toString() ?? '0';
 
     return Container(
       width: double.infinity,
-      height: 90,
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -137,7 +141,6 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -154,7 +157,7 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
 
           const SizedBox(width: 15),
 
-          // ข้อความ (ชื่อคนขอ + ชื่อเมนู)
+          // ข้อความ (ชื่อคนขอ + ชื่อเมนู + โภชนาการ)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,20 +168,32 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
                   requesterName,
                   style: const TextStyle(
                     fontFamily: 'Inter',
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 // ชื่อเมนูที่ขอ
                 Text(
                   'เพิ่ม $menuName',
                   style: const TextStyle(
                     fontFamily: 'Inter',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                     color: Color(0xFF6E6A6A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                // ข้อมูลโภชนาการ
+                Text(
+                  '${calories} kcal • P:${protein}g C:${carbs}g F:${fat}g',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF9E9E9E),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
