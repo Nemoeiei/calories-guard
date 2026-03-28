@@ -5,6 +5,7 @@ import '../../providers/user_data_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../services/notification_helper.dart';
+import 'restaurant_map_screen.dart';
 
 // ─────────────────────────────────────────────
 //  HomeScreen — หน้าหลักของ Calorie Guard
@@ -48,7 +49,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
     final fromProvider = ref.read(homeViewDateProvider);
     if (fromProvider != null) {
       ref.read(homeViewDateProvider.notifier).state = null;
-      setState(() => _viewDate = DateTime(fromProvider.year, fromProvider.month, fromProvider.day));
+      setState(() => _viewDate =
+          DateTime(fromProvider.year, fromProvider.month, fromProvider.day));
     }
   }
 
@@ -78,8 +80,10 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
 
-    final dateStr = "${forDate.year}-${forDate.month.toString().padLeft(2, '0')}-${forDate.day.toString().padLeft(2, '0')}";
-    final url = Uri.parse('${AppConstants.baseUrl}/daily_summary/$userId?date_record=$dateStr');
+    final dateStr =
+        "${forDate.year}-${forDate.month.toString().padLeft(2, '0')}-${forDate.day.toString().padLeft(2, '0')}";
+    final url = Uri.parse(
+        '${AppConstants.baseUrl}/daily_summary/$userId?date_record=$dateStr');
 
     try {
       final response = await http.get(url);
@@ -91,12 +95,12 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
         }
 
         ref.read(userDataProvider.notifier).updateDailyFood(
-          cal: (summaryData['total_calories_intake'] as num?)?.toInt() ?? 0,
-          protein: (summaryData['total_protein'] as num?)?.toInt() ?? 0,
-          carbs: (summaryData['total_carbs'] as num?)?.toInt() ?? 0,
-          fat: (summaryData['total_fat'] as num?)?.toInt() ?? 0,
-          dailyMeals: mealsMap,
-        );
+              cal: (summaryData['total_calories_intake'] as num?)?.toInt() ?? 0,
+              protein: (summaryData['total_protein'] as num?)?.toInt() ?? 0,
+              carbs: (summaryData['total_carbs'] as num?)?.toInt() ?? 0,
+              fat: (summaryData['total_fat'] as num?)?.toInt() ?? 0,
+              dailyMeals: mealsMap,
+            );
       }
     } catch (e) {
       print("Error fetching daily summary: $e");
@@ -117,7 +121,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
       }
     });
 
-    final targetCal = userData.targetCalories.toInt() > 0 ? userData.targetCalories.toInt() : 1500;
+    final targetCal = userData.targetCalories.toInt() > 0
+        ? userData.targetCalories.toInt()
+        : 1500;
     final currentCal = userData.consumedCalories;
     final burnedCal = 0;
     final netCal = currentCal - burnedCal;
@@ -138,7 +144,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
     final startWeight = currentWeight + 5;
     final weightLost = startWeight - currentWeight;
     final weightRemaining = currentWeight - targetWeight;
-    final weightProgress = ((startWeight - currentWeight) / (startWeight - targetWeight)).clamp(0.0, 1.0);
+    final weightProgress =
+        ((startWeight - currentWeight) / (startWeight - targetWeight))
+            .clamp(0.0, 1.0);
 
     if (isOver && !_hasWarnedCalories) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -167,10 +175,31 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
                       child: Column(
                         children: [
                           _buildDateStrip(userData),
-                          _buildCalorieCard(targetCal, currentCal, burnedCal, netCal, remainingCal, calPct, burnPct, isOver, currentP, targetP, currentC, targetC, currentF, targetF),
+                          _buildCalorieCard(
+                              targetCal,
+                              currentCal,
+                              burnedCal,
+                              netCal,
+                              remainingCal,
+                              calPct,
+                              burnPct,
+                              isOver,
+                              currentP,
+                              targetP,
+                              currentC,
+                              targetC,
+                              currentF,
+                              targetF),
                           _buildMealSummarySection(userData),
+                          _buildRestaurantMapButton(remainingCal),
                           _buildWaterTracker(),
-                          _buildProgressCard(currentWeight, startWeight, targetWeight, weightLost, weightRemaining, weightProgress),
+                          _buildProgressCard(
+                              currentWeight,
+                              startWeight,
+                              targetWeight,
+                              weightLost,
+                              weightRemaining,
+                              weightProgress),
                           const SizedBox(height: 100),
                         ],
                       ),
@@ -269,12 +298,28 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
   //  DATE STRIP + PROGRAM BADGE
   // ─────────────────────────────────────────────
   Widget _buildDateStrip(UserData userData) {
-    final thMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-    final dateStr = '${_viewDate.day} ${thMonths[_viewDate.month - 1]} ${_viewDate.year + 543}';
-    
+    final thMonths = [
+      'ม.ค.',
+      'ก.พ.',
+      'มี.ค.',
+      'เม.ย.',
+      'พ.ค.',
+      'มิ.ย.',
+      'ก.ค.',
+      'ส.ค.',
+      'ก.ย.',
+      'ต.ค.',
+      'พ.ย.',
+      'ธ.ค.'
+    ];
+    final dateStr =
+        '${_viewDate.day} ${thMonths[_viewDate.month - 1]} ${_viewDate.year + 543}';
+
     String programName = 'ลดน้ำหนัก';
-    if (userData.goal == GoalOption.maintainWeight) programName = 'รักษาน้ำหนัก';
-    if (userData.goal == GoalOption.buildMuscle) programName = 'เพิ่มกล้ามเนื้อ';
+    if (userData.goal == GoalOption.maintainWeight)
+      programName = 'รักษาน้ำหนัก';
+    if (userData.goal == GoalOption.buildMuscle)
+      programName = 'เพิ่มกล้ามเนื้อ';
 
     return Container(
       color: Colors.white,
@@ -338,7 +383,21 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
   // ─────────────────────────────────────────────
   //  CALORIE RING CARD
   // ─────────────────────────────────────────────
-  Widget _buildCalorieCard(int targetCal, int currentCal, int burnedCal, int netCal, int remainingCal, double calPct, double burnPct, bool isOver, int currentP, int targetP, int currentC, int targetC, int currentF, int targetF) {
+  Widget _buildCalorieCard(
+      int targetCal,
+      int currentCal,
+      int burnedCal,
+      int netCal,
+      int remainingCal,
+      double calPct,
+      double burnPct,
+      bool isOver,
+      int currentP,
+      int targetP,
+      int currentC,
+      int targetC,
+      int currentF,
+      int targetF) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       padding: const EdgeInsets.all(20),
@@ -370,7 +429,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
                         value: calPct,
                         strokeWidth: 10,
                         backgroundColor: _greenL,
-                        valueColor: AlwaysStoppedAnimation<Color>(isOver ? _orange : _green),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            isOver ? _orange : _green),
                       ),
                     ),
                     SizedBox(
@@ -380,7 +440,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
                         value: burnPct,
                         strokeWidth: 7,
                         backgroundColor: _orangeL,
-                        valueColor: const AlwaysStoppedAnimation<Color>(_orange),
+                        valueColor:
+                            const AlwaysStoppedAnimation<Color>(_orange),
                       ),
                     ),
                     Column(
@@ -401,7 +462,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
                           style: TextStyle(fontSize: 10, color: Colors.grey),
                         ),
                         Text(
-                          remainingCal > 0 ? 'เหลือ ${remainingCal}' : 'เกิน ${(-remainingCal)}',
+                          remainingCal > 0
+                              ? 'เหลือ ${remainingCal}'
+                              : 'เกิน ${(-remainingCal)}',
                           style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
@@ -418,7 +481,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _calStatRow('🎯 เป้าหมาย', '$targetCal kcal', Colors.black87),
+                    _calStatRow(
+                        '🎯 เป้าหมาย', '$targetCal kcal', Colors.black87),
                     _calStatRow('🍽️ กินแล้ว', '$currentCal kcal', _green),
                     _calStatRow('🏃 เผาผลาญ', '$burnedCal kcal', _orange),
                     const Divider(height: 12),
@@ -436,11 +500,14 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
           const SizedBox(height: 16),
           Row(
             children: [
-              _macroBar('โปรตีน', currentP.toDouble(), targetP.toDouble(), _green),
+              _macroBar(
+                  'โปรตีน', currentP.toDouble(), targetP.toDouble(), _green),
               const SizedBox(width: 8),
-              _macroBar('คาร์บ', currentC.toDouble(), targetC.toDouble(), const Color(0xFFFFB800)),
+              _macroBar('คาร์บ', currentC.toDouble(), targetC.toDouble(),
+                  const Color(0xFFFFB800)),
               const SizedBox(width: 8),
-              _macroBar('ไขมัน', currentF.toDouble(), targetF.toDouble(), _orange),
+              _macroBar(
+                  'ไขมัน', currentF.toDouble(), targetF.toDouble(), _orange),
             ],
           ),
         ],
@@ -448,12 +515,14 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
     );
   }
 
-  Widget _calStatRow(String label, String val, Color color, {bool isBold = false}) {
+  Widget _calStatRow(String label, String val, Color color,
+      {bool isBold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
         children: [
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text(label,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           const Spacer(),
           Text(
             val,
@@ -478,7 +547,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w600)),
               Text('${val.toInt()}g',
                   style: TextStyle(
                       fontSize: 10,
@@ -509,9 +580,24 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
   // ─────────────────────────────────────────────
   Widget _buildMealSummarySection(UserData userData) {
     final meals = [
-      {'id': 'breakfast', 'name': 'มื้อเช้า', 'emoji': '🌅', 'time': '06:00–10:00'},
-      {'id': 'lunch', 'name': 'มื้อกลางวัน', 'emoji': '☀️', 'time': '11:00–14:00'},
-      {'id': 'dinner', 'name': 'มื้อเย็น', 'emoji': '🌙', 'time': '17:00–21:00'},
+      {
+        'id': 'breakfast',
+        'name': 'มื้อเช้า',
+        'emoji': '🌅',
+        'time': '06:00–10:00'
+      },
+      {
+        'id': 'lunch',
+        'name': 'มื้อกลางวัน',
+        'emoji': '☀️',
+        'time': '11:00–14:00'
+      },
+      {
+        'id': 'dinner',
+        'name': 'มื้อเย็น',
+        'emoji': '🌙',
+        'time': '17:00–21:00'
+      },
       {'id': 'snack', 'name': 'ของว่าง', 'emoji': '🍎', 'time': 'ตลอดวัน'},
     ];
 
@@ -523,12 +609,16 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
             children: [
               const Text(
                 'บันทึกมื้ออาหาร',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Inter'),
               ),
               const Spacer(),
               Text(
                 'ดูทั้งหมด ›',
-                style: TextStyle(fontSize: 13, color: _green, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    fontSize: 13, color: _green, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -542,7 +632,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 1.3,
-            children: meals.map((meal) => _buildMealTile(meal, userData)).toList(),
+            children:
+                meals.map((meal) => _buildMealTile(meal, userData)).toList(),
           ),
         ),
       ],
@@ -552,7 +643,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
   Widget _buildMealTile(Map<String, dynamic> meal, UserData userData) {
     final mealData = userData.dailyMeals[meal['id']] ?? '';
     final hasFood = mealData.isNotEmpty && mealData != '-';
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -579,7 +670,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
                   borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
-                child: Text(meal['emoji'], style: const TextStyle(fontSize: 16)),
+                child:
+                    Text(meal['emoji'], style: const TextStyle(fontSize: 16)),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -588,12 +680,14 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
                   children: [
                     Text(
                       meal['name'],
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700),
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       meal['time'],
-                      style: TextStyle(fontSize: 9, color: Colors.grey.shade400),
+                      style:
+                          TextStyle(fontSize: 9, color: Colors.grey.shade400),
                     ),
                   ],
                 ),
@@ -614,19 +708,100 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
                 Container(
                   width: 18,
                   height: 18,
-                  decoration: BoxDecoration(color: _greenL, shape: BoxShape.circle),
+                  decoration:
+                      BoxDecoration(color: _greenL, shape: BoxShape.circle),
                   alignment: Alignment.center,
                   child: const Icon(Icons.add, size: 12, color: _green),
                 ),
                 const SizedBox(width: 6),
                 const Text(
                   'เพิ่มอาหาร',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _green),
+                  style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w600, color: _green),
                 ),
               ],
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  //  RESTAURANT MAP BUTTON
+  // ─────────────────────────────────────────────
+  Widget _buildRestaurantMapButton(int remainingCal) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RestaurantMapScreen(
+              remainingCalories: remainingCal.toDouble(),
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: _green.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: _greenL,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                '📍',
+                style: TextStyle(fontSize: 24),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ร้านอาหารใกล้ฉัน',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'แนะนำตามแคลที่เหลือ $remainingCal kcal',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: _green,
+              size: 18,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -728,7 +903,13 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
   // ─────────────────────────────────────────────
   //  PROGRESS CARD
   // ─────────────────────────────────────────────
-  Widget _buildProgressCard(double currentWeight, double startWeight, double targetWeight, double weightLost, double weightRemaining, double weightProgress) {
+  Widget _buildProgressCard(
+      double currentWeight,
+      double startWeight,
+      double targetWeight,
+      double weightLost,
+      double weightRemaining,
+      double weightProgress) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(16),
@@ -780,11 +961,14 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen>
           const SizedBox(height: 14),
           Row(
             children: [
-              _progressStat('${currentWeight.toStringAsFixed(1)}', 'น้ำหนักปัจจุบัน kg', Colors.black87),
+              _progressStat('${currentWeight.toStringAsFixed(1)}',
+                  'น้ำหนักปัจจุบัน kg', Colors.black87),
               const SizedBox(width: 10),
-              _progressStat('-${weightLost.toStringAsFixed(1)}', 'ลดไปแล้ว kg', _green),
+              _progressStat(
+                  '-${weightLost.toStringAsFixed(1)}', 'ลดไปแล้ว kg', _green),
               const SizedBox(width: 10),
-              _progressStat('${weightRemaining.toStringAsFixed(1)}', 'เหลืออีก kg', _orange),
+              _progressStat('${weightRemaining.toStringAsFixed(1)}',
+                  'เหลืออีก kg', _orange),
             ],
           ),
           const SizedBox(height: 14),
