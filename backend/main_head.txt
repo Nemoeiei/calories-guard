@@ -1,0 +1,200 @@
+﻿
+# --- API 10c: Day detail (cleangoal: meal_time, detail_items; meals.meal_type = breakfast/lunch/dinner/snack) ---
+
+@app.get("/daily_logs/{user_id}")
+
+def get_daily_log_by_date(user_id: int, date_query: date):
+
+    """α╕äα╕╖α╕Öα╕äα╣êα╕▓α╕Üα╕▒α╕Öα╕ùα╕╢α╕üα╕ºα╕▒α╕Öα╣Çα╕öα╕╡α╕óα╕º: calories, protein, carbs, fat, meals (breakfast/lunch/dinner/snack)."""
+
+    conn = get_db_connection()
+
+    try:
+
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+
+            SELECT total_calories_intake FROM daily_summaries
+
+            WHERE user_id = %s AND date_record = %s
+
+        """, (user_id, date_query))
+
+        row = cur.fetchone()
+
+        total_cal = int(row["total_calories_intake"]) if row and row["total_calories_intake"] else 0
+
+
+
+        cur.execute("""
+
+            SELECT COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.protein, 0) / NULLIF(f.calories, 0)), 0) AS total_protein,
+
+                   COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.carbs, 0) / NULLIF(f.calories, 0)), 0) AS total_carbs,
+
+                   COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.fat, 0) / NULLIF(f.calories, 0)), 0) AS total_fat
+
+            FROM meals m
+
+            JOIN detail_items di ON di.meal_id = m.meal_id
+
+            JOIN foods f ON f.food_id = di.food_id
+
+            WHERE m.user_id = %s AND DATE(m.meal_time) = %s
+
+        """, (user_id, date_query))
+
+        macro = cur.fetchone()
+
+
+
+        cur.execute("""
+
+            SELECT 
+                m.meal_type,
+                di.food_id,
+                di.food_name,
+                di.amount,
+                di.cal_per_unit,
+                f.protein,
+                f.carbs,
+                f.fat
+
+            FROM meals m
+
+            JOIN detail_items di ON di.meal_id = m.meal_id
+
+            LEFT JOIN foods f ON f.food_id = di.food_id
+
+            WHERE m.user_id = %s AND DATE(m.meal_time) = %s
+
+            ORDER BY m.meal_type, di.item_id
+
+        """, (user_id, date_query))
+
+        items = cur.fetchall()
+
+        # α╕êα╕▒α╕öα╕üα╕Ñα╕╕α╣êα╕íα╕òα╕▓α╕íα╕¢α╕úα╕░α╣Çα╕áα╕ùα╕íα╕╖α╣ëα╕¡
+        meals_map = {"breakfast": [], "lunch": [], "dinner": [], "snack": []}
+        
+        for item in items:
+            meal_type = item["meal_type"]
+            if meal_type in meals_map:
+                meals_map[meal_type].append({
+                    "food_id": item["food_id"],
+                    "food_name": item["food_name"],
+                    "amount": float(item["amount"]) if item["amount"] else 1.0,
+                    "cal_per_unit": float(item["cal_per_unit"]) if item["cal_per_unit"] else 0,
+                    "protein_per_unit": float(item["protein"]) if item["protein"] else 0,
+                    "carbs_per_unit": float(item["carbs"]) if item["carbs"] else 0,
+                    "fat_per_unit": float(item["fat"]) if item["fat"] else 0,
+                })
+
+        meals = meals_map
+
+        return {
+
+            "calories": total_cal,
+
+            "protein": int(macro["total_protein"]) if macro else 0,
+
+            "carbs": int(macro["total_carbs"]) if macro else 0,
+
+            "fat": int(macro["total_fat"]) if macro else 0,
+
+            "meals": meals,
+
+        }
+
+    finally:
+
+        if conn: conn.close()
+
+
+
+
+
+# --- API 11: Clear Meal (cleangoal: meals.meal_time, detail_items CASCADE α╕£α╣êα╕▓α╕Ö FK) ---
+
+@app.delete("/meals/clear/{user_id}")
+
+def clear_meal_type(user_id: int, date_record: date, meal_type: str):
+
+    conn = get_db_connection()
+
+    try:
+
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        meal_type_db = _meal_type_to_enum(meal_type)
+
+
+
+        cur.execute("""
+
+            DELETE FROM meals
+
+            WHERE user_id = %s
+
+              AND DATE(meal_time) = %s
+
+              AND meal_type = %s
+
+        """, (user_id, date_record, meal_type_db))
+
+
+
+        cur.execute("""
+
+            SELECT COALESCE(SUM(di.amount * di.cal_per_unit), 0) AS total_cal
+
+            FROM meals m
+
+            JOIN detail_items di ON di.meal_id = m.meal_id
+
+            WHERE m.user_id = %s AND DATE(m.meal_time) = %s
+
+        """, (user_id, date_record))
+
+        row = cur.fetchone()
+
+        new_cal = float(row['total_cal']) if row else 0
+
+
+
+        cur.execute("""
+
+            UPDATE daily_summaries
+
+            SET total_calories_intake = %s
+
+            WHERE user_id = %s AND date_record = %s
+
+        """, (new_cal, user_id, date_record))
+
+        if cur.rowcount == 0 and new_cal == 0:
+
+            cur.execute("""
+
+                DELETE FROM daily_summaries
+
+                WHERE user_id = %s AND date_record = %s
+
+            """, (user_id, date_record))
+
+
+
+        conn.commit()
+
+        return {"message": f"Cleared {meal_type} successfully"}
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+
+        if conn: conn.close()
