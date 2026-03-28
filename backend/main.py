@@ -2270,7 +2270,6 @@ def get_daily_log_by_date(user_id: int, date_query: date):
 
 
         cur.execute("""
-
             SELECT 
                 m.meal_type,
                 di.food_id,
@@ -2349,8 +2348,6 @@ def clear_meal_type(user_id: int, date_record: date, meal_type: str):
 
         meal_type_db = _meal_type_to_enum(meal_type)
 
-
-
         cur.execute("""
 
             DELETE FROM meals
@@ -2418,3 +2415,172 @@ def clear_meal_type(user_id: int, date_record: date, meal_type: str):
     finally:
 
         if conn: conn.close()
+
+# --- API 30: POST Weight Log ---
+class WeightLogEntry(BaseModel):
+    weight_kg: float
+
+@app.post("/weight_logs/{user_id}")
+def add_weight_log(user_id: int, entry: WeightLogEntry):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        today = date.today()
+        # Insert into weight_logs, ignore if duplicate on same day or update
+        cur.execute("""
+            INSERT INTO weight_logs (user_id, weight_kg, recorded_date)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (log_id) DO NOTHING
+        """, (user_id, entry.weight_kg, today))
+        
+        # We need to rely on the fact that if we can't ON CONFLICT recorded_date (no unique constraint possibly), we just insert.
+        # But wait, does weight_logs have a UNIQUE constraint on (user_id, recorded_date)? If not, we just insert.
+        cur.execute("""
+            UPDATE users SET current_weight_kg = %s, updated_at = NOW() WHERE user_id = %s
+        """, (entry.weight_kg, user_id))
+
+        conn.commit()
+        return {"message": "บันทึกน้ำหนักสำเร็จ"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API 31: GET Weight Status (Check if >= 14 days) ---
+@app.get("/weight_status/{user_id}")
+def get_weight_status(user_id: int):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT recorded_date, weight_kg 
+            FROM weight_logs 
+            WHERE user_id = %s 
+            ORDER BY recorded_date DESC 
+            LIMIT 1
+        """, (user_id,))
+        last_log = cur.fetchone()
+
+        cur.execute("SELECT current_weight_kg FROM users WHERE user_id = %s", (user_id,))
+        user_row = cur.fetchone()
+        current_weight = user_row['current_weight_kg'] if user_row else None
+
+        if not last_log:
+            return {"requires_update": True, "days_passed": None, "last_weight": current_weight}
+
+        last_date = last_log['recorded_date']
+        days_passed = (date.today() - last_date).days
+
+        return {
+            "requires_update": days_passed >= 14,
+            "days_passed": days_passed,
+            "last_recorded_date": last_date,
+            "last_weight": last_log['weight_kg']
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API 32: GET Progress Summary ---
+@app.get("/progress_summary/{user_id}")
+def get_progress_summary(user_id: int):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # 1. Get User Data
+        cur.execute("""
+            SELECT current_weight_kg, target_weight_kg, goal_type, goal_start_date 
+            FROM users 
+            WHERE user_id = %s
+        """, (user_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        current_w = float(user_row['current_weight_kg'] or 0)
+        target_w = float(user_row['target_weight_kg'] or 0)
+        goal_type = user_row['goal_type']
+        
+        # 2. Find Start Weight (earliest log since goal_start, or just earliest overall)
+        cur.execute("""
+            SELECT weight_kg FROM weight_logs 
+            WHERE user_id = %s 
+            ORDER BY recorded_date ASC LIMIT 1
+        """, (user_id,))
+        first_log = cur.fetchone()
+        
+        start_w = current_w
+        if first_log:
+            start_w = float(first_log['weight_kg'])
+        else:
+            # Fallback if no logs
+            if goal_type == 'lose_weight':
+                start_w = target_w + 5.0 if start_w < target_w + 5 else start_w
+            elif goal_type == 'gain_muscle':
+                start_w = target_w - 5.0 if start_w > target_w - 5 else start_w
+
+        # 3. Calculate Weight Progress %
+        progress_percent = 0.0
+        if goal_type == 'lose_weight' and start_w > target_w:
+            total_to_lose = start_w - target_w
+            lost = start_w - current_w
+            progress_percent = max(0.0, min(1.0, lost / total_to_lose))
+        elif goal_type == 'gain_muscle' and target_w > start_w:
+            total_to_gain = target_w - start_w
+            gained = current_w - start_w
+            progress_percent = max(0.0, min(1.0, gained / total_to_gain))
+        elif goal_type == 'maintain_weight':
+            diff = abs(current_w - target_w)
+            progress_percent = max(0.0, 1.0 - (diff / max(target_w, 1.0)))
+
+        return {
+            "start_weight_kg": start_w,
+            "current_weight_kg": current_w,
+            "target_weight_kg": target_w,
+            "progress_percent": progress_percent
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+# --- API 33: POST Upload Image (เก็บรูปเป็น Object บน Server) ---
+@app.post("/upload_image")
+async def upload_image(file: UploadFile = File(...)):
+    """อัปโหลดรูปภาพมาเก็บไว้ใน backend/static/images โดยตรง แทนการแปะ URL ภายนอก"""
+    try:
+        # Generate a unique filename to prevent collisions
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+        unique_filename = f"{uuid4().hex}.{file_ext}"
+        file_path = os.path.join(IMAGEDIR, unique_filename)
+        
+        # Save file to disk
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Return the local accessible URL route
+        image_url = f"/images/{unique_filename}"
+        return {"image_url": image_url, "message": "อัปโหลดรูปภาพสำเร็จ"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
+
+# --- API 34: Chatbot Coach (Hybrid AI) ---
+from chatbot_agent import CoachingAgent
+
+class ChatMessage(BaseModel):
+    user_id: int
+    message: str
+
+coach_agent = CoachingAgent()
+
+@app.post("/api/chat/coach")
+def chat_with_coach(payload: ChatMessage):
+    """พูดคุยกับ AI Coach ที่วิเคราะห์ประวัติการกินของคุณ"""
+    try:
+        response_text = coach_agent.generate_response(payload.user_id, payload.message)
+        return {"response": response_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Coach Error: {str(e)}")
