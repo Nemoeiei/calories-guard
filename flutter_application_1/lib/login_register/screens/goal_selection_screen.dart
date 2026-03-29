@@ -5,8 +5,7 @@ import '../../services/auth_service.dart';
 import 'target_weight_screen.dart';
 
 class GoalSelectionScreen extends ConsumerStatefulWidget {
-  final bool isEditing;
-  const GoalSelectionScreen({super.key, this.isEditing = false});
+  const GoalSelectionScreen({super.key});
 
   @override
   ConsumerState<GoalSelectionScreen> createState() =>
@@ -132,22 +131,21 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Progress Bar (แสดงเฉพาะตอนสมัคร)
-              if (!widget.isEditing)
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: SizedBox(
-                      height: 8,
-                      child: LinearProgressIndicator(
-                        value: 0.75,
-                        backgroundColor: Colors.grey.shade200,
-                        color: const Color(0xFF628141),
-                      ),
+              // Progress Bar
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: SizedBox(
+                    height: 8,
+                    child: LinearProgressIndicator(
+                      value: 0.75, // 60% - เลือกเป้าหมาย
+                      backgroundColor: Colors.grey.shade200,
+                      color: const Color(0xFF628141),
                     ),
                   ),
                 ),
+              ),
 
               // Header
               Padding(

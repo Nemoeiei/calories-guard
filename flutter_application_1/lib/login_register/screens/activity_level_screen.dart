@@ -224,22 +224,21 @@ class _ActivityLevelScreenState extends ConsumerState<ActivityLevelScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Progress Bar (แสดงเฉพาะตอนสมัคร) ---
-            if (!widget.isEditing)
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: SizedBox(
-                    height: 8,
-                    child: LinearProgressIndicator(
-                      value: 0.625,
-                      backgroundColor: Colors.grey.shade200,
-                      color: const Color(0xFF628141),
-                    ),
+            // --- Progress Bar ---
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: SizedBox(
+                  height: 8,
+                  child: LinearProgressIndicator(
+                    value: 0.625, // 50% - ระดับกิจกรรม
+                    backgroundColor: Colors.grey.shade200,
+                    color: const Color(0xFF628141),
                   ),
                 ),
               ),
+            ),
 
             // --- Header ---
             Padding(

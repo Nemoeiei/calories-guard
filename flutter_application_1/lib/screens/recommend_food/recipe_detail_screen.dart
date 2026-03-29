@@ -51,12 +51,12 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   Future<void> _fetchRecipe() async {
     try {
       final res = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/recipes/by_food/${widget.foodId}'),
+        Uri.parse('${AppConstants.baseUrl}/recipes/${widget.foodId}'),
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
-          _recipe = data['recipe'];
+          _recipe = data;
           _ingredients = data['ingredients'] ?? [];
           _steps = data['steps'] ?? [];
           _tools = data['tools'] ?? [];
@@ -1223,26 +1223,8 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           const Spacer(),
           ElevatedButton(
             onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                shape: const RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(20))),
-                builder: (ctx) => Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('เลือกมื้ออาหารที่ต้องการบันทึก',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 16),
-                    _mealOption(ctx, '☀️ อาหารเช้า', 'meal_1', r),
-                    _mealOption(ctx, '🌤️ อาหารกลางวัน', 'meal_2', r),
-                    _mealOption(ctx, '🌙 อาหารเย็น', 'meal_3', r),
-                    _mealOption(ctx, '🥪 ของว่าง / อื่นๆ', 'meal_4', r),
-                  ]),
-                ),
-              );
+              ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('✅ เพิ่ม "$name" แล้ว!')));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -1260,70 +1242,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           ),
         ]),
       ),
-    );
-  }
-
-  // ────────────────────────────────────────────
-  //  HELPER: Record to Meal Log
-  // ────────────────────────────────────────────
-  Widget _mealOption(
-      BuildContext ctx, String label, String mealType, Map<String, dynamic> r) {
-    return ListTile(
-      title: Text(label, style: const TextStyle(fontSize: 16)),
-      trailing: const Icon(Icons.add_circle, color: _green),
-      onTap: () async {
-        Navigator.pop(ctx);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('กำลังบันทึก...')));
-
-        final userId = ref.read(userDataProvider).userId;
-        if (userId == 0) return;
-
-        final foodId = widget.foodId;
-        final name =
-            r['recipe_name']?.toString() ?? r['food_name']?.toString() ?? '';
-        final cal = double.tryParse(r['calories']?.toString() ?? '0') ?? 0.0;
-        final pro = double.tryParse(r['protein']?.toString() ?? '0') ?? 0.0;
-        final carb = double.tryParse(r['carbs']?.toString() ?? '0') ?? 0.0;
-        final fat = double.tryParse(r['fat']?.toString() ?? '0') ?? 0.0;
-
-        final now = DateTime.now();
-        final dateStr =
-            "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-
-        try {
-          final res = await http.post(
-            Uri.parse('${AppConstants.baseUrl}/meals/$userId'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'date': dateStr,
-              'meal_type': mealType,
-              'items': [
-                {
-                  'food_id': foodId,
-                  'food_name': name,
-                  'amount': 1.0,
-                  'cal_per_unit': cal,
-                  'protein_per_unit': pro,
-                  'carbs_per_unit': carb,
-                  'fat_per_unit': fat
-                }
-              ]
-            }),
-          );
-          if (res.statusCode == 200 && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('✅ เพิ่ม "$name" สำเร็จ')));
-          } else if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('❌ บันทึกไม่สำเร็จ')));
-          }
-        } catch (_) {
-          if (mounted)
-            ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('❌ ระบบขัดข้อง')));
-        }
-      },
     );
   }
 
