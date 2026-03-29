@@ -2,9 +2,9 @@ import os
 import json
 import google.generativeai as genai
 from psycopg2.extras import RealDictCursor
-from backend.database import get_db_connection
-from backend.ai_models.weight_trend_model import WeightTrendAnalyzer
-from backend.ai_models.food_analyzer import FoodAnalyzer
+from database import get_db_connection
+from ai_models.weight_trend_model import WeightTrendAnalyzer
+from ai_models.food_analyzer import FoodAnalyzer
 from dotenv import load_dotenv
 
 # Initialize Gemini & Environment Variables
