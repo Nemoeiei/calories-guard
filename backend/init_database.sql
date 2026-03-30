@@ -102,7 +102,7 @@ CREATE TABLE user_allergy_preferences (
 CREATE TABLE units (
     unit_id SERIAL PRIMARY KEY,
     name VARCHAR NOT NULL,
-    conversion_factor DECIMAL(10,4)
+    quantity DECIMAL(10,4)
 );
 
 CREATE TABLE foods (

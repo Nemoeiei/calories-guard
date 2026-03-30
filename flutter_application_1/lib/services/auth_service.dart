@@ -212,13 +212,11 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        return true; // อัปเดตสำเร็จ
+        return true;
       } else {
-        print('Update failed: ${response.body}');
         return false;
       }
     } catch (e) {
-      print('Connection error: $e');
       return false;
     }
   }

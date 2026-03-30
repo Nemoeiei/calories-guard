@@ -1155,7 +1155,16 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                                   const SnackBar(
                                       content: Text('✅ บันทึกรีวิวแล้ว!')));
                             }
-                          } catch (_) {}
+                          } catch (_) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('ไม่สามารถบันทึกรีวิวได้ กรุณาลองใหม่'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
                           setSheet(() => isSaving = false);
                         },
                   style: ElevatedButton.styleFrom(

@@ -1,19 +1,21 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_application_1/constants/constants.dart';
+import '/providers/user_data_provider.dart';
 import '../macro/macro_detail_screen.dart';
 
 import 'recipe_detail_screen.dart';
 
-class RecommendedFoodScreen extends StatefulWidget {
+class RecommendedFoodScreen extends ConsumerStatefulWidget {
   const RecommendedFoodScreen({super.key});
 
   @override
-  State<RecommendedFoodScreen> createState() => _RecommendedFoodScreenState();
+  ConsumerState<RecommendedFoodScreen> createState() => _RecommendedFoodScreenState();
 }
 
-class _RecommendedFoodScreenState extends State<RecommendedFoodScreen> {
+class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
   int _foodFilterIndex    = 0;
   int _drinkFilterIndex   = 0;
   int _dessertFilterIndex = 0;
@@ -25,6 +27,7 @@ class _RecommendedFoodScreenState extends State<RecommendedFoodScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
+  bool _hideAllergic = true; // กรองเมนูที่แพ้ออกโดยค่าเริ่มต้น
 
   @override
   void initState() {
@@ -61,9 +64,19 @@ class _RecommendedFoodScreenState extends State<RecommendedFoodScreen> {
   //  FILTER LOGIC
   // ────────────────────────────────────────────
 
-  // ✅ filter อาหาร ตาม chip ที่เลือก
+  /// คืน true ถ้าควรซ่อนอาหารนี้เพราะผู้ใช้แพ้
+  bool _isAllergicFood(Map<String, dynamic> food) {
+    if (!_hideAllergic) return false;
+    final userAllergies = ref.read(userDataProvider).allergyFlagIds;
+    if (userAllergies.isEmpty) return false;
+    final flags = (food['allergy_flag_ids'] as List?)?.cast<int>() ?? [];
+    return flags.any((id) => userAllergies.contains(id));
+  }
+
+  // ✅ filter อาหาร ตาม chip ที่เลือก + กรองแพ้อาหาร
   List<Map<String, dynamic>> get _filteredFood {
-    List<Map<String, dynamic>> base = _allFood;
+    List<Map<String, dynamic>> base =
+        _allFood.where((f) => !_isAllergicFood(f)).toList();
     switch (_foodFilterIndex) {
       case 1: // อาหารทั่วไป → calories > 400 (หนักหน่อย)
         base = base.where((f) => (f['calories'] as num? ?? 0) > 400).toList();
@@ -163,7 +176,60 @@ class _RecommendedFoodScreenState extends State<RecommendedFoodScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
+
+              // ── Allergy Filter Toggle ──
+              Builder(builder: (_) {
+                final userAllergies = ref.watch(userDataProvider).allergyFlagIds;
+                if (userAllergies.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 26),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _hideAllergic = !_hideAllergic),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _hideAllergic
+                            ? const Color(0xFF628141).withOpacity(0.1)
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _hideAllergic
+                              ? const Color(0xFF628141)
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.no_meals,
+                            size: 16,
+                            color: _hideAllergic
+                                ? const Color(0xFF628141)
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _hideAllergic
+                                ? 'ซ่อนเมนูที่แพ้อยู่'
+                                : 'แสดงเมนูที่แพ้ทั้งหมด',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: _hideAllergic
+                                  ? const Color(0xFF628141)
+                                  : Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+
+              const SizedBox(height: 12),
 
               if (_isLoading)
                 const Center(child: Padding(

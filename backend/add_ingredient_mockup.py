@@ -14,13 +14,99 @@ try:
         raise Exception("Cannot connect to Database")
     cur = conn.cursor()
 
-    # 1. Insert Units
-    cur.execute("INSERT INTO units (unit_id, name, conversion_factor) VALUES (1, 'กรัม (g)', 1.0) ON CONFLICT (unit_id) DO UPDATE SET name=EXCLUDED.name;")
-    cur.execute("INSERT INTO units (unit_id, name, conversion_factor) VALUES (2, 'ฟอง', 50.0) ON CONFLICT (unit_id) DO UPDATE SET name=EXCLUDED.name;")
-    cur.execute("INSERT INTO units (unit_id, name, conversion_factor) VALUES (3, 'ช้อนโต๊ะ', 15.0) ON CONFLICT (unit_id) DO UPDATE SET name=EXCLUDED.name;")
-    
+    # 0. สร้างตาราง unit_conversions ถ้ายังไม่มี
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS unit_conversions (
+            conversion_id  SERIAL PRIMARY KEY,
+            from_unit_id   INT NOT NULL REFERENCES units(unit_id) ON DELETE CASCADE,
+            to_unit_id     INT NOT NULL REFERENCES units(unit_id) ON DELETE CASCADE,
+            factor         DECIMAL(12, 6) NOT NULL,
+            note           VARCHAR,
+            created_at     TIMESTAMP DEFAULT NOW(),
+            UNIQUE (from_unit_id, to_unit_id)
+        )
+    """)
+    conn.commit()
+
+    # Rename conversion_factor → quantity (idempotent)
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name  = 'units'
+                  AND column_name = 'conversion_factor'
+            ) THEN
+                ALTER TABLE units RENAME COLUMN conversion_factor TO quantity;
+            END IF;
+        END$$;
+    """)
+    conn.commit()
+
+    # 1. Insert Units (quantity = 1 ทุกตัว — ค่าแปลงจริงอยู่ใน unit_conversions)
+    units_data = [
+        (1,  'กรัม (g)'),
+        (2,  'ฟอง'),
+        (3,  'ช้อนโต๊ะ'),
+        (4,  'ทัพพี'),
+        (5,  'จาน'),
+        (6,  'ออนซ์ (oz)'),
+        (7,  'ลิตร (L)'),
+        (8,  'ช้อนชา (tsp)'),
+        (9,  'มิลลิลิตร (ml)'),
+        (10, 'แก้ว'),
+        (11, 'ถ้วย'),
+        (12, 'ชิ้น'),
+        (13, 'ลูก / หัว'),
+        (14, 'กิโลกรัม (kg)'),
+        (15, 'ห่อ'),
+    ]
+    for uid, name in units_data:
+        cur.execute(
+            "INSERT INTO units (unit_id, name, quantity) VALUES (%s, %s, 1) "
+            "ON CONFLICT (unit_id) DO UPDATE SET name=EXCLUDED.name, quantity=1;",
+            (uid, name)
+        )
+
     # Reset Sequence for units
     cur.execute("SELECT setval('units_unit_id_seq', (SELECT MAX(unit_id) FROM units));")
+
+    # 1b. Insert unit_conversions (from_unit → กรัม)
+    # (from_unit_id, to_unit_id=1[กรัม], factor, note)
+    conversions_to_gram = [
+        (1,  1,    1.0,       'กรัม → กรัม'),
+        (2,  1,   50.0,       'ฟอง → กรัม (ไข่เบอร์กลาง)'),
+        (3,  1,   15.0,       'ช้อนโต๊ะ → กรัม'),
+        (4,  1,  100.0,       'ทัพพี → กรัม'),
+        (5,  1,  300.0,       'จาน → กรัม'),
+        (6,  1,   28.3495,    'ออนซ์ → กรัม (1 oz = 28.3495 g)'),
+        (7,  1, 1000.0,       'ลิตร → กรัม (น้ำ 1 L ≈ 1000 g)'),
+        (8,  1,    5.0,       'ช้อนชา → กรัม'),
+        (9,  1,    1.0,       'มิลลิลิตร → กรัม (น้ำ 1 ml ≈ 1 g)'),
+        (10, 1,  240.0,       'แก้ว → กรัม'),
+        (11, 1,  240.0,       'ถ้วย → กรัม'),
+        (12, 1,   30.0,       'ชิ้น → กรัม (ค่าเฉลี่ย)'),
+        (13, 1,  100.0,       'ลูก/หัว → กรัม (ค่าเฉลี่ย)'),
+        (14, 1, 1000.0,       'กิโลกรัม → กรัม'),
+        (15, 1,  150.0,       'ห่อ → กรัม (ค่าเฉลี่ย)'),
+    ]
+    # แถวเพิ่มเติม: แปลงระหว่างหน่วยมาตรฐาน (kg, g, oz, L)
+    extra_conversions = [
+        (14, 1,    1000.0,    'kg → g'),
+        (1,  14,      0.001,  'g → kg'),
+        (6,  1,      28.3495, 'oz → g'),
+        (1,  6,       0.035274,'g → oz'),
+        (7,  9,    1000.0,    'L → ml'),
+        (9,  7,       0.001,  'ml → L'),
+    ]
+    for from_id, to_id, factor, note in conversions_to_gram + extra_conversions:
+        cur.execute(
+            "INSERT INTO unit_conversions (from_unit_id, to_unit_id, factor, note) "
+            "VALUES (%s, %s, %s, %s) "
+            "ON CONFLICT (from_unit_id, to_unit_id) DO UPDATE "
+            "SET factor=EXCLUDED.factor, note=EXCLUDED.note;",
+            (from_id, to_id, factor, note)
+        )
 
     # 2. Insert Ingredients
     ingredients_data = [

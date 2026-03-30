@@ -20,6 +20,8 @@ import '/login_register/screens/goal_selection_screen.dart';
 
 import '/login_register/screens/activity_level_screen.dart';
 
+import '/login_register/screens/food_allergy_screen.dart';
+
 // ✅ 3. เปลี่ยนจาก StatelessWidget เป็น ConsumerWidget
 
 class ProfileScreen extends ConsumerWidget {
@@ -240,7 +242,7 @@ class ProfileScreen extends ConsumerWidget {
                           MaterialPageRoute(
                               builder: (context) => const EditProfileScreen()));
                     }),
-                    _buildMenuItem(Icons.flag, 'เเก้ไขเป้าหมาย',
+                    _buildMenuItem(Icons.flag, 'แก้ไขเป้าหมาย',
                         showDivider: true, onTap: () {
                       Navigator.push(
                           context,
@@ -248,13 +250,21 @@ class ProfileScreen extends ConsumerWidget {
                               builder: (context) =>
                                   const GoalSelectionScreen()));
                     }),
-                    _buildMenuItem(Icons.directions_run, 'เเก้ไขระดับกิจกรรม',
+                    _buildMenuItem(Icons.directions_run, 'แก้ไขระดับกิจกรรม',
                         showDivider: true, onTap: () {
                       Navigator.push(
                           context,
                           MaterialPageRoute(
                               builder: (context) => const ActivityLevelScreen(
                                   isEditing: true))); // ✅ ใส่ isEditing: true
+                    }),
+                    _buildMenuItem(Icons.no_meals, 'การแพ้อาหาร',
+                        showDivider: true, onTap: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) =>
+                                  const FoodAllergyScreen(isEditing: true)));
                     }),
                     _buildMenuItem(Icons.settings, 'ตั้งค่า',
                         showDivider: false, onTap: () {
@@ -271,7 +281,7 @@ class ProfileScreen extends ConsumerWidget {
 
               // --- 5. Menu Group 2: การแสดงผลข้อมูล ---
 
-              const Text('การเเสดงผลข้อมูล',
+              const Text('การแสดงผลข้อมูล',
                   style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 16,

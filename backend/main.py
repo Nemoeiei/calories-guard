@@ -600,6 +600,8 @@ class MealItem(BaseModel):
 
     fat_per_unit: float
 
+    unit_id: Optional[int] = None
+
 
 
 class DailyLogUpdate(BaseModel):
@@ -609,6 +611,20 @@ class DailyLogUpdate(BaseModel):
     meal_type: str # ✅ รับค่า string อะไรก็ได้ (Infinite Meals)
 
     items: List[MealItem]
+
+
+class RecipeReview(BaseModel):
+    user_id: int
+    rating: int   # 1–5
+    comment: str | None = None
+
+
+class WaterLogUpdate(BaseModel):
+    amount_ml: int  # total ml for the day (absolute, not delta)
+
+
+class AllergyUpdate(BaseModel):
+    flag_ids: List[int]  # list of allergy flag_ids to save (replaces existing)
 
 
 
@@ -654,7 +670,65 @@ async def upload_image(file: UploadFile = File(...)):
 
 
 
-# --- API 1: Foods List ---
+# --- API 0: Units List ---
+
+@app.get("/units")
+def get_units():
+    """คืนรายการหน่วยทั้งหมด พร้อม quantity"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT unit_id, name, quantity FROM units ORDER BY unit_id")
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        if conn: conn.close()
+
+
+# --- API 0b: Unit Conversions ---
+
+@app.get("/unit_conversions")
+def get_unit_conversions(from_unit_id: Optional[int] = None):
+    """คืนตาราง unit_conversions ทั้งหมด หรือกรองด้วย from_unit_id"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        if from_unit_id:
+            cur.execute("""
+                SELECT uc.conversion_id,
+                       uc.from_unit_id,
+                       fu.name AS from_unit_name,
+                       uc.to_unit_id,
+                       tu.name AS to_unit_name,
+                       uc.factor,
+                       uc.note
+                FROM unit_conversions uc
+                JOIN units fu ON fu.unit_id = uc.from_unit_id
+                JOIN units tu ON tu.unit_id = uc.to_unit_id
+                WHERE uc.from_unit_id = %s
+                ORDER BY uc.conversion_id
+            """, (from_unit_id,))
+        else:
+            cur.execute("""
+                SELECT uc.conversion_id,
+                       uc.from_unit_id,
+                       fu.name AS from_unit_name,
+                       uc.to_unit_id,
+                       tu.name AS to_unit_name,
+                       uc.factor,
+                       uc.note
+                FROM unit_conversions uc
+                JOIN units fu ON fu.unit_id = uc.from_unit_id
+                JOIN units tu ON tu.unit_id = uc.to_unit_id
+                ORDER BY uc.conversion_id
+            """)
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        if conn: conn.close()
+
+
+# --- API 1: Foods List (includes allergy_flag_ids per food) ---
 
 @app.get("/foods")
 
@@ -666,9 +740,26 @@ def read_foods():
 
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("SELECT * FROM foods ORDER BY food_id ASC")
+        cur.execute("""
+            SELECT f.*,
+                   COALESCE(
+                       array_agg(faf.flag_id) FILTER (WHERE faf.flag_id IS NOT NULL),
+                       '{}'
+                   ) AS allergy_flag_ids
+            FROM foods f
+            LEFT JOIN food_allergy_flags faf ON faf.food_id = f.food_id
+            GROUP BY f.food_id
+            ORDER BY f.food_id ASC
+        """)
 
-        return cur.fetchall()
+        rows = cur.fetchall()
+        # Convert PostgreSQL array to Python list for JSON serialization
+        result = []
+        for row in rows:
+            r = dict(row)
+            r['allergy_flag_ids'] = list(r['allergy_flag_ids']) if r['allergy_flag_ids'] else []
+            result.append(r)
+        return result
 
     except Exception as e:
 
@@ -1073,6 +1164,10 @@ def update_food(food_id: int, food: FoodCreate):
 
 def register(user: UserRegister):
 
+    import re
+    if not re.match(r'^[\w\.\-\+]+@[\w\-]+(\.[\w\-]+)*\.[a-zA-Z]{2,}$', user.email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+
     conn = get_db_connection()
 
     try:
@@ -1137,11 +1232,17 @@ def register(user: UserRegister):
 
         return {"message": "User created. Please check email for verification code.", "user": new_user}
 
-    except Exception as e:
+    except HTTPException:
 
         conn.rollback()
 
-        raise HTTPException(status_code=500, detail=str(e))
+        raise
+
+    except Exception:
+
+        conn.rollback()
+
+        raise HTTPException(status_code=500, detail="Registration failed. Please try again later.")
 
     finally:
 
@@ -1299,6 +1400,10 @@ def login(user: UserLogin):
 
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
+        if not db_user.get('is_email_verified'):
+
+            raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox for the verification code.")
+
 
 
         # Update last_login_date, total_login_days, current_streak
@@ -1354,6 +1459,14 @@ def login(user: UserLogin):
             "role_id": db_user['role_id'],
 
         }
+
+    except HTTPException:
+
+        raise
+
+    except Exception:
+
+        raise HTTPException(status_code=500, detail="Login failed. Please try again later.")
 
     finally:
 
@@ -1543,6 +1656,130 @@ def _init_password_reset_table():
 
 _init_password_reset_table()
 
+
+def _init_missing_tables():
+    """Create tables missing from original schema: recipe_reviews, user_favorites, water_logs.
+    Also adds macro columns to detail_items if not present."""
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS recipe_reviews (
+                review_id BIGSERIAL PRIMARY KEY,
+                food_id   BIGINT NOT NULL REFERENCES foods(food_id) ON DELETE CASCADE,
+                user_id   BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                rating    SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+                comment   TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE (food_id, user_id)
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_favorites (
+                id         BIGSERIAL PRIMARY KEY,
+                user_id    BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                food_id    BIGINT NOT NULL REFERENCES foods(food_id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE (user_id, food_id)
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS water_logs (
+                log_id      BIGSERIAL PRIMARY KEY,
+                user_id     BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                date_record DATE NOT NULL DEFAULT CURRENT_DATE,
+                amount_ml   INT  NOT NULL DEFAULT 0 CHECK (amount_ml >= 0),
+                UNIQUE (user_id, date_record)
+            )
+        """)
+
+        # food_allergy_flags — maps food → allergen flags (may not exist in older schemas)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS food_allergy_flags (
+                food_id  BIGINT NOT NULL REFERENCES foods(food_id) ON DELETE CASCADE,
+                flag_id  INT    NOT NULL REFERENCES allergy_flags(flag_id) ON DELETE CASCADE,
+                PRIMARY KEY (food_id, flag_id)
+            )
+        """)
+
+        # Seed allergy_flags ถ้าตารางว่าง
+        cur.execute("SELECT COUNT(*) FROM allergy_flags")
+        if cur.fetchone()[0] == 0:
+            allergens = [
+                (1,  "ถั่วลิสง",          "ถั่วลิสงและผลิตภัณฑ์จากถั่วลิสง"),
+                (2,  "อาหารทะเล",         "กุ้ง ปู หอย และสัตว์น้ำมีเปลือก"),
+                (3,  "ปลา",               "ปลาและผลิตภัณฑ์จากปลาทุกชนิด"),
+                (4,  "นมและผลิตภัณฑ์นม", "นมวัว เนย ชีส โยเกิร์ต"),
+                (5,  "ไข่",               "ไข่และผลิตภัณฑ์ที่มีส่วนผสมของไข่"),
+                (6,  "กลูเตน",            "แป้งสาลี ข้าวบาร์เลย์ ไรย์ และธัญพืชที่มีกลูเตน"),
+                (7,  "ถั่วเหลือง",        "ถั่วเหลืองและผลิตภัณฑ์จากถั่วเหลือง"),
+                (8,  "ถั่วต้นไม้",        "วอลนัต มะม่วงหิมพานต์ อัลมอนด์ ถั่วพิสตาชิโอ"),
+                (9,  "งา",                "เมล็ดงาและน้ำมันงา"),
+                (10, "แล็กโทส",           "น้ำตาลแล็กโทสในผลิตภัณฑ์นม"),
+            ]
+            for fid, name, desc in allergens:
+                cur.execute("""
+                    INSERT INTO allergy_flags (flag_id, name, description)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (flag_id) DO NOTHING
+                """, (fid, name, desc))
+            cur.execute("SELECT setval('allergy_flags_flag_id_seq', 10)")
+
+        # Add macro columns to detail_items (idempotent)
+        for col, typ in [("protein_per_unit", "FLOAT DEFAULT 0"),
+                         ("carbs_per_unit",   "FLOAT DEFAULT 0"),
+                         ("fat_per_unit",     "FLOAT DEFAULT 0")]:
+            cur.execute(f"""
+                ALTER TABLE detail_items ADD COLUMN IF NOT EXISTS {col} {typ}
+            """)
+
+        # Add unit_id column to detail_items (idempotent)
+        cur.execute("""
+            ALTER TABLE detail_items ADD COLUMN IF NOT EXISTS unit_id INT REFERENCES units(unit_id)
+        """)
+
+        # Rename conversion_factor → quantity in units (idempotent)
+        cur.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'cleangoal'
+                      AND table_name   = 'units'
+                      AND column_name  = 'conversion_factor'
+                ) THEN
+                    ALTER TABLE units RENAME COLUMN conversion_factor TO quantity;
+                END IF;
+            END$$;
+        """)
+
+        # Create unit_conversions table (idempotent)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS unit_conversions (
+                conversion_id  SERIAL PRIMARY KEY,
+                from_unit_id   INT NOT NULL REFERENCES units(unit_id) ON DELETE CASCADE,
+                to_unit_id     INT NOT NULL REFERENCES units(unit_id) ON DELETE CASCADE,
+                factor         DECIMAL(12, 6) NOT NULL,
+                note           VARCHAR,
+                created_at     TIMESTAMP DEFAULT NOW(),
+                UNIQUE (from_unit_id, to_unit_id)
+            )
+        """)
+
+        conn.commit()
+    except Exception as e:
+        print(f"[Init] Error creating missing tables: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+_init_missing_tables()
 
 
 def _generate_code() -> str:
@@ -1875,17 +2112,18 @@ def add_meal(user_id: int, log: DailyLogUpdate):
 
 
 
-        # 2. Insert detail_items (cleangoal ไม่มี meal_items; ไม่มี protein/carbs/fat ใน detail_items)
+        # 2. Insert detail_items (with macro columns for accurate per-item tracking)
 
         for item in log.items:
 
             cur.execute("""
 
-                INSERT INTO detail_items (meal_id, food_id, food_name, amount, cal_per_unit)
+                INSERT INTO detail_items (meal_id, food_id, food_name, amount, unit_id, cal_per_unit, protein_per_unit, carbs_per_unit, fat_per_unit)
 
-                VALUES (%s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 
-            """, (meal_id, item.food_id, item.food_name, item.amount, item.cal_per_unit))
+            """, (meal_id, item.food_id, item.food_name, item.amount, item.unit_id,
+                  item.cal_per_unit, item.protein_per_unit, item.carbs_per_unit, item.fat_per_unit))
 
 
 
@@ -1965,21 +2203,19 @@ def get_daily_summary(user_id: int, date_record: date):
 
 
 
-        # โปรตีน/คาร์บ/ไขมัน จาก detail_items + foods (อัตราส่วนจากแคล)
+        # โปรตีน/คาร์บ/ไขมัน จาก detail_items (ค่าที่บันทึกไว้โดยตรง ไม่คำนวณย้อนจากอัตราส่วน)
 
         cur.execute("""
 
-            SELECT COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.protein, 0) / NULLIF(f.calories, 0)), 0) AS total_protein,
+            SELECT COALESCE(SUM(di.amount * di.protein_per_unit), 0) AS total_protein,
 
-                   COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.carbs, 0) / NULLIF(f.calories, 0)), 0) AS total_carbs,
+                   COALESCE(SUM(di.amount * di.carbs_per_unit), 0) AS total_carbs,
 
-                   COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.fat, 0) / NULLIF(f.calories, 0)), 0) AS total_fat
+                   COALESCE(SUM(di.amount * di.fat_per_unit), 0) AS total_fat
 
             FROM meals m
 
             JOIN detail_items di ON di.meal_id = m.meal_id
-
-            JOIN foods f ON f.food_id = di.food_id
 
             WHERE m.user_id = %s AND DATE(m.meal_time) = %s
 
@@ -2163,17 +2399,15 @@ def get_weekly_logs(user_id: int, week_start: Optional[str] = None):
 
             SELECT DATE(m.meal_time) AS d,
 
-                   COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.protein, 0) / NULLIF(f.calories, 0)), 0) AS total_protein,
+                   COALESCE(SUM(di.amount * di.protein_per_unit), 0) AS total_protein,
 
-                   COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.carbs, 0) / NULLIF(f.calories, 0)), 0) AS total_carbs,
+                   COALESCE(SUM(di.amount * di.carbs_per_unit), 0) AS total_carbs,
 
-                   COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.fat, 0) / NULLIF(f.calories, 0)), 0) AS total_fat
+                   COALESCE(SUM(di.amount * di.fat_per_unit), 0) AS total_fat
 
             FROM meals m
 
             JOIN detail_items di ON di.meal_id = m.meal_id
-
-            JOIN foods f ON f.food_id = di.food_id
 
             WHERE m.user_id = %s AND DATE(m.meal_time) >= %s AND DATE(m.meal_time) <= %s
 
@@ -2249,17 +2483,15 @@ def get_daily_log_by_date(user_id: int, date_query: date):
 
         cur.execute("""
 
-            SELECT COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.protein, 0) / NULLIF(f.calories, 0)), 0) AS total_protein,
+            SELECT COALESCE(SUM(di.amount * di.protein_per_unit), 0) AS total_protein,
 
-                   COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.carbs, 0) / NULLIF(f.calories, 0)), 0) AS total_carbs,
+                   COALESCE(SUM(di.amount * di.carbs_per_unit), 0) AS total_carbs,
 
-                   COALESCE(SUM(di.amount * di.cal_per_unit * NULLIF(f.fat, 0) / NULLIF(f.calories, 0)), 0) AS total_fat
+                   COALESCE(SUM(di.amount * di.fat_per_unit), 0) AS total_fat
 
             FROM meals m
 
             JOIN detail_items di ON di.meal_id = m.meal_id
-
-            JOIN foods f ON f.food_id = di.food_id
 
             WHERE m.user_id = %s AND DATE(m.meal_time) = %s
 
@@ -2270,21 +2502,23 @@ def get_daily_log_by_date(user_id: int, date_query: date):
 
 
         cur.execute("""
-            SELECT 
+            SELECT
                 m.meal_type,
                 di.food_id,
                 di.food_name,
                 di.amount,
+                di.unit_id,
+                u.name        AS unit_name,
                 di.cal_per_unit,
-                f.protein,
-                f.carbs,
-                f.fat
+                di.protein_per_unit,
+                di.carbs_per_unit,
+                di.fat_per_unit
 
             FROM meals m
 
             JOIN detail_items di ON di.meal_id = m.meal_id
 
-            LEFT JOIN foods f ON f.food_id = di.food_id
+            LEFT JOIN units u ON u.unit_id = di.unit_id
 
             WHERE m.user_id = %s AND DATE(m.meal_time) = %s
 
@@ -2296,18 +2530,20 @@ def get_daily_log_by_date(user_id: int, date_query: date):
 
         # จัดกลุ่มตามประเภทมื้อ
         meals_map = {"breakfast": [], "lunch": [], "dinner": [], "snack": []}
-        
+
         for item in items:
             meal_type = item["meal_type"]
             if meal_type in meals_map:
                 meals_map[meal_type].append({
-                    "food_id": item["food_id"],
-                    "food_name": item["food_name"],
-                    "amount": float(item["amount"]) if item["amount"] else 1.0,
-                    "cal_per_unit": float(item["cal_per_unit"]) if item["cal_per_unit"] else 0,
-                    "protein_per_unit": float(item["protein"]) if item["protein"] else 0,
-                    "carbs_per_unit": float(item["carbs"]) if item["carbs"] else 0,
-                    "fat_per_unit": float(item["fat"]) if item["fat"] else 0,
+                    "food_id":          item["food_id"],
+                    "food_name":        item["food_name"],
+                    "amount":           float(item["amount"]) if item["amount"] else 1.0,
+                    "unit_id":          item["unit_id"],
+                    "unit_name":        item["unit_name"] or "กรัม (g)",
+                    "cal_per_unit":     float(item["cal_per_unit"])     if item["cal_per_unit"]     else 0,
+                    "protein_per_unit": float(item["protein_per_unit"]) if item["protein_per_unit"] else 0,
+                    "carbs_per_unit":   float(item["carbs_per_unit"])   if item["carbs_per_unit"]   else 0,
+                    "fat_per_unit":     float(item["fat_per_unit"])     if item["fat_per_unit"]     else 0,
                 })
 
         meals = meals_map
@@ -2584,3 +2820,539 @@ def chat_with_coach(payload: ChatMessage):
         return {"response": response_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Coach Error: {str(e)}")
+
+
+# =============================================================================
+# API 35–36: User Favorites
+# =============================================================================
+
+@app.get("/recipes/{food_id}/favorite/{user_id}")
+def get_favorite_status(food_id: int, user_id: int):
+    """Check whether a user has favorited a recipe."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT 1 FROM user_favorites WHERE user_id = %s AND food_id = %s",
+            (user_id, food_id),
+        )
+        return {"is_favorite": cur.fetchone() is not None}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.post("/recipes/{food_id}/favorite/{user_id}")
+def toggle_favorite(food_id: int, user_id: int):
+    """Toggle favorite on/off. Returns new state."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT 1 FROM user_favorites WHERE user_id = %s AND food_id = %s",
+            (user_id, food_id),
+        )
+        exists = cur.fetchone() is not None
+        if exists:
+            cur.execute(
+                "DELETE FROM user_favorites WHERE user_id = %s AND food_id = %s",
+                (user_id, food_id),
+            )
+            is_favorite = False
+        else:
+            cur.execute(
+                "INSERT INTO user_favorites (user_id, food_id) VALUES (%s, %s)",
+                (user_id, food_id),
+            )
+            is_favorite = True
+        conn.commit()
+        return {"is_favorite": is_favorite}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.get("/users/{user_id}/favorites")
+def get_user_favorites(user_id: int):
+    """Return all recipes favorited by a user, joined with food data."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT f.food_id, f.food_name, f.calories, f.protein, f.carbs, f.fat,
+                   f.image_url, uf.created_at AS favorited_at
+            FROM user_favorites uf
+            JOIN foods f ON f.food_id = uf.food_id
+            WHERE uf.user_id = %s
+            ORDER BY uf.created_at DESC
+        """, (user_id,))
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+# =============================================================================
+# API 37–38: Recipe Reviews
+# =============================================================================
+
+@app.get("/recipes/{food_id}/reviews")
+def get_recipe_reviews(food_id: int):
+    """Return all reviews for a recipe with aggregated rating stats."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            WITH review_stats AS (
+                SELECT
+                    food_id,
+                    COUNT(*)                        AS review_count,
+                    ROUND(AVG(rating)::numeric, 1)  AS avg_rating,
+                    COUNT(*) FILTER (WHERE rating = 5) AS five_star,
+                    COUNT(*) FILTER (WHERE rating = 4) AS four_star,
+                    COUNT(*) FILTER (WHERE rating = 3) AS three_star,
+                    COUNT(*) FILTER (WHERE rating = 2) AS two_star,
+                    COUNT(*) FILTER (WHERE rating = 1) AS one_star
+                FROM recipe_reviews
+                WHERE food_id = %s
+                GROUP BY food_id
+            )
+            SELECT
+                rr.review_id,
+                rr.user_id,
+                u.username,
+                rr.rating,
+                rr.comment,
+                rr.created_at,
+                rs.review_count,
+                rs.avg_rating,
+                rs.five_star,
+                rs.four_star,
+                rs.three_star,
+                rs.two_star,
+                rs.one_star
+            FROM recipe_reviews rr
+            JOIN users u ON u.user_id = rr.user_id
+            LEFT JOIN review_stats rs ON rs.food_id = rr.food_id
+            WHERE rr.food_id = %s
+            ORDER BY rr.created_at DESC
+        """, (food_id, food_id))
+        rows = cur.fetchall()
+        if not rows:
+            return {"reviews": [], "review_count": 0, "avg_rating": None,
+                    "rating_distribution": {}}
+        stats = rows[0]
+        return {
+            "reviews": [
+                {"review_id": r["review_id"], "user_id": r["user_id"],
+                 "username": r["username"], "rating": r["rating"],
+                 "comment": r["comment"], "created_at": r["created_at"].isoformat() if r["created_at"] else None}
+                for r in rows
+            ],
+            "review_count": stats["review_count"],
+            "avg_rating": float(stats["avg_rating"]) if stats["avg_rating"] else None,
+            "rating_distribution": {
+                "5": stats["five_star"], "4": stats["four_star"],
+                "3": stats["three_star"], "2": stats["two_star"], "1": stats["one_star"]
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.post("/recipes/{food_id}/review")
+def upsert_recipe_review(food_id: int, review: RecipeReview):
+    """Create or update a review (one review per user per recipe)."""
+    if not (1 <= review.rating <= 5):
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            INSERT INTO recipe_reviews (food_id, user_id, rating, comment)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (food_id, user_id)
+            DO UPDATE SET rating = EXCLUDED.rating,
+                          comment = EXCLUDED.comment,
+                          created_at = NOW()
+            RETURNING review_id
+        """, (food_id, review.user_id, review.rating, review.comment))
+        review_id = cur.fetchone()["review_id"]
+        conn.commit()
+        return {"message": "Review saved", "review_id": review_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+# =============================================================================
+# API 39–40: Water Logs
+# =============================================================================
+
+@app.get("/water_logs/{user_id}")
+def get_water_log(user_id: int, date_record: Optional[str] = None):
+    """Return today's (or specified date's) water intake in ml."""
+    target_date = date.fromisoformat(date_record) if date_record else date.today()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT amount_ml, date_record
+            FROM water_logs
+            WHERE user_id = %s AND date_record = %s
+        """, (user_id, target_date))
+        row = cur.fetchone()
+        return {
+            "date_record": target_date.isoformat(),
+            "amount_ml": int(row["amount_ml"]) if row else 0,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.post("/water_logs/{user_id}")
+def upsert_water_log(user_id: int, entry: WaterLogUpdate):
+    """Set (upsert) the total water intake for today."""
+    if entry.amount_ml < 0:
+        raise HTTPException(status_code=400, detail="amount_ml must be >= 0")
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            INSERT INTO water_logs (user_id, date_record, amount_ml)
+            VALUES (%s, CURRENT_DATE, %s)
+            ON CONFLICT (user_id, date_record)
+            DO UPDATE SET amount_ml = EXCLUDED.amount_ml
+            RETURNING amount_ml
+        """, (user_id, entry.amount_ml))
+        saved = cur.fetchone()["amount_ml"]
+        conn.commit()
+        return {"date_record": date.today().isoformat(), "amount_ml": saved}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+# =============================================================================
+# API 41–44: Insights (CTE-based analytics)
+# =============================================================================
+
+@app.get("/insights/{user_id}")
+def get_insights_overview(user_id: int):
+    """
+    Dashboard insight card — last 30 days.
+
+    Uses a CTE chain:
+      recent_daily  → per-day calories + macros from stored detail_items values
+      goal_flags    → annotate each day with on_target / cal_diff
+      summary       → aggregate into single overview row
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            WITH recent_daily AS (
+                SELECT
+                    ds.date_record,
+                    ds.total_calories_intake                              AS calories,
+                    COALESCE(SUM(di.amount * di.protein_per_unit), 0)    AS protein,
+                    COALESCE(SUM(di.amount * di.carbs_per_unit),   0)    AS carbs,
+                    COALESCE(SUM(di.amount * di.fat_per_unit),     0)    AS fat,
+                    u.target_calories,
+                    u.target_protein,
+                    u.target_carbs,
+                    u.target_fat,
+                    u.current_streak
+                FROM daily_summaries ds
+                LEFT JOIN meals     m  ON m.user_id  = ds.user_id AND DATE(m.meal_time) = ds.date_record
+                LEFT JOIN detail_items di ON di.meal_id = m.meal_id
+                CROSS JOIN (
+                    SELECT target_calories, target_protein, target_carbs,
+                           target_fat, current_streak
+                    FROM users WHERE user_id = %s
+                ) u
+                WHERE ds.user_id = %s
+                  AND ds.date_record >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY ds.date_record, ds.total_calories_intake,
+                         u.target_calories, u.target_protein, u.target_carbs,
+                         u.target_fat, u.current_streak
+            ),
+            goal_flags AS (
+                SELECT *,
+                    ABS(calories - target_calories)                     AS cal_diff,
+                    CASE WHEN target_calories > 0
+                              AND ABS(calories - target_calories) <= target_calories * 0.1
+                         THEN 1 ELSE 0 END                              AS on_target
+                FROM recent_daily
+            )
+            SELECT
+                COUNT(*)                                                 AS total_days_logged,
+                ROUND(AVG(calories)::numeric, 0)                        AS avg_calories,
+                SUM(on_target)                                           AS days_on_target,
+                ROUND(AVG(protein)::numeric, 1)                         AS avg_protein,
+                ROUND(AVG(carbs)::numeric, 1)                           AS avg_carbs,
+                ROUND(AVG(fat)::numeric, 1)                             AS avg_fat,
+                ROUND(MIN(cal_diff)::numeric, 0)                        AS best_day_diff,
+                MAX(current_streak)                                      AS current_streak
+            FROM goal_flags
+        """, (user_id, user_id))
+
+        row = cur.fetchone()
+        if not row or row["total_days_logged"] == 0:
+            return {"total_days_logged": 0, "avg_calories": 0, "days_on_target": 0,
+                    "avg_protein": 0, "avg_carbs": 0, "avg_fat": 0,
+                    "best_day_diff": None, "current_streak": 0}
+        return dict(row)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.get("/insights/{user_id}/top_foods")
+def get_top_foods(user_id: int, limit: int = 10):
+    """
+    Top foods eaten by frequency in the last 30 days.
+
+    CTE: food_frequency — counts occurrences and ranks by times_eaten.
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            WITH food_frequency AS (
+                SELECT
+                    di.food_id,
+                    di.food_name,
+                    COUNT(*)                                    AS times_eaten,
+                    ROUND(SUM(di.amount)::numeric, 1)           AS total_amount,
+                    ROUND(SUM(di.amount * di.cal_per_unit)::numeric, 0) AS total_calories,
+                    f.image_url,
+                    RANK() OVER (ORDER BY COUNT(*) DESC)        AS rank
+                FROM meals m
+                JOIN detail_items di ON di.meal_id = m.meal_id
+                LEFT JOIN foods    f  ON f.food_id  = di.food_id
+                WHERE m.user_id = %s
+                  AND m.meal_time >= NOW() - INTERVAL '30 days'
+                GROUP BY di.food_id, di.food_name, f.image_url
+            )
+            SELECT * FROM food_frequency
+            WHERE rank <= %s
+            ORDER BY rank
+        """, (user_id, limit))
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.get("/insights/{user_id}/calorie_trend")
+def get_calorie_trend(user_id: int, days: int = 30):
+    """
+    Daily calories vs target for the last N days, with 7-day moving average.
+
+    CTE chain:
+      daily_data   → raw calories per day joined with user target
+      moving_avg   → 7-day rolling average using window function
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            WITH daily_data AS (
+                SELECT
+                    ds.date_record,
+                    ds.total_calories_intake        AS calories,
+                    u.target_calories
+                FROM daily_summaries ds
+                CROSS JOIN (SELECT target_calories FROM users WHERE user_id = %s) u
+                WHERE ds.user_id = %s
+                  AND ds.date_record >= CURRENT_DATE - (%s || ' days')::INTERVAL
+            ),
+            moving_avg AS (
+                SELECT
+                    date_record,
+                    calories,
+                    target_calories,
+                    ROUND(AVG(calories) OVER (
+                        ORDER BY date_record
+                        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+                    )::numeric, 0)                  AS moving_avg_7d,
+                    CASE WHEN target_calories > 0
+                              AND ABS(calories - target_calories) <= target_calories * 0.1
+                         THEN true ELSE false END   AS on_target
+                FROM daily_data
+            )
+            SELECT * FROM moving_avg ORDER BY date_record
+        """, (user_id, user_id, days))
+        rows = cur.fetchall()
+        return [
+            {
+                "date": r["date_record"].isoformat(),
+                "calories": int(r["calories"]) if r["calories"] else 0,
+                "target_calories": int(r["target_calories"]) if r["target_calories"] else 0,
+                "moving_avg_7d": int(r["moving_avg_7d"]) if r["moving_avg_7d"] else 0,
+                "on_target": r["on_target"],
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.get("/insights/{user_id}/macro_balance")
+def get_macro_balance(user_id: int):
+    """
+    Average macro distribution over the last 7 days with % breakdown.
+
+    CTE chain:
+      macro_daily  → per-day sum of protein/carbs/fat from stored detail_items values
+      macro_avg    → average across days + Atwater-based % of total energy
+      daily_detail → individual day rows for sparkline data
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            WITH macro_daily AS (
+                SELECT
+                    DATE(m.meal_time)                           AS day,
+                    COALESCE(SUM(di.amount * di.protein_per_unit), 0) AS protein,
+                    COALESCE(SUM(di.amount * di.carbs_per_unit),   0) AS carbs,
+                    COALESCE(SUM(di.amount * di.fat_per_unit),     0) AS fat,
+                    COALESCE(SUM(di.amount * di.cal_per_unit),     0) AS total_cal
+                FROM meals m
+                JOIN detail_items di ON di.meal_id = m.meal_id
+                WHERE m.user_id = %s
+                  AND m.meal_time >= NOW() - INTERVAL '7 days'
+                GROUP BY DATE(m.meal_time)
+            ),
+            macro_avg AS (
+                SELECT
+                    ROUND(AVG(protein)::numeric, 1)  AS avg_protein_g,
+                    ROUND(AVG(carbs)::numeric, 1)    AS avg_carbs_g,
+                    ROUND(AVG(fat)::numeric, 1)      AS avg_fat_g,
+                    ROUND(AVG(total_cal)::numeric, 0) AS avg_calories,
+                    -- Atwater factors: protein=4, carbs=4, fat=9
+                    CASE WHEN AVG(total_cal) > 0
+                         THEN ROUND((AVG(protein) * 4 / AVG(total_cal) * 100)::numeric, 1)
+                         ELSE 0 END                  AS protein_pct,
+                    CASE WHEN AVG(total_cal) > 0
+                         THEN ROUND((AVG(carbs) * 4 / AVG(total_cal) * 100)::numeric, 1)
+                         ELSE 0 END                  AS carbs_pct,
+                    CASE WHEN AVG(total_cal) > 0
+                         THEN ROUND((AVG(fat) * 9 / AVG(total_cal) * 100)::numeric, 1)
+                         ELSE 0 END                  AS fat_pct
+                FROM macro_daily
+            )
+            SELECT
+                ma.*,
+                JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                        'day', md.day,
+                        'protein', ROUND(md.protein::numeric, 1),
+                        'carbs',   ROUND(md.carbs::numeric, 1),
+                        'fat',     ROUND(md.fat::numeric, 1),
+                        'calories', ROUND(md.total_cal::numeric, 0)
+                    ) ORDER BY md.day
+                ) AS daily_breakdown
+            FROM macro_avg ma, macro_daily md
+            GROUP BY ma.avg_protein_g, ma.avg_carbs_g, ma.avg_fat_g,
+                     ma.avg_calories, ma.protein_pct, ma.carbs_pct, ma.fat_pct
+        """, (user_id,))
+        row = cur.fetchone()
+        if not row:
+            return {"avg_protein_g": 0, "avg_carbs_g": 0, "avg_fat_g": 0,
+                    "avg_calories": 0, "protein_pct": 0, "carbs_pct": 0,
+                    "fat_pct": 0, "daily_breakdown": []}
+        return dict(row)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+# =============================================================================
+# API 45–47: Allergy Flags & User Allergy Preferences
+# =============================================================================
+
+@app.get("/allergy_flags")
+def get_allergy_flags():
+    """Return all available allergy flags from DB."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT flag_id, name, description FROM allergy_flags ORDER BY flag_id ASC")
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.get("/users/{user_id}/allergies")
+def get_user_allergies(user_id: int):
+    """Return the allergy flags the user has selected."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT af.flag_id, af.name, af.description
+            FROM user_allergy_preferences uap
+            JOIN allergy_flags af ON af.flag_id = uap.flag_id
+            WHERE uap.user_id = %s
+            ORDER BY af.flag_id
+        """, (user_id,))
+        rows = cur.fetchall()
+        return {
+            "flag_ids": [r["flag_id"] for r in rows],
+            "flags": [dict(r) for r in rows],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.post("/users/{user_id}/allergies")
+def set_user_allergies(user_id: int, body: AllergyUpdate):
+    """Replace user's allergy selections with the provided flag_ids list."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        # Delete all existing selections then re-insert
+        cur.execute("DELETE FROM user_allergy_preferences WHERE user_id = %s", (user_id,))
+        for flag_id in body.flag_ids:
+            cur.execute("""
+                INSERT INTO user_allergy_preferences (user_id, flag_id, preference_type)
+                VALUES (%s, %s, 'allergy')
+                ON CONFLICT (user_id, flag_id) DO NOTHING
+            """, (user_id, flag_id))
+        conn.commit()
+        return {"message": "Allergies saved", "flag_ids": body.flag_ids}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()

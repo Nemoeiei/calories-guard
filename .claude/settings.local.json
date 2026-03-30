@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST \"http://localhost:8000/login\" -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"framesirisak@gmail.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"\"\"\"\"}')",
+      "Bash(python -m json.tool)",
+      "Bash(head -20 echo \"---\" curl -s \"http://localhost:8000/daily_logs/18/calendar?month=3&year=2026\")",
+      "Bash(python:*)",
+      "Bash(grep -v \"^[0-9]*://\\\\|^[0-9]*: *//\\\\|^[0-9]*:  *//\\\\|^[0-9]*:   *//\")",
+      "Bash(PGPASSWORD=REDACTED_DB_PASSWORD \"/c/Program Files/PostgreSQL/18/bin/psql\" -h localhost -U postgres -d cleangoal_db -c \"SELECT COUNT\\(*\\) FROM cleangoal.foods;\" 2>&1)"
+    ]
+  }
+}

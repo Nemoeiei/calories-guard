@@ -25,7 +25,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     // ⚠️ อย่าลืมเช็ค IP ให้ตรงกับเครื่องที่รัน (10.0.2.2 สำหรับ Android Emulator)
 
-    final url = Uri.parse('\${AppConstants.baseUrl}/users/$userId');
+    final url = Uri.parse('${AppConstants.baseUrl}/users/$userId');
 
     try {
       final response = await http.put(
@@ -50,25 +50,27 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         }
 
         if (updateData.containsKey('height_cm')) {
+          final h = double.tryParse(updateData['height_cm'].toString()) ?? user.height;
           ref.read(userDataProvider.notifier).setPersonalInfo(
               name: user.name,
               birthDate: user.birthDate ?? DateTime.now(),
-              height: double.parse(updateData['height_cm'].toString()),
+              height: h,
               weight: user.weight);
         }
 
         if (updateData.containsKey('current_weight_kg')) {
+          final w = double.tryParse(updateData['current_weight_kg'].toString()) ?? user.weight;
           ref.read(userDataProvider.notifier).setPersonalInfo(
               name: user.name,
               birthDate: user.birthDate ?? DateTime.now(),
               height: user.height,
-              weight: double.parse(updateData['current_weight_kg'].toString()));
+              weight: w);
         }
 
         if (updateData.containsKey('target_weight_kg')) {
+          final tw = double.tryParse(updateData['target_weight_kg'].toString()) ?? user.targetWeight;
           ref.read(userDataProvider.notifier).setGoalInfo(
-              targetWeight:
-                  double.parse(updateData['target_weight_kg'].toString()),
+              targetWeight: tw,
               duration: user.duration);
         }
 
@@ -114,17 +116,45 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               child: const Text('ยกเลิก')),
           TextButton(
             onPressed: () {
-              if (controller.text.isNotEmpty) {
-                dynamic value = isNumber
-                    ? double.tryParse(controller.text)
-                    : controller.text;
+              final text = controller.text.trim();
+              if (text.isEmpty) return;
 
-                if (value != null) {
-                  _updateUserData({key: value});
-
-                  Navigator.pop(context);
+              if (isNumber) {
+                final value = double.tryParse(text);
+                if (value == null || value <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('กรุณากรอกตัวเลขที่ถูกต้อง (มากกว่า 0)'),
+                        backgroundColor: Colors.orange),
+                  );
+                  return;
                 }
+                if (key == 'height_cm' && (value < 50 || value > 300)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('ส่วนสูงต้องอยู่ระหว่าง 50–300 ซม.'),
+                        backgroundColor: Colors.orange),
+                  );
+                  return;
+                }
+                if ((key == 'current_weight_kg' || key == 'target_weight_kg') &&
+                    (value < 20 || value > 500)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('น้ำหนักต้องอยู่ระหว่าง 20–500 กก.'),
+                        backgroundColor: Colors.orange),
+                  );
+                  return;
+                }
+                _updateUserData({key: value});
+              } else {
+                if (text.length < 2) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('ชื่อต้องมีอย่างน้อย 2 ตัวอักษร'),
+                        backgroundColor: Colors.orange),
+                  );
+                  return;
+                }
+                _updateUserData({key: text});
               }
+              Navigator.pop(context);
             },
             child: const Text('บันทึก'),
           ),

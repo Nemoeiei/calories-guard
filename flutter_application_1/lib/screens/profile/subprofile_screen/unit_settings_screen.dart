@@ -42,26 +42,31 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
 
             _buildSectionHeader('น้ำหนัก'),
             _buildUnitGroup([
+              _buildUnitOption('กิโลกรัม (kg)', 'kg', userData.unitWeight, 'unit_weight'),
               _buildUnitOption('ปอนด์ (lbs)', 'lbs', userData.unitWeight, 'unit_weight'),
-              _buildUnitOption('กิโลกรัม (kg)', 'kg', userData.unitWeight, 'unit_weight', showDivider: false),
+              _buildUnitOption('สโตน (st)', 'st', userData.unitWeight, 'unit_weight', showDivider: false),
             ]),
 
             _buildSectionHeader('ส่วนสูง'),
             _buildUnitGroup([
+              _buildUnitOption('เซนติเมตร (cm)', 'cm', userData.unitHeight, 'unit_height'),
               _buildUnitOption('ฟุต (ft)', 'ft', userData.unitHeight, 'unit_height'),
-              _buildUnitOption('เซนติเมตร (cm)', 'cm', userData.unitHeight, 'unit_height', showDivider: false),
+              _buildUnitOption('นิ้ว (in)', 'in', userData.unitHeight, 'unit_height', showDivider: false),
             ]),
 
             _buildSectionHeader('พลังงาน'),
             _buildUnitGroup([
-              _buildUnitOption('แคลอรี่ (kcal)', 'kcal', userData.unitEnergy, 'unit_energy'),
-              _buildUnitOption('กิโลจูล (kj)', 'kj', userData.unitEnergy, 'unit_energy', showDivider: false),
+              _buildUnitOption('กิโลแคลอรี่ (kcal)', 'kcal', userData.unitEnergy, 'unit_energy'),
+              _buildUnitOption('แคลอรี่ (cal)', 'cal', userData.unitEnergy, 'unit_energy'),
+              _buildUnitOption('กิโลจูล (kJ)', 'kj', userData.unitEnergy, 'unit_energy', showDivider: false),
             ]),
 
             _buildSectionHeader('น้ำ'),
             _buildUnitGroup([
-              _buildUnitOption('ขวด', 'bottle', userData.unitWater, 'unit_water'),
-              _buildUnitOption('มิลลิลิตร (ml)', 'ml', userData.unitWater, 'unit_water', showDivider: false),
+              _buildUnitOption('มิลลิลิตร (ml)', 'ml', userData.unitWater, 'unit_water'),
+              _buildUnitOption('ลิตร (L)', 'L', userData.unitWater, 'unit_water'),
+              _buildUnitOption('ออนซ์ (fl oz)', 'floz', userData.unitWater, 'unit_water'),
+              _buildUnitOption('ขวด (bottle)', 'bottle', userData.unitWater, 'unit_water', showDivider: false),
             ]),
 
             const SizedBox(height: 40),

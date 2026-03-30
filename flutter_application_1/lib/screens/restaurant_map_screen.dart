@@ -85,8 +85,15 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
 
       await _fetchNearbyRestaurants();
     } catch (e) {
-      print('Error getting location: $e');
       setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ไม่สามารถระบุตำแหน่งได้ กรุณาเปิดใช้งาน GPS'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -142,8 +149,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
           _isLoading = false;
         });
       }
-    } catch (e) {
-      print('Error fetching restaurants: $e');
+    } catch (_) {
       setState(() => _isLoading = false);
     }
   }

@@ -101,10 +101,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _showError('นามสกุลต้องมีความยาวอย่างน้อย 2 ตัวอักษร');
       return;
     }
-    // if (!email.endsWith('@gmail.com')) {
-    //   _showError('กรุณาใช้อีเมล @gmail.com เท่านั้น');
-    //   return;
-    // }
+    if (!RegExp(r'^[\w\.\-\+]+@[\w\-]+(\.[\w\-]+)*\.[a-zA-Z]{2,}$').hasMatch(email)) {
+      _showError('กรุณากรอกอีเมลให้ถูกต้อง เช่น user@gmail.com');
+      return;
+    }
     if (password.length < 8) {
       _showError('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร');
       return;

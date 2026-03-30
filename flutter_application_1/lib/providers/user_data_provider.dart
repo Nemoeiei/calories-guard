@@ -48,6 +48,9 @@ class UserData {
   final String unitEnergy;
   final String unitWater;
 
+  // --- 6. การแพ้อาหาร (Allergies) ---
+  final List<int> allergyFlagIds;
+
   UserData({
     this.userId = 0,
     this.email = '',
@@ -77,6 +80,7 @@ class UserData {
     this.unitHeight = 'cm',
     this.unitEnergy = 'kcal',
     this.unitWater = 'ml',
+    this.allergyFlagIds = const [],
   });
 
   // --- 🧮 Logic 1: คำนวณอายุ ---
@@ -152,27 +156,42 @@ class UserData {
     return duration > 0 ? duration.toDouble() : 12.0;
   }
 
-  // เป้าหมายแมโคร: ใช้จาก DB ถ้ามี ไม่ใช่คำนวณจากอัตราส่วน
-  // ✅ Updated Formula: Carbs 65%, Protein 15%, Fat 20%
+  // เป้าหมายแมโคร: ใช้จาก DB ถ้ามี ไม่ใช่คำนวณจากอัตราส่วนตาม goal
+  // lose_weight:    Protein 30%, Carbs 40%, Fat 30%
+  // maintain_weight: Protein 25%, Carbs 45%, Fat 30%
+  // gain_muscle:    Protein 30%, Carbs 50%, Fat 20%
+  double get _proteinRatio {
+    if (goal == GoalOption.maintainWeight) return 0.25;
+    return 0.30;
+  }
+
+  double get _carbsRatio {
+    if (goal == GoalOption.loseWeight) return 0.40;
+    if (goal == GoalOption.buildMuscle) return 0.50;
+    return 0.45;
+  }
+
+  double get _fatRatio {
+    if (goal == GoalOption.buildMuscle) return 0.20;
+    return 0.30;
+  }
+
   int get targetProtein {
     if (storedTargetProtein != null && storedTargetProtein! > 0)
       return storedTargetProtein!;
-    double proteinCals = targetCalories * 0.15;
-    return (proteinCals / 4).round();
+    return (targetCalories * _proteinRatio / 4).round();
   }
 
   int get targetCarbs {
     if (storedTargetCarbs != null && storedTargetCarbs! > 0)
       return storedTargetCarbs!;
-    double carbsCals = targetCalories * 0.65;
-    return (carbsCals / 4).round();
+    return (targetCalories * _carbsRatio / 4).round();
   }
 
   int get targetFat {
     if (storedTargetFat != null && storedTargetFat! > 0)
       return storedTargetFat!;
-    double fatCals = targetCalories * 0.20;
-    return (fatCals / 9).round();
+    return (targetCalories * _fatRatio / 9).round();
   }
 
   // --- CopyWith ---
@@ -205,6 +224,7 @@ class UserData {
     String? unitHeight,
     String? unitEnergy,
     String? unitWater,
+    List<int>? allergyFlagIds,
   }) {
     return UserData(
       userId: userId ?? this.userId,
@@ -235,6 +255,7 @@ class UserData {
       unitHeight: unitHeight ?? this.unitHeight,
       unitEnergy: unitEnergy ?? this.unitEnergy,
       unitWater: unitWater ?? this.unitWater,
+      allergyFlagIds: allergyFlagIds ?? this.allergyFlagIds,
     );
   }
 }
@@ -346,6 +367,10 @@ class UserDataNotifier extends StateNotifier<UserData> {
       unitEnergy: energy ?? state.unitEnergy,
       unitWater: water ?? state.unitWater,
     );
+  }
+
+  void setAllergies(List<int> flagIds) {
+    state = state.copyWith(allergyFlagIds: flagIds);
   }
 
   void setUserFromApi(Map<String, dynamic> data) {

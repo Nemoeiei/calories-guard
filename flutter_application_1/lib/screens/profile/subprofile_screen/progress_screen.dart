@@ -87,7 +87,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
     if (userId == 0) return;
 
-    var url = Uri.parse('\${AppConstants.baseUrl}/daily_logs/$userId/weekly');
+    var url = Uri.parse('${AppConstants.baseUrl}/daily_logs/$userId/weekly');
 
     if (weekStart != null) {
       final q = DateFormat('yyyy-MM-dd').format(weekStart);
@@ -103,9 +103,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           _weeklyData = json.decode(response.body);
         });
       }
-    } catch (e) {
-      print("Error fetching weekly: $e");
-    }
+    } catch (_) {}
   }
 
   // ดึงข้อมูลปฏิทิน
@@ -118,7 +116,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     // URL นี้ควร return list ของ { "date": "YYYY-MM-DD", "calories": 1500 }
 
     final url = Uri.parse(
-        '\${AppConstants.baseUrl}/daily_logs/$userId/calendar?month=${_currentMonth.month}&year=${_currentMonth.year}');
+        '${AppConstants.baseUrl}/daily_logs/$userId/calendar?month=${_currentMonth.month}&year=${_currentMonth.year}');
 
     try {
       final response = await http.get(url);
@@ -139,9 +137,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               .toList();
         });
       }
-    } catch (e) {
-      print("Error fetching calendar: $e");
-    }
+    } catch (_) {}
   }
 
   // แสดงรายละเอียดเมื่อกดวันที่ในปฏิทิน

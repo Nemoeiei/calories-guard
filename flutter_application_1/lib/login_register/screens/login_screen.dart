@@ -67,7 +67,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         // 🔥 3. สร้างทางแยก (Router Logic)
         if (roleId == 1) {
           // ถ้าเป็น Admin (1) -> ไปหน้า Admin Dashboard
-          print("User is Admin: Redirecting to Admin Dashboard");
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
@@ -76,7 +75,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
         } else {
           // ถ้าเป็น User ทั่วไป (2) -> ไปหน้า Main Screen ปกติ
-          print("User is Normal Member: Redirecting to Home");
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const MainScreen()),

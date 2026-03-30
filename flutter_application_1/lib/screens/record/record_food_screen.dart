@@ -12,10 +12,13 @@ import '/providers/user_data_provider.dart';
 // ─────────────────────────────────────────────
 class LoggedFood {
   final String name;
-  final double calories;
-  final double protein;
-  final double carbs;
-  final double fat;
+  final double calories;    // cal_per_unit
+  final double protein;     // protein_per_unit
+  final double carbs;       // carbs_per_unit
+  final double fat;         // fat_per_unit
+  final double amount;      // จำนวน (quantity)
+  final int? unitId;
+  final String unitName;
   final int? foodId;
   final bool isPending;
   LoggedFood({
@@ -24,9 +27,17 @@ class LoggedFood {
     required this.protein,
     required this.carbs,
     required this.fat,
+    this.amount = 1.0,
+    this.unitId,
+    this.unitName = 'กรัม (g)',
     this.foodId,
     this.isPending = false,
   });
+
+  double get totalCalories => calories * amount;
+  double get totalProtein  => protein  * amount;
+  double get totalCarbs    => carbs    * amount;
+  double get totalFat      => fat      * amount;
 }
 
 class MealSlot {
@@ -43,10 +54,10 @@ class MealSlot {
     List<LoggedFood>? foods,
   }) : foods = foods ?? [];
 
-  double get totalCalories => foods.fold(0, (s, f) => s + f.calories);
-  double get totalProtein => foods.fold(0, (s, f) => s + f.protein);
-  double get totalCarbs => foods.fold(0, (s, f) => s + f.carbs);
-  double get totalFat => foods.fold(0, (s, f) => s + f.fat);
+  double get totalCalories => foods.fold(0, (s, f) => s + f.totalCalories);
+  double get totalProtein  => foods.fold(0, (s, f) => s + f.totalProtein);
+  double get totalCarbs    => foods.fold(0, (s, f) => s + f.totalCarbs);
+  double get totalFat      => foods.fold(0, (s, f) => s + f.totalFat);
 }
 
 class Activity {
@@ -158,6 +169,9 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
                     protein: (item['protein_per_unit'] ?? 0).toDouble(),
                     carbs: (item['carbs_per_unit'] ?? 0).toDouble(),
                     fat: (item['fat_per_unit'] ?? 0).toDouble(),
+                    amount: (item['amount'] ?? 1.0).toDouble(),
+                    unitId: item['unit_id'],
+                    unitName: item['unit_name'] ?? 'กรัม (g)',
                     foodId: item['food_id'],
                   ));
                 }
@@ -193,7 +207,6 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             child: Column(children: [
-              _buildCalorieSummary(targetCal, netCal, remaining, userData),
               _buildWaterTracker(),
               ..._meals
                   .asMap()
@@ -356,17 +369,6 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
               ),
             ],
           )),
-        ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          _macroBar('โปรตีน', _totalProtein, userData.targetProtein.toDouble(),
-              const Color(0xFF628141)),
-          const SizedBox(width: 8),
-          _macroBar('คาร์บ', _totalCarbs, userData.targetCarbs.toDouble(),
-              const Color(0xFFFFB800)),
-          const SizedBox(width: 8),
-          _macroBar('ไขมัน', _totalFat, userData.targetFat.toDouble(),
-              const Color(0xFFD76A3C)),
         ]),
       ]),
     );
@@ -630,11 +632,12 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
               ],
             ]),
             Text(
-                'P:${food.protein.toInt()}g  C:${food.carbs.toInt()}g  F:${food.fat.toInt()}g',
+                '${food.amount % 1 == 0 ? food.amount.toInt() : food.amount} ${food.unitName}  •  '
+                'P:${food.totalProtein.toInt()}g  C:${food.totalCarbs.toInt()}g  F:${food.totalFat.toInt()}g',
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
           ],
         )),
-        Text('${food.calories.toInt()} kcal',
+        Text('${food.totalCalories.toInt()} kcal',
             style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -913,7 +916,8 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
             .map((f) => {
                   'food_id': f.foodId ?? 0,
                   'food_name': f.name,
-                  'amount': 1.0,
+                  'amount': f.amount,
+                  'unit_id': f.unitId,
                   'cal_per_unit': f.calories,
                   'protein_per_unit': f.protein,
                   'carbs_per_unit': f.carbs,
@@ -988,6 +992,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
 
   late TabController _tab;
   List<Map<String, dynamic>> _dbResults = [];
+  List<Map<String, dynamic>> _units = [];
   bool _dbLoading = false;
   final _searchCtrl = TextEditingController();
 
@@ -1003,6 +1008,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
     super.initState();
     _tab = TabController(length: 2, vsync: this);
     _loadAllFoods();
+    _loadUnits();
   }
 
   @override
@@ -1017,6 +1023,229 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
     super.dispose();
   }
 
+  Future<void> _loadUnits() async {
+    try {
+      final res = await http.get(Uri.parse('${AppConstants.baseUrl}/units'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as List;
+        if (mounted) setState(() => _units = data.cast<Map<String, dynamic>>());
+      }
+    } catch (_) {}
+  }
+
+
+  void _showFoodDetail(Map<String, dynamic> food) {
+    final allergic    = _isAllergic(food);
+    final cal         = (food['calories'] as num? ?? 0).toDouble();
+    final protein     = (food['protein']  as num? ?? 0).toDouble();
+    final carbs       = (food['carbs']    as num? ?? 0).toDouble();
+    final fat         = (food['fat']      as num? ?? 0).toDouble();
+    final servingQty  = (food['serving_quantity'] as num? ?? 100).toDouble();
+    final servingUnit = food['serving_unit'] as String? ?? 'g';
+    final imageUrl    = food['image_url'] as String? ?? '';
+    int amount        = 1;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setS) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.fromLTRB(
+              24, 16, 24, MediaQuery.of(ctx).viewInsets.bottom + 32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // drag handle
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(99)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // รูปอาหาร
+            if (imageUrl.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.network(imageUrl,
+                    height: 160, width: double.infinity, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox()),
+              ),
+            const SizedBox(height: 14),
+            // ชื่ออาหาร + badge แพ้
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: Text(food['food_name'] ?? '',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w700)),
+              ),
+              if (allergic)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(99)),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.warning_amber_rounded,
+                        size: 13, color: Color(0xFFE67E22)),
+                    SizedBox(width: 4),
+                    Text('มีสารที่แพ้',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFFE67E22),
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+            ]),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('ต่อ ${servingQty.toInt()} $servingUnit',
+                  style: TextStyle(
+                      fontSize: 12, color: Colors.grey.shade500)),
+            ),
+            const SizedBox(height: 16),
+            // ตารางโภชนาการ (ปรับตาม amount)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFF7FBF2),
+                  borderRadius: BorderRadius.circular(16)),
+              child: Row(children: [
+                _nutriCol('พลังงาน',
+                    '${(cal * amount).toInt()}', 'kcal',
+                    const Color(0xFF628141)),
+                _divider(),
+                _nutriCol('โปรตีน',
+                    '${(protein * amount).toStringAsFixed(1)}', 'g',
+                    const Color(0xFF2563EB)),
+                _divider(),
+                _nutriCol('คาร์บ',
+                    '${(carbs * amount).toStringAsFixed(1)}', 'g',
+                    const Color(0xFFD97706)),
+                _divider(),
+                _nutriCol('ไขมัน',
+                    '${(fat * amount).toStringAsFixed(1)}', 'g',
+                    const Color(0xFFDC2626)),
+              ]),
+            ),
+            const SizedBox(height: 20),
+            // ── ปุ่ม - จำนวน + และปุ่มเพิ่ม ──
+            Row(children: [
+              // ปุ่ม -
+              _qtyBtn(Icons.remove, () {
+                if (amount > 1) setS(() => amount--);
+              }),
+              const SizedBox(width: 12),
+              // จำนวน + หน่วย
+              Expanded(
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFF7FBF2),
+                      borderRadius: BorderRadius.circular(14)),
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('$amount',
+                          style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Inter')),
+                      Text(servingUnit,
+                          style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey.shade500)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // ปุ่ม +
+              _qtyBtn(Icons.add, () => setS(() => amount++)),
+              const SizedBox(width: 16),
+              // ปุ่มเพิ่มในมื้ออาหาร
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          allergic ? const Color(0xFFE67E22) : _green,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      widget.onFoodAdded(LoggedFood(
+                        name:     food['food_name'] ?? '',
+                        calories: cal,
+                        protein:  protein,
+                        carbs:    carbs,
+                        fat:      fat,
+                        amount:   amount.toDouble(),
+                        unitName: 'serving',
+                        foodId:   food['food_id'] as int?,
+                      ));
+                      Navigator.pop(ctx);
+                      Navigator.pop(context);
+                    },
+                    child: const Text('เพิ่ม',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                ),
+              ),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _qtyBtn(IconData icon, VoidCallback onTap) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 52, height: 52,
+          decoration: BoxDecoration(
+              color: const Color(0xFFE8EFCF),
+              borderRadius: BorderRadius.circular(14)),
+          child: Icon(icon, color: _green, size: 22),
+        ),
+      );
+
+  Widget _nutriCol(String label, String value, String unit, Color color) {
+    return Expanded(
+      child: Column(children: [
+        Text(value,
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: color,
+                fontFamily: 'Inter')),
+        Text(unit,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+      ]),
+    );
+  }
+
+  Widget _divider() => Container(
+      width: 1, height: 40, color: Colors.grey.shade200,
+      margin: const EdgeInsets.symmetric(horizontal: 4));
+
   Future<void> _loadAllFoods() async {
     setState(() => _dbLoading = true);
     try {
@@ -1025,7 +1254,16 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
         final data = jsonDecode(res.body) as List;
         setState(() => _dbResults = data.cast<Map<String, dynamic>>());
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ไม่สามารถโหลดรายการอาหารได้ กรุณาลองใหม่อีกครั้ง'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
     setState(() => _dbLoading = false);
   }
 
@@ -1036,6 +1274,79 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
         .where(
             (f) => (f['food_name']?.toString().toLowerCase() ?? '').contains(q))
         .toList();
+  }
+
+  /// เช็คว่า food นี้มี allergen ที่ user แพ้หรือไม่
+  bool _isAllergic(Map<String, dynamic> food) {
+    final userAllergies = ref.read(userDataProvider).allergyFlagIds;
+    if (userAllergies.isEmpty) return false;
+    final foodFlags = (food['allergy_flag_ids'] as List?)
+            ?.map((e) => e as int)
+            .toList() ??
+        [];
+    return foodFlags.any((id) => userAllergies.contains(id));
+  }
+
+  /// แสดง dialog เตือนก่อน → ถ้ายืนยันค่อยเปิด amount/unit dialog
+  void _handleFoodTap(Map<String, dynamic> food) {
+    if (_isAllergic(food)) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(children: [
+            Icon(Icons.warning_amber_rounded,
+                color: Color(0xFFE67E22), size: 26),
+            SizedBox(width: 8),
+            Text('มีสารที่คุณแพ้!',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          ]),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(
+              '"${food['food_name']}" มีส่วนประกอบที่คุณแจ้งว่าแพ้',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(10)),
+              child: const Text(
+                'การรับประทานอาหารนี้อาจทำให้เกิดอาการแพ้ได้',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 12, color: Color(0xFFE67E22)),
+              ),
+            ),
+          ]),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('ยกเลิก',
+                  style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE67E22),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showFoodDetail(food);
+              },
+              child: const Text('เพิ่มต่อไป',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    } else {
+      _showFoodDetail(food);
+    }
   }
 
   @override
@@ -1140,30 +1451,65 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
                     itemCount: _filtered.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (_, i) {
-                      final f = _filtered[i];
+                      final f        = _filtered[i];
+                      final allergic = _isAllergic(f);
                       return ListTile(
+                        onTap: () => _showFoodDetail(f),
                         contentPadding: EdgeInsets.zero,
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: SizedBox(
-                              width: 48,
-                              height: 48,
-                              child: (f['image_url'] != null &&
-                                      (f['image_url'] as String).isNotEmpty)
-                                  ? Image.network(f['image_url'],
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                          color: Colors.grey.shade200,
-                                          child: const Icon(Icons.restaurant,
-                                              size: 24)))
-                                  : Container(
-                                      color: Colors.grey.shade200,
-                                      child: const Icon(Icons.restaurant,
-                                          size: 24))),
-                        ),
-                        title: Text(f['food_name'] ?? '',
-                            style: const TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w600)),
+                        leading: Stack(clipBehavior: Clip.none, children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: (f['image_url'] != null &&
+                                        (f['image_url'] as String).isNotEmpty)
+                                    ? Image.network(f['image_url'],
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                            color: Colors.grey.shade200,
+                                            child: const Icon(Icons.restaurant,
+                                                size: 24)))
+                                    : Container(
+                                        color: Colors.grey.shade200,
+                                        child: const Icon(Icons.restaurant,
+                                            size: 24))),
+                          ),
+                          if (allergic)
+                            Positioned(
+                              top: -4, right: -4,
+                              child: Container(
+                                width: 18, height: 18,
+                                decoration: const BoxDecoration(
+                                    color: Color(0xFFE67E22),
+                                    shape: BoxShape.circle),
+                                child: const Icon(Icons.warning_amber_rounded,
+                                    size: 12, color: Colors.white),
+                              ),
+                            ),
+                        ]),
+                        title: Row(children: [
+                          Expanded(
+                            child: Text(f['food_name'] ?? '',
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600)),
+                          ),
+                          if (allergic)
+                            Container(
+                              margin: const EdgeInsets.only(left: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF3E0),
+                                  borderRadius: BorderRadius.circular(99)),
+                              child: const Text('มีสารที่แพ้',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFFE67E22),
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                        ]),
                         subtitle: Text(
                             '${f['calories']?.toStringAsFixed(0) ?? 0} kcal  •  '
                             'P:${f['protein']?.toStringAsFixed(0) ?? 0}g  '
@@ -1172,30 +1518,15 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
                             style: TextStyle(
                                 fontSize: 11, color: Colors.grey.shade500)),
                         trailing: GestureDetector(
-                          onTap: () {
-                            widget.onFoodAdded(LoggedFood(
-                              name: f['food_name'] ?? '',
-                              calories: double.tryParse(
-                                      f['calories']?.toString() ?? '0') ??
-                                  0,
-                              protein: double.tryParse(
-                                      f['protein']?.toString() ?? '0') ??
-                                  0,
-                              carbs: double.tryParse(
-                                      f['carbs']?.toString() ?? '0') ??
-                                  0,
-                              fat: double.tryParse(
-                                      f['fat']?.toString() ?? '0') ??
-                                  0,
-                              foodId: f['food_id'],
-                            ));
-                            Navigator.pop(context);
-                          },
+                          onTap: () => _handleFoodTap(f),
                           child: Container(
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                                color: _green, shape: BoxShape.circle),
+                                color: allergic
+                                    ? const Color(0xFFE67E22)
+                                    : _green,
+                                shape: BoxShape.circle),
                             child: const Icon(Icons.add,
                                 color: Colors.white, size: 18),
                           ),
