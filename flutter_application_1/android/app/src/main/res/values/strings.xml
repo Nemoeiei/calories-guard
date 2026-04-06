@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CaloriesGuard</string>
+
+    <!--
+        ╔══════════════════════════════════════════════════════════════╗
+        ║  Facebook Login — fill in your values from                  ║
+        ║  https://developers.facebook.com/apps/YOUR_APP_ID/settings  ║
+        ╚══════════════════════════════════════════════════════════════╝
+        1. Replace YOUR_FACEBOOK_APP_ID with the numeric App ID
+           e.g. "1234567890123456"
+        2. Replace YOUR_FACEBOOK_CLIENT_TOKEN with the Client Token
+           (Settings → Advanced → Client Token in Facebook Developer Console)
+        3. fb_login_protocol_scheme must be "fb" + your App ID
+           e.g. "fb1234567890123456"
+    -->
+    <string name="facebook_app_id">YOUR_FACEBOOK_APP_ID</string>
+    <string name="facebook_client_token">YOUR_FACEBOOK_CLIENT_TOKEN</string>
+    <string name="fb_login_protocol_scheme">fbYOUR_FACEBOOK_APP_ID</string>
+</resources>

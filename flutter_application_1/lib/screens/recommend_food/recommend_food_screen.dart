@@ -27,6 +27,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
+  String? _errorMsg;
   bool _hideAllergic = true; // กรองเมนูที่แพ้ออกโดยค่าเริ่มต้น
 
   @override
@@ -53,10 +54,18 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
           _isLoading   = false;
         });
       } else {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _errorMsg = 'โหลดข้อมูลไม่สำเร็จ (${res.statusCode})';
+        });
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMsg = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
+        });
+      }
     }
   }
 
@@ -236,6 +245,40 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
                   padding: EdgeInsets.all(40),
                   child: CircularProgressIndicator(color: Color(0xFF628141))))
 
+              else if (_errorMsg != null)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(40),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.wifi_off_rounded,
+                          size: 56, color: Color(0xFFBDBDBD)),
+                      const SizedBox(height: 12),
+                      Text(_errorMsg!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 14, color: Colors.grey)),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _isLoading = true;
+                            _errorMsg = null;
+                          });
+                          _fetchAllFood();
+                        },
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('ลองใหม่'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF628141),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ]),
+                  ),
+                )
+
               // ── ผลการค้นหา ──
               else if (isSearching)
                 ...[
@@ -287,7 +330,10 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
                 _allFood.isEmpty
                     ? _buildEmptyState('ยังไม่มีเมนูอาหาร')
                     : _buildGrid(_filteredFood),
-                _buildSeeMoreButton(),
+                _buildSeeMoreButton(
+                  categoryTitle: 'สูตรอาหารทั้งหมด',
+                  items: _filteredFood,
+                ),
 
                 // ── เครื่องดื่ม ──
                 _buildSectionHeader('สูตรเครื่องดื่มแนะนำสำหรับคุณ'),
@@ -300,7 +346,10 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
                 _allDrinks.isEmpty
                     ? _buildEmptyState('ยังไม่มีข้อมูลเครื่องดื่ม')
                     : _buildGrid(_filteredDrinks),
-                _buildSeeMoreButton(),
+                _buildSeeMoreButton(
+                  categoryTitle: 'สูตรเครื่องดื่มทั้งหมด',
+                  items: _filteredDrinks,
+                ),
 
                 // ── ของหวาน ──
                 _buildSectionHeader('สูตรของหวานแนะนำสำหรับคุณ'),
@@ -313,7 +362,10 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
                 _allDesserts.isEmpty
                     ? _buildEmptyState('ยังไม่มีข้อมูลของหวาน')
                     : _buildGrid(_filteredDesserts),
-                _buildSeeMoreButton(),
+                _buildSeeMoreButton(
+                  categoryTitle: 'สูตรของหวานทั้งหมด',
+                  items: _filteredDesserts,
+                ),
 
                 const SizedBox(height: 100),
               ],
@@ -387,8 +439,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(15),
           child: (imageUrl != null && imageUrl.isNotEmpty)
-              ? Image.network(imageUrl, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _imagePlaceholder())
+              ? _networkImage(imageUrl)
               : _imagePlaceholder(),
         ),
       ),
@@ -457,8 +508,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
         child: SizedBox(
           width: 160, height: 160,
           child: (imageUrl != null && imageUrl.isNotEmpty)
-              ? Image.network(imageUrl, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _imagePlaceholder())
+              ? _networkImage(imageUrl)
               : _imagePlaceholder(),
         ),
       ),
@@ -508,11 +558,6 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
         Text(message, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
       ]),
     );
-  }
-
-  Widget _imagePlaceholder() {
-    return Container(color: Colors.grey[300],
-      child: Icon(Icons.restaurant, color: Colors.grey[500], size: 48));
   }
 
   Widget _buildSectionHeader(String title) {
@@ -569,10 +614,20 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
     );
   }
 
-  Widget _buildSeeMoreButton() {
+  Widget _buildSeeMoreButton({
+    required String categoryTitle,
+    required List<Map<String, dynamic>> items,
+  }) {
     return GestureDetector(
-      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กำลังโหลดเมนูเพิ่มเติม...'))),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FoodCategoryScreen(
+            title: categoryTitle,
+            items: items,
+          ),
+        ),
+      ),
       child: Container(
         width: double.infinity,
         color: const Color(0xFFE8EFCF),
@@ -586,9 +641,241 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25),
               blurRadius: 4, offset: const Offset(0, 4))],
           ),
-          child: const Text('ดูเพิ่มเติม',
-            style: TextStyle(fontWeight: FontWeight.w500,
-              fontSize: 12, color: Colors.white)),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('ดูเพิ่มเติม',
+                style: TextStyle(fontWeight: FontWeight.w500,
+                  fontSize: 12, color: Colors.white)),
+              SizedBox(width: 4),
+              Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.white),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+//  Shared image helpers (used by multiple screens in this file)
+// ────────────────────────────────────────────────────────────────────────────
+
+Widget _imagePlaceholder() {
+  return Container(
+    color: const Color(0xFFE8EFCF),
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Icon(Icons.restaurant_menu_rounded,
+          color: const Color(0xFF628141).withValues(alpha: 0.55), size: 44),
+      const SizedBox(height: 6),
+      Text('ไม่มีรูปภาพ',
+          style: TextStyle(
+              fontSize: 11,
+              color: const Color(0xFF628141).withValues(alpha: 0.6),
+              fontWeight: FontWeight.w500)),
+    ]),
+  );
+}
+
+Widget _imageLoading() {
+  return Container(
+    color: const Color(0xFFEFF4E8),
+    child: Center(
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            valueColor: AlwaysStoppedAnimation<Color>(
+                const Color(0xFF628141).withValues(alpha: 0.6))),
+      ),
+    ),
+  );
+}
+
+Widget _networkImage(String url, {BoxFit fit = BoxFit.cover}) {
+  return Image.network(
+    url,
+    fit: fit,
+    loadingBuilder: (_, child, progress) =>
+        progress == null ? child : _imageLoading(),
+    errorBuilder: (_, __, ___) => _imagePlaceholder(),
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+//  FoodCategoryScreen — แสดงรายการอาหารทั้งหมดในหมวดหมู่นั้นๆ
+// ────────────────────────────────────────────────────────────────────────────
+class FoodCategoryScreen extends StatelessWidget {
+  final String title;
+  final List<Map<String, dynamic>> items;
+
+  const FoodCategoryScreen({
+    super.key,
+    required this.title,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFE8EFCF),
+      body: Column(children: [
+        // Header
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF3D5A27), Color(0xFF628141)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 56, 20, 24),
+          child: Row(children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white, size: 18),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(title,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${items.length} รายการ',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500),
+              ),
+            ),
+          ]),
+        ),
+
+        // Grid
+        Expanded(
+          child: items.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.restaurant_menu_outlined,
+                          size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text('ยังไม่มีรายการในหมวดนี้',
+                          style: TextStyle(
+                              color: Colors.grey.shade500, fontSize: 16)),
+                    ],
+                  ),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.68,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (ctx, i) =>
+                      _buildCategoryFoodCard(ctx, items[i]),
+                ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildCategoryFoodCard(
+      BuildContext context, Map<String, dynamic> item) {
+    final foodName = item['food_name']?.toString() ?? 'ไม่มีชื่อ';
+    final calories = item['calories']?.toString() ?? '0';
+    final imageUrl = item['image_url']?.toString();
+    final foodId = item['food_id'] != null
+        ? int.tryParse(item['food_id'].toString())
+        : null;
+
+    return GestureDetector(
+      onTap: () {
+        if (foodId != null) {
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => RecipeDetailScreen(foodId: foodId)));
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 3))
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+              child: SizedBox(
+                width: double.infinity,
+                height: 140,
+                child: (imageUrl != null && imageUrl.isNotEmpty)
+                    ? _networkImage(imageUrl)
+                    : _imagePlaceholder(),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(foodName,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
+                    const Spacer(),
+                    Row(children: [
+                      const Icon(Icons.local_fire_department_rounded,
+                          size: 13, color: Color(0xFFE74C3C)),
+                      const SizedBox(width: 3),
+                      Text('$calories kcal',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFFE74C3C),
+                              fontWeight: FontWeight.w500)),
+                    ]),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

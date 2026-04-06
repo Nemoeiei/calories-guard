@@ -18,6 +18,8 @@ void main() async {
     await NotificationHelper.scheduleMealReminders();
     await NotificationHelper.scheduleDailyRecap();
     await NotificationHelper.scheduleMorningMotivation();
+    await NotificationHelper.scheduleWaterReminders();
+    await NotificationHelper.scheduleWeeklyWeightCheck();
   });
 }
 

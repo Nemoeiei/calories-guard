@@ -1,249 +1,482 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_application_1/constants/constants.dart';
+import '/providers/user_data_provider.dart';
 
-class ExerciseRecommendationScreen extends StatefulWidget {
+class ExerciseRecommendationScreen extends ConsumerStatefulWidget {
   const ExerciseRecommendationScreen({super.key});
 
   @override
-  State<ExerciseRecommendationScreen> createState() =>
+  ConsumerState<ExerciseRecommendationScreen> createState() =>
       _ExerciseRecommendationScreenState();
 }
 
 class _ExerciseRecommendationScreenState
-    extends State<ExerciseRecommendationScreen> {
-  
-  // ข้อมูลวิดีโอจำลอง (ตาม Text ใน CSS)
-  final List<Map<String, String>> _videoList = [
-    {
-      'title': 'ออกกำลัง 20 นาที ตามคลิปนี้แค่วันละครั้ง!!',
-      'image': 'assets/images/exercise/video_cardio_20min.png', 
-    },
-    {
-      'title': 'ออกกำลังกาย ลดพุงท่ายืน 15 นาที',
-      'image': 'assets/images/exercise/ex_belly.png', 
-    },
-    {
-      'title': '25นาที cardioลดไขมัน ไม่กระทบเข่า',
-      'image': 'assets/images/exercise/ex_cardio.png', 
-    },
-  ];
+    extends ConsumerState<ExerciseRecommendationScreen>
+    with SingleTickerProviderStateMixin {
+  static const _green = Color(0xFF628141);
+  static const _greenL = Color(0xFFE8EFCF);
+
+  List<Map<String, dynamic>> _leaderboard = [];
+  bool _isLoading = true;
+  String? _errorMsg;
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _fadeAnim =
+        CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _loadLeaderboard();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadLeaderboard() async {
+    setState(() {
+      _isLoading = true;
+      _errorMsg = null;
+    });
+    try {
+      final res = await http
+          .get(Uri.parse('${AppConstants.baseUrl}/leaderboard'))
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data =
+            (jsonDecode(res.body) as List).cast<Map<String, dynamic>>();
+        setState(() => _leaderboard = data);
+        _animController.forward(from: 0);
+      } else {
+        setState(() => _errorMsg = 'โหลดข้อมูลไม่สำเร็จ (${res.statusCode})');
+      }
+    } catch (_) {
+      setState(() => _errorMsg = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+    }
+    setState(() => _isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final myUserId = ref.watch(userDataProvider).userId;
+
     return Scaffold(
-      backgroundColor: Colors.white, // พื้นหลังหลักเป็นสีขาว (สำหรับส่วนบน)
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 30),
+      backgroundColor: _greenL,
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: _green))
+          : _errorMsg != null
+              ? _buildError()
+              : FadeTransition(
+                  opacity: _fadeAnim,
+                  child: _buildContent(myUserId)),
+    );
+  }
 
-            // ==========================================
-            // ส่วนที่ 1: Infographics (พื้นหลังขาว)
-            // ==========================================
-            
-            // Header 1
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              color: const Color(0xFF628141),
-              alignment: Alignment.center,
-              child: const Text(
-                'ออกกำลังกายอย่างไรดี ?',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white,
-                ),
-              ),
+  Widget _buildError() {
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.wifi_off_rounded, size: 64, color: Colors.grey.shade400),
+        const SizedBox(height: 16),
+        Text(_errorMsg!,
+            style: TextStyle(fontSize: 15, color: Colors.grey.shade600)),
+        const SizedBox(height: 20),
+        ElevatedButton.icon(
+          onPressed: _loadLeaderboard,
+          icon: const Icon(Icons.refresh),
+          label: const Text('ลองใหม่'),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: _green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12))),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildContent(int myUserId) {
+    final top3 = _leaderboard.take(3).toList();
+    final rest = _leaderboard.skip(3).toList();
+
+    return RefreshIndicator(
+      color: _green,
+      onRefresh: _loadLeaderboard,
+      child: CustomScrollView(
+        slivers: [
+          // ─── App Bar ─────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: _buildHeader(),
+          ),
+          // ─── Podium ──────────────────────────────────────────
+          if (top3.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _buildPodium(top3, myUserId),
             ),
-
-            const SizedBox(height: 25),
-
-            // รูปภาพ Infographics 2 รูป
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // รูปซ้าย (คนอ้วน)
-                  Container(
-                    width: 170, 
-                    height: 243,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      image: const DecorationImage(
-                        // หมายเหตุ: ถ้าภาพไม่ขึ้น แนะนำให้เปลี่ยนเป็น AssetImage ที่อยู่ในเครื่อง
-                        image: AssetImage('assets/images/exercise/exercise1.png'),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  // รูปขวา (ตาราง)
-                  Container(
-                    width: 170,
-                    height: 243,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      image: const DecorationImage(
-                        // หมายเหตุ: ถ้าภาพไม่ขึ้น แนะนำให้เปลี่ยนเป็น AssetImage ที่อยู่ในเครื่อง
-                        image: AssetImage('assets/images/exercise/exercise2.png'),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ปุ่ม "เพิ่มเติม" (สีเขียวอ่อน)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                margin: const EdgeInsets.only(right: 25, top: 15, bottom: 25),
-                width: 65,
-                height: 25,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFAFD198),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: const Text(
-                  'เพิ่มเติม',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-
-            // ==========================================
-            // ส่วนที่ 2: วิดีโอ (พื้นหลังเขียวอ่อน)
-            // ==========================================
-            Container(
-              color: const Color(0xFFE8EFCF), // เปลี่ยนพื้นหลังส่วนล่าง
-              width: double.infinity,
-              padding: const EdgeInsets.only(bottom: 120), // เผื่อพื้นที่ด้านล่าง
-              child: Column(
-                children: [
-                  // Header 2
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    color: const Color(0xFF628141),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'วิดีโอสอนออกกำลังกาย',
+          // ─── Rank 4+ list ─────────────────────────────────────
+          if (rest.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+                child: Row(children: [
+                  const Icon(Icons.format_list_numbered,
+                      color: _green, size: 20),
+                  const SizedBox(width: 8),
+                  Text('อันดับที่ 4 ขึ้นไป',
                       style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 20,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // รายการวิดีโอ
-                  ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(), // ให้ Scroll ไปกับ Parent
-                    itemCount: _videoList.length,
-                    itemBuilder: (context, index) {
-                      return _buildVideoCard(_videoList[index]);
-                    },
-                  ),
-
-                  // ปุ่ม "ดูเพิ่มเติม" (สีเขียวเข้ม)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 25, top: 10),
-                      width: 60,
-                      height: 20, // ตาม CSS: 20px
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF628141),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.25),
-                            blurRadius: 4,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'ดูเพิ่มเติม',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.grey.shade700)),
+                ]),
+              ),
+            ),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (_, i) => _buildRankTile(rest[i], i + 4, myUserId),
+                childCount: rest.length,
               ),
             ),
           ],
-        ),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
       ),
     );
   }
 
-  // Helper Widget: การ์ดวิดีโอ
-  Widget _buildVideoCard(Map<String, String> item) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 30), // ระยะห่างระหว่างคลิป
-      child: Column(
-        children: [
-          // ชื่อคลิป (อยู่ด้านบน)
-          Text(
-            item['title']!,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Colors.black,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 10),
-          
-          // ภาพปกคลิป (ขนาดตาม CSS ประมาณ 186x103)
-          Container(
-            width: 250, // ปรับให้กว้างขึ้นนิดนึงเพื่อให้เห็นชัดเจน (CSS เขียน 186 อาจจะเล็กไปสำหรับมือถือยุคนี้)
-            height: 140, 
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage(item['image']!), 
-                fit: BoxFit.cover,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 4),
-                ),
+  Widget _buildHeader() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF3D5A27), Color(0xFF628141)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 56, 20, 28),
+      child: Column(children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('🏆 ลีดเดอร์บอร์ด',
+                    style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
+                SizedBox(height: 4),
+                Text('จัดอันดับตาม streak วันต่อเนื่อง',
+                    style:
+                        TextStyle(fontSize: 13, color: Color(0xFFCCDEA8))),
               ],
             ),
-            // ไอคอน Play ตรงกลาง
+            GestureDetector(
+              onTap: _loadLeaderboard,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle),
+                child: const Icon(Icons.refresh,
+                    color: Colors.white, size: 22),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(children: [
+            const Icon(Icons.local_fire_department,
+                color: Color(0xFFFFB347), size: 18),
+            const SizedBox(width: 8),
+            Text(
+              'สะสมวันเข้าใช้งานต่อเนื่องเพื่อขึ้นอันดับ!',
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildPodium(List<Map<String, dynamic>> top3, int myUserId) {
+    // order: 2nd (left), 1st (center), 3rd (right)
+    final ordered = [
+      if (top3.length > 1) top3[1] else null,
+      top3[0],
+      if (top3.length > 2) top3[2] else null,
+    ];
+    final heights = [100.0, 130.0, 80.0];
+    final medals = ['🥈', '🥇', '🥉'];
+    final medalColors = [
+      const Color(0xFFB8C4D0),
+      const Color(0xFFFFD700),
+      const Color(0xFFCD7F32),
+    ];
+    final bgGrads = [
+      [const Color(0xFFCDD9E5), const Color(0xFFB8C4D0)],
+      [const Color(0xFFFFF8DC), const Color(0xFFFFE566)],
+      [const Color(0xFFEDD9C3), const Color(0xFFCD7F32)],
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 6))
+        ],
+      ),
+      child: Column(children: [
+        const Text('TOP 3',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: _green,
+                letterSpacing: 3)),
+        const SizedBox(height: 20),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(3, (i) {
+            final user = ordered[i];
+            if (user == null) return const SizedBox(width: 100);
+            final isMe = user['user_id'] == myUserId;
+            return _buildPodiumItem(
+              user: user,
+              medal: medals[i],
+              medalColor: medalColors[i],
+              podiumHeight: heights[i],
+              bgGradient: bgGrads[i],
+              isMe: isMe,
+              rank: (i == 0 ? 2 : i == 1 ? 1 : 3),
+            );
+          }),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildPodiumItem({
+    required Map<String, dynamic> user,
+    required String medal,
+    required Color medalColor,
+    required double podiumHeight,
+    required List<Color> bgGradient,
+    required bool isMe,
+    required int rank,
+  }) {
+    final name = (user['username'] as String?) ?? 'ผู้ใช้';
+    final streak = (user['current_streak'] as int?) ?? 0;
+    final shortName = name.length > 8 ? '${name.substring(0, 7)}…' : name;
+
+    return Column(
+      children: [
+        // Avatar
+        Stack(
+          alignment: Alignment.topCenter,
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                    colors: bgGradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight),
+                border: Border.all(
+                    color: isMe ? _green : medalColor, width: isMe ? 3 : 2),
+                boxShadow: [
+                  BoxShadow(
+                      color: medalColor.withOpacity(0.4),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4))
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: rank == 1
+                          ? const Color(0xFF7A5500)
+                          : Colors.grey.shade700),
+                ),
+              ),
+            ),
+            Positioned(
+              top: -10,
+              child: Text(medal, style: const TextStyle(fontSize: 20)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(shortName,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: isMe ? _green : Colors.black87)),
+        const SizedBox(height: 2),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.local_fire_department,
+              size: 13, color: Color(0xFFFF6B35)),
+          Text('$streak วัน',
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFFFF6B35),
+                  fontWeight: FontWeight.w600)),
+        ]),
+        const SizedBox(height: 8),
+        // Podium block
+        Container(
+          width: 88,
+          height: podiumHeight,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+                colors: bgGradient,
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(10),
+              topRight: Radius.circular(10),
+            ),
+            boxShadow: [
+              BoxShadow(
+                  color: medalColor.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2))
+            ],
+          ),
+          child: Center(
+            child: Text('#$rank',
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white.withOpacity(0.9))),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRankTile(
+      Map<String, dynamic> user, int rank, int myUserId) {
+    final name = (user['username'] as String?) ?? 'ผู้ใช้';
+    final streak = (user['current_streak'] as int?) ?? 0;
+    final totalDays = (user['total_login_days'] as int?) ?? 0;
+    final isMe = user['user_id'] == myUserId;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      decoration: BoxDecoration(
+        color: isMe ? const Color(0xFFEAF2DB) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: isMe
+            ? Border.all(color: _green, width: 1.5)
+            : null,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3))
+        ],
+      ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        leading: Row(mainAxisSize: MainAxisSize.min, children: [
+          SizedBox(
+            width: 28,
+            child: Text('#$rank',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: isMe ? _green : Colors.grey.shade500)),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isMe ? const Color(0xFFD4E8B0) : Colors.grey.shade100,
+              border: Border.all(
+                  color: isMe ? _green : Colors.grey.shade300, width: 1.5),
+            ),
             child: Center(
-              child: Icon(
-                Icons.play_circle_fill,
-                color: Colors.white.withOpacity(0.9),
-                size: 50,
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: isMe ? _green : Colors.grey.shade600),
               ),
             ),
           ),
-        ],
+        ]),
+        title: Text(
+          name + (isMe ? ' (คุณ)' : ''),
+          style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: isMe ? _green : Colors.black87),
+        ),
+        subtitle: Text(
+          'เข้าใช้งาน $totalDays วัน',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        ),
+        trailing: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: streak > 0
+                ? const Color(0xFFFF6B35).withOpacity(0.1)
+                : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.local_fire_department,
+                size: 16,
+                color: streak > 0
+                    ? const Color(0xFFFF6B35)
+                    : Colors.grey.shade400),
+            const SizedBox(width: 4),
+            Text(
+              '$streak',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: streak > 0
+                      ? const Color(0xFFFF6B35)
+                      : Colors.grey.shade400),
+            ),
+          ]),
+        ),
       ),
     );
   }

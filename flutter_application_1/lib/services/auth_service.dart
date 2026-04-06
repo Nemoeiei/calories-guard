@@ -201,6 +201,39 @@ class AuthService {
     }
   }
 
+  /// Social login (Google / Facebook) — finds or auto-creates the user in our backend.
+  Future<Map<String, dynamic>> socialLogin({
+    required String email,
+    required String name,
+    required String uid,
+    required String provider,
+  }) async {
+    final url = Uri.parse('$baseUrl/social-login');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'name': name,
+          'uid': uid,
+          'provider': provider,
+        }),
+      );
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': jsonDecode(response.body)};
+      } else {
+        final errorData = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': errorData['detail'] ?? 'Social login failed',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
   Future<bool> updateProfile(int userId, Map<String, dynamic> data) async {
     final url = Uri.parse('$baseUrl/users/$userId');
 

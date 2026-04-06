@@ -1,378 +1,401 @@
 import 'package:flutter/material.dart';
-
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // ✅ 1. เพิ่ม import riverpod
-
-import '../../providers/user_data_provider.dart'; // ✅ 2. import provider
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/user_data_provider.dart';
 
 // sub-screens imports
-
 import 'subprofile_screen/progress_screen.dart';
-
 import 'subprofile_screen/edit_profile_screen.dart';
-
 import 'subprofile_screen/unit_settings_screen.dart';
-
 import 'subprofile_screen/setting_screen.dart';
-
-import 'subprofile_screen/article_screen.dart';
-
 import '/login_register/screens/goal_selection_screen.dart';
-
 import '/login_register/screens/activity_level_screen.dart';
-
 import '/login_register/screens/food_allergy_screen.dart';
-
-// ✅ 3. เปลี่ยนจาก StatelessWidget เป็น ConsumerWidget
+import '/screens/chat/chat_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
-  final Color borderColor = const Color(0xFF4C6414);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ✅ 4. เพิ่ม WidgetRef ref
-
-    // ✅ 5. ดึงข้อมูล User จาก Provider
-
     final userData = ref.watch(userDataProvider);
 
-    // ✅ 6. Logic คำนวณวันที่เหลือ
-
-    String daysLeftText = "0";
-
+    String daysLeftText = '0';
     if (userData.targetDate != null) {
-      final now = DateTime.now();
-
-      // เอาแค่วันที่ (ตัดเวลาทิ้ง) เพื่อความแม่นยำ
-
-      final today = DateTime(now.year, now.month, now.day);
-
+      final today = DateTime(DateTime.now().year, DateTime.now().month,
+          DateTime.now().day);
       final target = DateTime(userData.targetDate!.year,
           userData.targetDate!.month, userData.targetDate!.day);
-
-      final difference = target.difference(today).inDays;
-
-      // ถ้าวันเป้าหมายผ่านไปแล้ว ให้เป็น 0 หรือติดลบตามต้องการ
-
-      daysLeftText = difference > 0 ? difference.toString() : "0";
+      final diff = target.difference(today).inDays;
+      daysLeftText = diff > 0 ? diff.toString() : '0';
     }
 
-    // แปลงเป้าหมายเป็นข้อความ (optional)
-
-    String goalText = "ลดน้ำหนัก";
-
-    Color goalColor = Colors.red; // Default: ลดน้ำหนัก = แดง
-
+    String goalText = 'ลดน้ำหนัก';
+    Color goalColor = const Color(0xFFE74C3C);
+    IconData goalIcon = Icons.trending_down;
     if (userData.goal == GoalOption.maintainWeight) {
-      goalText = "รักษาน้ำหนัก";
-
-      goalColor = Colors.blue; // รักษาน้ำหนัก = น้ำเงิน
+      goalText = 'รักษาน้ำหนัก';
+      goalColor = const Color(0xFF3498DB);
+      goalIcon = Icons.balance;
     } else if (userData.goal == GoalOption.buildMuscle) {
-      goalText = "เพิ่มกล้ามเนื้อ";
-
-      // ใช้ Colors.amber[700] หรือรหัสสีส้มเหลือง เพื่อให้อ่านออกบนพื้นขาว
-
-      goalColor = const Color(0xFFFBC02D); // เหลืองเข้ม
+      goalText = 'เพิ่มกล้ามเนื้อ';
+      goalColor = const Color(0xFFE67E22);
+      goalIcon = Icons.fitness_center;
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE8EFCF),
+      backgroundColor: const Color(0xFFF5F7F0),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 37),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ─── Header Banner ────────────────────────────────
+            _buildHeaderBanner(context, userData, goalText, goalColor,
+                goalIcon, daysLeftText),
 
-              // --- 1. Header ---
+            const SizedBox(height: 20),
 
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: 40),
-                      child: Text(
-                        'โปรไฟล์ส่วนตัว',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 24,
-                            fontWeight: FontWeight.w400,
-                            color: Colors.black),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            // ─── Stats Row ────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildStatsRow(userData, daysLeftText),
+            ),
 
-              const SizedBox(height: 30),
+            const SizedBox(height: 24),
 
-              // --- 2. Profile Section ---
+            // ─── Section: ข้อมูลส่วนตัว ───────────────────────
+            _buildSectionLabel('ข้อมูลส่วนตัว'),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildMenuCard([
+                _MenuEntry(Icons.edit_rounded, 'แก้ไขโปรไฟล์',
+                    const Color(0xFF5B8DD9), () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const EditProfileScreen()));
+                }),
+                _MenuEntry(Icons.flag_rounded, 'แก้ไขเป้าหมาย',
+                    const Color(0xFFE74C3C), () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const GoalSelectionScreen()));
+                }),
+                _MenuEntry(
+                    Icons.directions_run_rounded, 'แก้ไขระดับกิจกรรม',
+                    const Color(0xFF27AE60), () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const ActivityLevelScreen(isEditing: true)));
+                }),
+                _MenuEntry(Icons.no_meals_rounded, 'การแพ้อาหาร',
+                    const Color(0xFFE67E22), () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const FoodAllergyScreen(isEditing: true)));
+                }),
+                _MenuEntry(Icons.settings_rounded, 'ตั้งค่า',
+                    const Color(0xFF8E44AD), () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const SettingScreen()));
+                }, isLast: true),
+              ]),
+            ),
 
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 121,
-                    height: 121,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                      image: DecorationImage(
-                          image:
-                              AssetImage('assets/images/profile/profile.png'),
-                          fit: BoxFit.cover),
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        userData.name, // ✅ ใช้ชื่อจริง
+            const SizedBox(height: 20),
 
-                        style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        'อายุ ${userData.age} • สูง ${userData.height.toInt()} ซม.', // ✅ ใช้ข้อมูลจริง
+            // ─── Section: AI Coach ────────────────────────────
+            _buildSectionLabel('AI Coach'),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildMenuCard([
+                _MenuEntry(Icons.smart_toy_rounded, 'น้องซีการ์ด',
+                    const Color(0xFF628141), () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ChatScreen()));
+                }, isLast: true),
+              ]),
+            ),
 
-                        style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 15,
-                            fontWeight: FontWeight.w200,
-                            color: Colors.black),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: borderColor, width: 1),
-                        ),
-                        child: Text(
-                          'เป้าหมาย: $goalText',
-                          style: TextStyle(
-                            // ⚠️ ลบ const ตรงนี้ออก
+            const SizedBox(height: 20),
 
-                            fontFamily: 'Inter',
+            // ─── Section: การแสดงผลข้อมูล ──────────────────────
+            _buildSectionLabel('การแสดงผลข้อมูล'),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildMenuCard([
+                _MenuEntry(Icons.sync_rounded, 'ยูนิต',
+                    const Color(0xFF16A085), () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const UnitSettingsScreen()));
+                }),
+                _MenuEntry(Icons.bar_chart_rounded, 'ความคืบหน้า',
+                    const Color(0xFF2980B9), () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ProgressScreen()));
+                }, isLast: true),
+              ]),
+            ),
 
-                            fontSize: 16,
-
-                            fontWeight: FontWeight.w400,
-
-                            color: goalColor, // หรือจะเปลี่ยนสีตามเป้าหมายก็ได้
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 25),
-
-              // --- 3. Stats Card ---
-
-              Container(
-                height: 103,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: borderColor, width: 1),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildStatItem(
-                        '${userData.weight.toInt()}',
-                        'น้ำหนักปัจจุบัน',
-                        const Color(0xFF47DB67)), // ✅ ใช้ข้อมูลจริง
-
-                    _buildVerticalDivider(),
-
-                    _buildStatItem('${userData.targetWeight.toInt()}',
-                        'เป้าหมาย', const Color(0xFFB74D4D)), // ✅ ใช้ข้อมูลจริง
-
-                    _buildVerticalDivider(),
-
-                    _buildStatItem(daysLeftText, 'วันที่เหลือ',
-                        const Color(0xFF344CE6)), // ✅ ใช้วันที่คำนวณได้
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 25),
-
-              // --- 4. Menu Group 1: ข้อมูลส่วนตัว ---
-
-              const Text('ข้อมูลส่วนตัว',
-                  style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 16,
-                      color: Color(0xFF6E6A6A))),
-
-              const SizedBox(height: 10),
-
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: borderColor, width: 1),
-                ),
-                child: Column(
-                  children: [
-                    _buildMenuItem(Icons.edit, 'แก้ไขโปรไฟล์',
-                        showDivider: true, onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const EditProfileScreen()));
-                    }),
-                    _buildMenuItem(Icons.flag, 'แก้ไขเป้าหมาย',
-                        showDivider: true, onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) =>
-                                  const GoalSelectionScreen()));
-                    }),
-                    _buildMenuItem(Icons.directions_run, 'แก้ไขระดับกิจกรรม',
-                        showDivider: true, onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const ActivityLevelScreen(
-                                  isEditing: true))); // ✅ ใส่ isEditing: true
-                    }),
-                    _buildMenuItem(Icons.no_meals, 'การแพ้อาหาร',
-                        showDivider: true, onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) =>
-                                  const FoodAllergyScreen(isEditing: true)));
-                    }),
-                    _buildMenuItem(Icons.settings, 'ตั้งค่า',
-                        showDivider: false, onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const SettingScreen()));
-                    }),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // --- 5. Menu Group 2: การแสดงผลข้อมูล ---
-
-              const Text('การแสดงผลข้อมูล',
-                  style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 16,
-                      color: Color(0xFF6E6A6A))),
-
-              const SizedBox(height: 10),
-
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: borderColor, width: 1),
-                ),
-                child: Column(
-                  children: [
-                    _buildMenuItem(Icons.sync, 'ยูนิต', showDivider: true,
-                        onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) =>
-                                  const UnitSettingsScreen()));
-                    }),
-                    _buildMenuItem(Icons.bar_chart, 'ความคืบหน้า',
-                        showDivider: true, onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const ProgressScreen()));
-                    }),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 40),
-            ],
-          ),
+            const SizedBox(height: 40),
+          ],
         ),
       ),
     );
   }
 
-  // --- Helper Widgets ---
+  Widget _buildHeaderBanner(
+      BuildContext context,
+      dynamic userData,
+      String goalText,
+      Color goalColor,
+      IconData goalIcon,
+      String daysLeftText) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF3D5A27), Color(0xFF628141)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 56, 20, 28),
+      child: Column(children: [
+        // Back + Title
+        Row(children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle),
+              child: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white, size: 18),
+            ),
+          ),
+          const Expanded(
+            child: Text('โปรไฟล์ส่วนตัว',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
+          ),
+          const SizedBox(width: 40),
+        ]),
 
-  Widget _buildStatItem(String value, String label, Color valueColor) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(value,
-            style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 24,
-                fontWeight: FontWeight.w400,
-                color: valueColor)),
-        const SizedBox(height: 5),
-        Text(label,
-            style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 10,
-                fontWeight: FontWeight.w100,
-                color: Colors.black)),
-      ],
+        const SizedBox(height: 24),
+
+        // Avatar + Info
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          // Avatar circle
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.2),
+              border: Border.all(color: Colors.white, width: 2.5),
+              image: const DecorationImage(
+                  image: AssetImage('assets/images/profile/profile.png'),
+                  fit: BoxFit.cover),
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(userData.name,
+                      style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                  const SizedBox(height: 4),
+                  Text(
+                      'อายุ ${userData.age} ปี  •  สูง ${userData.height.toInt()} ซม.',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.8))),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.white.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(goalIcon, size: 14, color: Colors.white),
+                          const SizedBox(width: 5),
+                          Text('เป้าหมาย: $goalText',
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500)),
+                        ]),
+                  ),
+                ]),
+          ),
+        ]),
+      ]),
     );
   }
 
-  Widget _buildVerticalDivider() {
-    return Container(width: 1, height: 40, color: borderColor);
+  Widget _buildStatsRow(dynamic userData, String daysLeftText) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Row(children: [
+        Expanded(
+          child: _statItem(
+              '${userData.weight.toInt()} กก.',
+              'น้ำหนักปัจจุบัน',
+              Icons.monitor_weight_outlined,
+              const Color(0xFF27AE60)),
+        ),
+        Container(width: 1, height: 60, color: const Color(0xFFEEEEEE)),
+        Expanded(
+          child: _statItem(
+              '${userData.targetWeight.toInt()} กก.',
+              'เป้าหมาย',
+              Icons.flag_outlined,
+              const Color(0xFFE74C3C)),
+        ),
+        Container(width: 1, height: 60, color: const Color(0xFFEEEEEE)),
+        Expanded(
+          child: _statItem(
+              '$daysLeftText วัน',
+              'วันที่เหลือ',
+              Icons.calendar_today_outlined,
+              const Color(0xFF3498DB)),
+        ),
+      ]),
+    );
   }
 
-  Widget _buildMenuItem(IconData icon, String title,
-      {required bool showDivider, VoidCallback? onTap}) {
+  Widget _statItem(
+      String value, String label, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+      child: Column(children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 6),
+        Text(value,
+            style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: color)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w500)),
+      ]),
+    );
+  }
+
+  Widget _buildSectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade500,
+              letterSpacing: 0.5)),
+    );
+  }
+
+  Widget _buildMenuCard(List<_MenuEntry> entries) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 14,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        children: entries.map((e) => _buildMenuTile(e)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildMenuTile(_MenuEntry e) {
     return Column(
       children: [
         ListTile(
-          leading: SizedBox(
-              width: 30,
-              height: 30,
-              child: Icon(icon, color: Colors.black, size: 26)),
-          title: Text(title,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          leading: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10)),
+            child: Icon(e.icon, color: Colors.grey.shade500, size: 20),
+          ),
+          title: Text(e.label,
               style: const TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                  color: Colors.black)),
-          trailing: const Icon(Icons.arrow_forward_ios,
-              size: 16, color: Colors.black),
-          onTap: onTap,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87)),
+          trailing: Icon(Icons.arrow_forward_ios_rounded,
+              size: 14, color: Colors.grey.shade400),
+          onTap: e.onTap,
         ),
-        if (showDivider)
-          Divider(height: 1, color: borderColor, indent: 20, endIndent: 20),
+        if (!e.isLast)
+          Divider(
+              height: 1,
+              indent: 70,
+              endIndent: 20,
+              color: Colors.grey.shade100),
       ],
     );
   }
+}
+
+class _MenuEntry {
+  final IconData icon;
+  final String label;
+  final Color iconBg;
+  final VoidCallback? onTap;
+  final bool isLast;
+  const _MenuEntry(this.icon, this.label, this.iconBg, this.onTap,
+      {this.isLast = false});
 }

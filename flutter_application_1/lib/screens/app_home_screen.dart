@@ -6,7 +6,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '/screens/profile/subprofile_screen/progress_screen.dart';
 import '../../services/notification_helper.dart';
+import '../../services/lifecycle_service.dart';
 import '/screens/macro/macro_detail_screen.dart';
+import '/screens/restaurant_map_screen.dart';
+import '/screens/bmi/bmi_detail_screen.dart';
 
 class AppHomeScreen extends ConsumerStatefulWidget {
   const AppHomeScreen({super.key});
@@ -16,7 +19,13 @@ class AppHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
+  static const _green = Color(0xFF628141);
+  static const _greenDark = Color(0xFF3D5A27);
+  static const _greenLight = Color(0xFFE8EFCF);
+  static const _bg = Color(0xFFF5F7F0);
+
   bool _isLoading = true;
+  bool _hasError = false;
   bool _hasWarnedCalories = false;
   late DateTime _viewDate;
 
@@ -30,6 +39,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     });
   }
 
+
   void _syncViewDateFromProvider() {
     final fromProvider = ref.read(homeViewDateProvider);
     if (fromProvider != null) {
@@ -39,11 +49,19 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     }
   }
 
-  // --- Data Fetching Section ---
+  // ─── Data Fetching ────────────────────────────────────────────────────────
 
   Future<void> _fetchAllData() async {
-    await _fetchUserData();
-    await _fetchDailyData(_viewDate);
+    if (mounted) setState(() { _isLoading = true; _hasError = false; });
+    try {
+      await _fetchUserData();
+      await _fetchDailyData(_viewDate);
+      // Lifecycle checks (2-week weight / birthday / monthly) — silent, ไม่บล็อก UI
+      final userId = ref.read(userDataProvider).userId;
+      LifecycleService.runChecks(userId);
+    } catch (_) {
+      if (mounted) setState(() => _hasError = true);
+    }
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -54,17 +72,15 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     try {
       final url = Uri.parse('${AppConstants.baseUrl}/users/$userId');
       final response = await http.get(url);
-
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
         ref.read(userDataProvider.notifier).setUserFromApi(data);
       }
     } catch (_) {}
 
-    // โหลด allergy flags ของ user
     try {
-      final res = await http.get(
-          Uri.parse('${AppConstants.baseUrl}/users/$userId/allergies'));
+      final res = await http
+          .get(Uri.parse('${AppConstants.baseUrl}/users/$userId/allergies'));
       if (res.statusCode == 200) {
         final d = json.decode(res.body);
         final ids = (d['flag_ids'] as List).cast<int>();
@@ -73,7 +89,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     } catch (_) {}
   }
 
-  // ✅ ดึงข้อมูลมื้ออาหารสำหรับวันที่ที่เลือก (viewDate)
   Future<void> _fetchDailyData(DateTime forDate) async {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
@@ -81,60 +96,297 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     final dateStr =
         "${forDate.year}-${forDate.month.toString().padLeft(2, '0')}-${forDate.day.toString().padLeft(2, '0')}";
     final url = Uri.parse(
-        '\${AppConstants.baseUrl}/daily_summary/$userId?date_record=$dateStr');
+        '${AppConstants.baseUrl}/daily_summary/$userId?date_record=$dateStr');
 
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final summaryData = json.decode(utf8.decode(response.bodyBytes));
-
-        // แปลง 'meals' JSON object ให้เป็น Map<String, String>
         Map<String, String> mealsMap = {};
         if (summaryData['meals'] != null) {
           mealsMap = Map<String, String>.from(summaryData['meals']);
         }
-
         ref.read(userDataProvider.notifier).updateDailyFood(
               cal: (summaryData['total_calories_intake'] as num?)?.toInt() ?? 0,
               protein: (summaryData['total_protein'] as num?)?.toInt() ?? 0,
               carbs: (summaryData['total_carbs'] as num?)?.toInt() ?? 0,
               fat: (summaryData['total_fat'] as num?)?.toInt() ?? 0,
-              dailyMeals: mealsMap, // ✅ ส่ง Map เข้าไป
+              dailyMeals: mealsMap,
             );
       }
     } catch (e) {
-      print("Error fetching daily summary: $e");
+      debugPrint("Error fetching daily summary: $e");
     }
   }
 
-  // --- Logic การลบ/แก้ไข ---
+  // ─── Meal Actions ─────────────────────────────────────────────────────────
 
-  void _editMeal(String mealType, String currentMenu) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('กำลังจะแก้ไขเมนู: $currentMenu')),
+  Future<void> _editMeal(String mealType, String mealLabel) async {
+    final userId = ref.read(userDataProvider).userId;
+    final dateStr =
+        "${_viewDate.year}-${_viewDate.month.toString().padLeft(2, '0')}-${_viewDate.day.toString().padLeft(2, '0')}";
+
+    // Fetch meal detail from backend
+    List<dynamic> items = [];
+    Map<String, dynamic> summary = {};
+    try {
+      final url = '${AppConstants.baseUrl}/meals/$userId/detail?date_record=$dateStr&meal_type=$mealType';
+      debugPrint('🔍 Fetching meal detail: $url');
+      final res = await http.get(Uri.parse(url));
+      debugPrint('📦 Response ${res.statusCode}: ${res.body}');
+      if (res.statusCode == 200) {
+        final data = json.decode(utf8.decode(res.bodyBytes));
+        items = data['items'] as List? ?? [];
+        summary = (data['summary'] as Map<String, dynamic>?) ?? {};
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      backgroundColor: Colors.white,
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.85,
+        builder: (_, scrollCtrl) => Column(children: [
+          // ── Header ──────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+            child: Column(children: [
+              // Handle
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 14),
+              Row(children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                      color: _greenLight,
+                      borderRadius: BorderRadius.circular(10)),
+                  child: Icon(_mealIcon(mealType), color: _green, size: 20),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(mealLabel,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87)),
+                    if (summary['total_cal'] != null)
+                      Text(
+                        'รวม ${(summary['total_cal'] as num).toStringAsFixed(0)} kcal  '
+                        '· P ${(summary['total_protein'] as num).toStringAsFixed(0)}g  '
+                        '· C ${(summary['total_carbs'] as num).toStringAsFixed(0)}g  '
+                        '· F ${(summary['total_fat'] as num).toStringAsFixed(0)}g',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                  ]),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+            ]),
+          ),
+
+          // ── Food list ────────────────────────────────────────────────────
+          Expanded(
+            child: items.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.restaurant_menu,
+                            size: 48, color: Colors.grey.shade300),
+                        const SizedBox(height: 8),
+                        Text('ยังไม่มีรายการอาหาร',
+                            style: TextStyle(color: Colors.grey.shade400)),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final item = items[i] as Map<String, dynamic>;
+                      final cal = (item['total_cal'] as num?)?.toStringAsFixed(0) ?? '-';
+                      final protein = (item['total_protein'] as num?)?.toStringAsFixed(1) ?? '0';
+                      final carbs = (item['total_carbs'] as num?)?.toStringAsFixed(1) ?? '0';
+                      final fat = (item['total_fat'] as num?)?.toStringAsFixed(1) ?? '0';
+                      final imageUrl = item['image_url'] as String? ?? '';
+                      final foodName = item['food_name'] as String? ?? '';
+                      final amount = item['amount'];
+
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _bg,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(children: [
+                          // Food image / placeholder
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: imageUrl.isNotEmpty
+                                ? Image.network(imageUrl,
+                                    width: 60, height: 60,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _foodPlaceholder())
+                                : _foodPlaceholder(),
+                          ),
+                          const SizedBox(width: 12),
+                          // Info
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text(foodName,
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87)),
+                              const SizedBox(height: 2),
+                              Text('${amount ?? 1} หน่วย',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade500)),
+                              const SizedBox(height: 6),
+                              // Macro chips
+                              Row(children: [
+                                _macroChip('P', protein, const Color(0xFF628141)),
+                                const SizedBox(width: 4),
+                                _macroChip('C', carbs, const Color(0xFF3D5A27)),
+                                const SizedBox(width: 4),
+                                _macroChip('F', fat, const Color(0xFF4A7A20)),
+                              ]),
+                            ]),
+                          ),
+                          // Calorie badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _green,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(children: [
+                              Text(cal,
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white)),
+                              const Text('kcal',
+                                  style: TextStyle(
+                                      fontSize: 10, color: Colors.white70)),
+                            ]),
+                          ),
+                        ]),
+                      );
+                    },
+                  ),
+          ),
+
+          // ── Action buttons ───────────────────────────────────────────────
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+                16, 8, 16, MediaQuery.of(_).viewInsets.bottom + 16),
+            child: Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(_);
+                    _confirmDeleteMeal(mealType, mealLabel);
+                  },
+                  icon: const Icon(Icons.delete_outline,
+                      size: 18, color: Colors.red),
+                  label: const Text('ลบมื้อนี้',
+                      style: TextStyle(color: Colors.red)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.red.shade300),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(_);
+                    ref.read(navIndexProvider.notifier).state = 1;
+                  },
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('เพิ่มจานอาหาร'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
     );
   }
+
+  Widget _foodPlaceholder() => Container(
+      width: 60, height: 60,
+      decoration: BoxDecoration(
+          color: _greenLight,
+          borderRadius: BorderRadius.circular(12)),
+      child: const Icon(Icons.restaurant, color: _green, size: 28));
+
+  Widget _macroChip(String label, String value, Color color) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(6)),
+      child: Text('$label $value g',
+          style: TextStyle(
+              fontSize: 10, fontWeight: FontWeight.w600, color: color)));
 
   void _confirmDeleteMeal(String mealType, String mealLabel) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('ยืนยันการลบ',
-            style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold)),
-        content: Text('คุณต้องการลบรายการอาหารใน "$mealLabel" ใช่หรือไม่?'),
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text('ลบรายการอาหารใน "$mealLabel" ทั้งหมด?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child:
-                  const Text('ยกเลิก', style: TextStyle(color: Colors.grey))),
+              child: const Text('ยกเลิก',
+                  style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _deleteMeal(mealType);
             },
             child: const Text('ลบ',
-                style:
-                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -149,13 +401,13 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+      builder: (ctx) =>
+          const Center(child: CircularProgressIndicator(color: _green)),
     );
 
     try {
       final url = Uri.parse(
-          '\${AppConstants.baseUrl}/meals/clear/$userId?date_record=$dateStr&meal_type=$mealType');
-
+          '${AppConstants.baseUrl}/meals/clear/$userId?date_record=$dateStr&meal_type=$mealType');
       final response = await http.delete(url);
 
       if (response.statusCode == 200) {
@@ -174,7 +426,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        print("Delete Error: $e");
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text('เกิดข้อผิดพลาดในการลบ'),
@@ -184,18 +435,17 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     }
   }
 
-  // --- Helper Functions ---
+  // ─── Helpers ─────────────────────────────────────────────────────────────
 
   String getBMIStatus(double bmi) {
     if (bmi <= 0) return '-';
-    if (bmi < 18.5) return 'น้ำหนักน้อย'; // Underweight
-    if (bmi < 22.9) return 'ปกติ'; // Normal weight
-    if (bmi < 24.9) return 'ท้วม'; // Overweight
-    if (bmi < 29.9) return 'อ้วน'; // Obesity
-    return 'อ้วนมาก'; // Obesity II (>= 30)
+    if (bmi < 18.5) return 'น้ำหนักน้อย';
+    if (bmi < 22.9) return 'ปกติ';
+    if (bmi < 24.9) return 'ท้วม';
+    if (bmi < 29.9) return 'อ้วน';
+    return 'อ้วนมาก';
   }
 
-  // Helper: แปลง key เป็นป้ายภาษาไทย (backend ส่ง breakfast/lunch/dinner/snack)
   String _formatMealLabel(String key) {
     switch (key) {
       case 'breakfast':
@@ -214,7 +464,21 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     return key;
   }
 
-  // Helper: เรียงลำดับมื้อ (breakfast, lunch, dinner, snack แล้วตามด้วย meal_1...)
+  IconData _mealIcon(String key) {
+    switch (key) {
+      case 'breakfast':
+        return Icons.wb_sunny_outlined;
+      case 'lunch':
+        return Icons.light_mode_outlined;
+      case 'dinner':
+        return Icons.nightlight_outlined;
+      case 'snack':
+        return Icons.local_cafe_outlined;
+      default:
+        return Icons.restaurant_outlined;
+    }
+  }
+
   List<String> _getSortedMealKeys(Map<String, String> meals) {
     const order = ['breakfast', 'lunch', 'dinner', 'snack'];
     var keys = meals.keys.toList();
@@ -229,195 +493,33 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     return keys;
   }
 
-  // --- Widgets ---
-
-  Widget _buildNutrientLabel(String label, int current, int total,
-      String imagePath, String macroType) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MacroDetailScreen(macroType: macroType),
-          ),
-        );
-      },
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: SizedBox(
-          width: 150,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Container(
-                    width: 25,
-                    height: 25,
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        image: DecorationImage(
-                            image: AssetImage(imagePath), fit: BoxFit.cover))),
-                const SizedBox(width: 8),
-                Text(label,
-                    style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500)),
-              ]),
-              const SizedBox(height: 4),
-              Stack(children: [
-                Container(
-                    width: 140,
-                    height: 2,
-                    decoration: BoxDecoration(
-                        color: const Color(0xFF979797).withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(6))),
-                Container(
-                  width:
-                      140 * (total > 0 ? (current / total).clamp(0.0, 1.0) : 0),
-                  height: 2,
-                  decoration: BoxDecoration(
-                      color: const Color(0xFF1C1B1F).withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(6)),
-                ),
-              ]),
-              const SizedBox(height: 2),
-              SizedBox(
-                  width: 140,
-                  child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('$current g',
-                            style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500)),
-                        Text('$total g',
-                            style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500)),
-                      ])),
-            ],
-          ),
-        ),
-      ),
-    );
+  bool _isToday(DateTime d) {
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
   }
 
-  // Widget สร้างแถวรายการอาหาร
-  Widget _buildMealRow(String label, String menu, String mealType) {
-    bool hasMenu = menu.isNotEmpty && menu != '-' && menu != '';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ชื่อมื้อและเมนู
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$label :',
-                    style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black)),
-                const SizedBox(height: 4),
-                Text(
-                  hasMenu ? menu : '-',
-                  style: const TextStyle(
-                      fontFamily: 'Inter', fontSize: 16, color: Colors.black),
-                ),
-              ],
-            ),
-          ),
-
-          // ปุ่มแก้ไข/ลบ
-          if (hasMenu)
-            Row(
-              children: [
-                InkWell(
-                  onTap: () => _editMeal(mealType, menu),
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8EFCF),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withOpacity(0.25),
-                            offset: const Offset(0, 4),
-                            blurRadius: 4)
-                      ],
-                    ),
-                    child:
-                        const Icon(Icons.edit, size: 16, color: Colors.black),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                InkWell(
-                  onTap: () => _confirmDeleteMeal(mealType, label),
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8EFCF),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withOpacity(0.25),
-                            offset: const Offset(0, 4),
-                            blurRadius: 4)
-                      ],
-                    ),
-                    child:
-                        const Icon(Icons.delete, size: 16, color: Colors.red),
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
+  String _getAdvice(int currentCal, int targetCal, bool isOver) {
+    if (currentCal == 0) return "เริ่มบันทึกมื้อแรกของวันกันเลย!";
+    if (isOver) return "พลังงานเกินเป้าหมาย ลองเดินย่อยดูนะ";
+    final pct = currentCal / targetCal;
+    if (pct >= 0.9) return "ใกล้ถึงเป้าแล้ว มื้อหน้าเลือกทานเบาๆ นะ";
+    if (pct >= 0.5) return "กำลังดี! รักษาวินัยต่อไปได้เลย";
+    return "วันนี้ยังเหลืออีกเยอะ ทานให้ครบนะ";
   }
 
-  // ✅ Widget สร้างรายการมื้ออาหารแบบ Dynamic List
-  Widget _buildDynamicMealList(Map<String, String> meals) {
-    var sortedKeys = _getSortedMealKeys(meals);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8EFCF),
-        border: Border.all(color: const Color(0xFF4C6414), width: 1),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (meals.isEmpty)
-            const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Text("ยังไม่มีรายการอาหาร",
-                    style: TextStyle(color: Colors.grey))),
-          for (int i = 0; i < sortedKeys.length; i++) ...[
-            _buildMealRow(_formatMealLabel(sortedKeys[i]),
-                meals[sortedKeys[i]]!, sortedKeys[i]),
-            if (i < sortedKeys.length - 1) const Divider(color: Colors.black12),
-          ]
-        ],
-      ),
-    );
-  }
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final userData = ref.watch(userDataProvider);
+
+    // ✅ FIX: Re-fetch when user navigates back to home tab from record screen
+    ref.listen<int>(navIndexProvider, (prev, next) {
+      if (next == 0 && prev != 0 && mounted) {
+        _fetchDailyData(_viewDate);
+      }
+    });
+
     ref.listen<DateTime?>(homeViewDateProvider, (prev, next) {
       if (next != null && mounted) {
         ref.read(homeViewDateProvider.notifier).state = null;
@@ -428,28 +530,13 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
       }
     });
 
-    int targetCal = userData.targetCalories.toInt() > 0
-        ? userData.targetCalories.toInt()
-        : 1500;
-    int currentCal = userData.consumedCalories;
-    double progress = (targetCal > 0) ? currentCal / targetCal : 0.0;
+    final int targetCal =
+        userData.targetCalories.toInt() > 0 ? userData.targetCalories.toInt() : 1500;
+    final int currentCal = userData.consumedCalories;
+    final double progress = (targetCal > 0) ? (currentCal / targetCal).clamp(0.0, 1.0) : 0.0;
+    final bool isOver = currentCal > targetCal;
 
-    final targetP = userData.targetProtein;
-    final targetC = userData.targetCarbs;
-    final targetF = userData.targetFat;
-
-    bool isOverCalories = currentCal > targetCal;
-    Color progressColor = isOverCalories ? Colors.red : const Color(0xFF628141);
-    Color calorieTextColor = isOverCalories ? Colors.red : Colors.black;
-
-    String getAdvice() {
-      if (currentCal == 0) return "เริ่มบันทึกมื้อแรกของวันกันเลย!";
-      if (isOverCalories) return "พลังงานเกินเป้าหมายแล้ว! ลองเดินย่อยดูนะ";
-      if (progress >= 0.8) return "ใกล้ถึงเป้าหมายแล้ว มื้อหน้าเลือกทานเบาๆ นะ";
-      return "รักษาวินัยได้ดีมาก วันนี้มาทำให้สำเร็จกัน!";
-    }
-
-    if (isOverCalories && !_hasWarnedCalories) {
+    if (isOver && !_hasWarnedCalories) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('⚠️ แจ้งเตือน: แคลอรี่เกินเป้าหมายแล้ว!'),
@@ -459,514 +546,856 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
       });
     }
 
-    double bmi = userData.bmi;
-    String bmiStatus = getBMIStatus(bmi);
-    double weightDiff = (userData.weight - userData.targetWeight).abs();
-    String weightAction =
-        (userData.weight > userData.targetWeight) ? "ลดอีก" : "เพิ่มอีก";
+    final double bmi = userData.bmi;
+    final String bmiStatus = getBMIStatus(bmi);
 
-    double weightProgress = 0.0;
-    if (userData.weight > 0 && userData.targetWeight > 0) {
-      if (userData.goal == GoalOption.loseWeight &&
-          userData.weight >= userData.targetWeight) {
-        double startWeight = userData.weight + 5;
-        double totalToLose = startWeight - userData.targetWeight;
-        double lost = startWeight - userData.weight;
-        weightProgress = (totalToLose > 0) ? (lost / totalToLose) : 0;
+    // ── Refresh อัตโนมัติเมื่อ user กลับมา Home tab (index 0) ───────────────
+    ref.listen<int>(navIndexProvider, (prev, next) {
+      if (next == 0 && prev != null && prev != 0) {
+        _fetchAllData(); // ดึงข้อมูลใหม่โดยใช้ _viewDate เดิม (ไม่ reset วันที่)
       }
-    }
+    });
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _bg,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: () async {
-                await _fetchAllData();
-              },
+          ? const Center(child: CircularProgressIndicator(color: _green))
+          : _hasError
+              ? Center(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.wifi_off_rounded,
+                        size: 56, color: Color(0xFFBDBDBD)),
+                    const SizedBox(height: 12),
+                    const Text('ไม่สามารถโหลดข้อมูลได้',
+                        style: TextStyle(fontSize: 15, color: Colors.grey)),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _fetchAllData,
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('ลองใหม่'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ]),
+                )
+              : RefreshIndicator(
+              onRefresh: _fetchAllData,
+              color: _green,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- Header ---
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 10),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 1,
-                            child: GestureDetector(
-                              onTap: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: _viewDate,
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime.now(),
-                                );
-                                if (picked != null && mounted) {
-                                  setState(() => _viewDate = DateTime(
-                                      picked.year, picked.month, picked.day));
-                                  setState(() => _isLoading = true);
-                                  await _fetchDailyData(_viewDate);
-                                  if (mounted)
-                                    setState(() => _isLoading = false);
-                                }
-                              },
-                              child: Container(
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: Colors.green,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                        color: Colors.black.withOpacity(0.06),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2))
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    "${_viewDate.day}/${_viewDate.month}/${_viewDate.year + 543}",
-                                    style: const TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: Builder(builder: (context) {
-                              GoalOption goal =
-                                  userData.goal ?? GoalOption.loseWeight;
-                              String title = 'ลดน้ำหนัก';
-                              String subtitle = '';
-                              String iconUrl = '';
-                              LinearGradient gradient = const LinearGradient(
-                                  colors: [Colors.white, Colors.white]);
-
-                              if (goal == GoalOption.loseWeight) {
-                                title = 'ลดน้ำหนัก';
-                                subtitle = 'ควบคุมแคลอรี่';
-                                iconUrl =
-                                    'https://api.builder.io/api/v1/image/assets/TEMP/2b36cbc83f6282347dd67152d454841cc595df15';
-                                gradient = const LinearGradient(colors: [
-                                  Color(0xFFDBA979),
-                                  Color(0xFFD76A3C)
-                                ]);
-                              } else if (goal == GoalOption.maintainWeight) {
-                                title = 'รักษาน้ำหนัก';
-                                subtitle = 'รักษาสมดุล สุขภาพดี';
-                                iconUrl =
-                                    'https://api.builder.io/api/v1/image/assets/TEMP/caa3690bf64691cf18159ea72b5ec46944c37e66';
-                                gradient = const LinearGradient(colors: [
-                                  Color(0xFF10337F),
-                                  Color(0xFF2D58B6),
-                                  Color(0xFF497CEA)
-                                ], stops: [
-                                  0.0,
-                                  0.36,
-                                  1.0
-                                ]);
-                              } else if (goal == GoalOption.buildMuscle) {
-                                title = 'เพิ่มกล้ามเนื้อ';
-                                subtitle = 'ลดไขมัน';
-                                iconUrl =
-                                    'https://api.builder.io/api/v1/image/assets/TEMP/3ac072bc08b89b53ec34785b4a25b0021535bdd8';
-                                gradient = const LinearGradient(colors: [
-                                  Color(0xFFB4AC15),
-                                  Color(0xFFFFEA4B),
-                                  Color(0xFFFAFC83)
-                                ], stops: [
-                                  0.0,
-                                  0.63,
-                                  1.0
-                                ]);
-                              }
-
-                              return Container(
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  gradient: gradient,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                        color: Colors.black.withOpacity(0.06),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2))
-                                  ],
-                                ),
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
-                                child: Row(
-                                  children: [
-                                    if (iconUrl.isNotEmpty) ...[
-                                      Image.network(iconUrl,
-                                          width: 44,
-                                          height: 44,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (c, e, s) =>
-                                              const SizedBox(
-                                                  width: 44, height: 44)),
-                                      const SizedBox(width: 12),
-                                    ],
-                                    Expanded(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(title,
-                                              style: const TextStyle(
-                                                  fontFamily: 'Inter',
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Colors.white)),
-                                          if (subtitle.isNotEmpty)
-                                            Text(subtitle,
-                                                style: const TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.white70)),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // --- Dashboard (Calories) ---
-                    Container(
-                      width: double.infinity,
-                      color: const Color(0xFFE8EFCF),
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 15),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('เเคลอรี่ที่ทานต่อวัน',
-                                    style: TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black)),
-                                IconButton(
-                                    icon: const Icon(Icons.bar_chart_rounded,
-                                        color: Color(0xFF628141), size: 32),
-                                    onPressed: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (context) =>
-                                                const ProgressScreen()))),
-                              ],
-                            ),
-                          ),
-                          SizedBox(
-                            height: 250,
-                            child: Stack(
-                              children: [
-                                Positioned(
-                                  left: 5,
-                                  top: 18,
-                                  child: Column(
-                                    children: [
-                                      SizedBox(
-                                        width: 170,
-                                        height: 170,
-                                        child: Stack(
-                                          alignment: Alignment.center,
-                                          children: [
-                                            const SizedBox(
-                                                width: 150,
-                                                height: 150,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                        value: 1.0,
-                                                        strokeWidth: 12,
-                                                        color:
-                                                            Color(0xFF8BAE66))),
-                                            SizedBox(
-                                                width: 150,
-                                                height: 150,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                        value: progress.clamp(
-                                                            0.0, 1.0),
-                                                        strokeWidth: 12,
-                                                        color: progressColor,
-                                                        strokeCap:
-                                                            StrokeCap.round)),
-                                            Column(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Text('$currentCal',
-                                                    style: TextStyle(
-                                                        fontFamily: 'Inter',
-                                                        fontSize: 48,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                        color: calorieTextColor,
-                                                        height: 1)),
-                                                Text('/ $targetCal KCAL',
-                                                    style: const TextStyle(
-                                                        fontFamily: 'Inter',
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.w500)),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 30),
-                                      Text(getAdvice(),
-                                          style: TextStyle(
-                                              color: calorieTextColor,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 12)),
-                                    ],
-                                  ),
-                                ),
-                                Positioned(
-                                    left: 226,
-                                    top: 41,
-                                    child: _buildNutrientLabel(
-                                        'โปรตีน',
-                                        userData.consumedProtein,
-                                        targetP,
-                                        'assets/images/icon/meat.png',
-                                        'protein')),
-                                Positioned(
-                                    left: 226,
-                                    top: 102,
-                                    child: _buildNutrientLabel(
-                                        'คาร์บ',
-                                        userData.consumedCarbs,
-                                        targetC,
-                                        'assets/images/icon/rice.png',
-                                        'carbs')),
-                                Positioned(
-                                    left: 226,
-                                    top: 166,
-                                    child: _buildNutrientLabel(
-                                        'ไขมัน',
-                                        userData.consumedFat,
-                                        targetF,
-                                        'assets/images/icon/oil.png',
-                                        'fat')),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    Container(height: 20, color: Colors.white),
-
-                    // ✅ --- Stats Section (Green Theme) ---
-                    SizedBox(
-                      height: 119,
-                      width: double.infinity,
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                              child: Container(color: const Color(0xFFE8EFCF))),
-                          Positioned(
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: 159,
-                            child: Container(color: const Color(0xFFAFD198)),
-                          ),
-                          Positioned(
-                            left: 7,
-                            top: 5,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                  color: const Color(0xFFE8EFCF),
-                                  borderRadius: BorderRadius.circular(10)),
-                              child: const Text('เป้าหมายนํ้าหนักตัว',
-                                  style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black)),
-                            ),
-                          ),
-                          Positioned(
-                            left: 29,
-                            top: 44,
-                            child: Text('${userData.weight.toInt()}',
-                                style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black)),
-                          ),
-                          const Positioned(
-                              left: 72,
-                              top: 58,
-                              child: Text('/',
-                                  style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black))),
-                          Positioned(
-                              left: 84,
-                              top: 59,
-                              child: Text(
-                                  '${userData.targetWeight.toInt()} กก.',
-                                  style: const TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color.fromRGBO(0, 0, 0, 0.7)))),
-                          Positioned(
-                            left: 30,
-                            top: 92,
-                            child: Text(
-                                '$weightAction ${weightDiff.toStringAsFixed(1)} กก.',
-                                style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black)),
-                          ),
-                          Positioned(
-                            left: 159,
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: Container(
-                              color: const Color(0xFFE8EFCF),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text('BMI ${bmi.toStringAsFixed(1)}',
-                                            style: const TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black)),
-                                        const SizedBox(height: 7),
-                                        Text(bmiStatus,
-                                            style: const TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black)),
-                                        const SizedBox(height: 7),
-                                        Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 4),
-                                            color: Colors.white,
-                                            child: const Text('ต้องลดอีก 2.7',
-                                                style: TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.black)))
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                      width: 1,
-                                      height: 80,
-                                      color: Colors.black12),
-                                  Expanded(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                            '${(weightProgress * 100).toInt()}%',
-                                            style: const TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black)),
-                                        const SizedBox(height: 7),
-                                        const Text('ความคืบหน้า',
-                                            style: TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black)),
-                                        const SizedBox(height: 7),
-                                        Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 4),
-                                            color: Colors.white,
-                                            child: Text(
-                                                'เหลืออีก ${(100 - (weightProgress * 100)).toInt()}%',
-                                                style: const TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.black)))
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // ✅ --- Dynamic Menu List Section ---
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                                color: const Color(0xFFE8EFCF),
-                                borderRadius: BorderRadius.circular(10)),
-                            child: const Text('มื้ออาหารที่ทานวันนี้',
-                                style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black)),
-                          ),
-                          const SizedBox(height: 10),
-                          _buildDynamicMealList(userData.dailyMeals),
-                        ],
-                      ),
-                    ),
+                    _buildDateHeader(),
+                    const SizedBox(height: 16),
+                    _buildCalorieCard(
+                        currentCal, targetCal, progress, isOver, userData),
+                    const SizedBox(height: 12),
+                    _buildMacroRow(userData),
+                    const SizedBox(height: 12),
+                    _buildWeightBMIRow(userData, bmi, bmiStatus),
+                    const SizedBox(height: 16),
+                    _buildRestaurantButton(targetCal - currentCal),
+                    const SizedBox(height: 12),
+                    _buildMealsSection(userData),
                     const SizedBox(height: 100),
                   ],
                 ),
               ),
             ),
+    );
+  }
+
+  // ─── Date Header ──────────────────────────────────────────────────────────
+
+  Widget _buildDateHeader() {
+    final isToday = _isToday(_viewDate);
+    final thaiMonths = [
+      '', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+    ];
+    final dateLabel =
+        '${_viewDate.day} ${thaiMonths[_viewDate.month]} ${_viewDate.year + 543}';
+
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_greenDark, _green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Row(children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isToday ? 'วันนี้' : 'ดูข้อมูลย้อนหลัง',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.75)),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                dateLabel,
+                style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+        // Date picker button
+        GestureDetector(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _viewDate,
+              firstDate: DateTime(2020),
+              lastDate: DateTime.now(),
+              builder: (ctx, child) => Theme(
+                data: Theme.of(ctx).copyWith(
+                  colorScheme: const ColorScheme.light(
+                      primary: _green, onPrimary: Colors.white),
+                ),
+                child: child!,
+              ),
+            );
+            if (picked != null && mounted) {
+              setState(() {
+                _viewDate = DateTime(picked.year, picked.month, picked.day);
+                _isLoading = true;
+              });
+              await _fetchDailyData(_viewDate);
+              if (mounted) setState(() => _isLoading = false);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(50),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.4), width: 1),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.calendar_today_outlined,
+                  color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                isToday ? 'เปลี่ยนวันที่' : 'วันอื่น',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ─── Calorie Card ─────────────────────────────────────────────────────────
+
+  Widget _buildCalorieCard(int currentCal, int targetCal, double progress,
+      bool isOver, dynamic userData) {
+    final remaining = targetCal - currentCal;
+    final ringColor = isOver ? Colors.red : _green;
+    final advice = _getAdvice(currentCal, targetCal, isOver);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 4))
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.local_fire_department_rounded,
+                color: _green, size: 20),
+            const SizedBox(width: 8),
+            const Text('แคลอรี่ที่ทานวันนี้',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87)),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ProgressScreen())),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                    color: _greenLight,
+                    borderRadius: BorderRadius.circular(20)),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.bar_chart_rounded, size: 14, color: _green),
+                  SizedBox(width: 4),
+                  Text('กราฟ',
+                      style: TextStyle(fontSize: 12, color: _green, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+            ),
+          ]),
+
+          const SizedBox(height: 20),
+
+          // Ring + Numbers side by side
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            // Calorie ring
+            SizedBox(
+              width: 140,
+              height: 140,
+              child: Stack(alignment: Alignment.center, children: [
+                SizedBox(
+                  width: 130,
+                  height: 130,
+                  child: CircularProgressIndicator(
+                    value: 1.0,
+                    strokeWidth: 12,
+                    color: const Color(0xFFE8EFCF),
+                    strokeCap: StrokeCap.round,
+                  ),
+                ),
+                SizedBox(
+                  width: 130,
+                  height: 130,
+                  child: CircularProgressIndicator(
+                    value: progress,
+                    strokeWidth: 12,
+                    color: ringColor,
+                    strokeCap: StrokeCap.round,
+                  ),
+                ),
+                Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(
+                    '$currentCal',
+                    style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: isOver ? Colors.red : Colors.black87,
+                        height: 1),
+                  ),
+                  Text('kcal',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w500)),
+                ]),
+              ]),
+            ),
+
+            const SizedBox(width: 20),
+
+            // Stats
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _calorieStatItem(
+                        'เป้าหมาย', '$targetCal kcal', _green, Icons.flag_outlined),
+                    const SizedBox(height: 12),
+                    // Removed extra stat item based on user request
+                    const SizedBox(height: 8),
+                    // Progress bar
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 8,
+                        backgroundColor: const Color(0xFFE8EFCF),
+                        valueColor: AlwaysStoppedAnimation(ringColor),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${(progress * 100).toInt()}% ของเป้าหมาย',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ]),
+            ),
+          ]),
+
+          const SizedBox(height: 16),
+
+          // Advice chip
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isOver
+                  ? Colors.red.shade50
+                  : const Color(0xFFF0F7E8),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              Icon(
+                isOver ? Icons.info_outline : Icons.tips_and_updates_outlined,
+                size: 16,
+                color: isOver ? Colors.red : _green,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  advice,
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: isOver ? Colors.red.shade700 : const Color(0xFF3D5A27),
+                      fontWeight: FontWeight.w500),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _calorieStatItem(
+      String label, String value, Color color, IconData icon) {
+    return Row(children: [
+      Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 16, color: color),
+      ),
+      const SizedBox(width: 10),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 11, color: Colors.grey.shade500, height: 1.2)),
+        Text(value,
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: color,
+                height: 1.2)),
+      ]),
+    ]);
+  }
+
+  // ─── Macro Row ────────────────────────────────────────────────────────────
+
+  Widget _buildMacroRow(dynamic userData) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(children: [
+        Expanded(
+            child: _macroCard(
+                'โปรตีน',
+                userData.consumedProtein,
+                userData.targetProtein,
+                _green,
+                Icons.fitness_center_rounded,
+                'assets/images/icon/meat.png',
+                'protein')),
+        const SizedBox(width: 10),
+        Expanded(
+            child: _macroCard(
+                'คาร์บ',
+                userData.consumedCarbs,
+                userData.targetCarbs,
+                _greenDark,
+                Icons.grain_rounded,
+                'assets/images/icon/rice.png',
+                'carbs')),
+        const SizedBox(width: 10),
+        Expanded(
+            child: _macroCard(
+                'ไขมัน',
+                userData.consumedFat,
+                userData.targetFat,
+                const Color(0xFF4A7A20),
+                Icons.water_drop_rounded,
+                'assets/images/icon/oil.png',
+                'fat')),
+      ]),
+    );
+  }
+
+  Widget _macroCard(String label, int current, int target, Color color,
+      IconData icon, String assetPath, String macroType) {
+    final pct = target > 0 ? (current / target).clamp(0.0, 1.0) : 0.0;
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => MacroDetailScreen(macroType: macroType)),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 3))
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Image.asset(assetPath,
+                    errorBuilder: (_, __, ___) =>
+                        Icon(icon, color: color, size: 18)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500)),
+            const SizedBox(height: 2),
+            Text('$current g',
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87)),
+            Text('/ $target g',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: pct,
+                minHeight: 5,
+                backgroundColor: Colors.grey.shade300,
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Extras ───────────────────────────────────────────────────────────────
+
+  Widget _buildRestaurantButton(int remainingCalories) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => RestaurantMapScreen(remainingCalories: remainingCalories.toDouble())),
+          );
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          decoration: BoxDecoration(
+            color: _green,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                  color: _green.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4))
+            ],
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.restaurant_menu_rounded, color: Colors.white, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'ค้นหาร้านอาหารใกล้คุณ',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Weight & BMI Row ─────────────────────────────────────────────────────
+
+  Widget _buildWeightBMIRow(
+      dynamic userData, double bmi, String bmiStatus) {
+    final diff = (userData.weight - userData.targetWeight).abs();
+    final action =
+        (userData.weight > userData.targetWeight) ? 'ลดอีก' : 'เพิ่มอีก';
+
+    Color bmiColor = _green;
+    if (bmi > 0) {
+      if (bmi < 18.5) bmiColor = const Color(0xFF3498DB);
+      else if (bmi < 22.9) bmiColor = _green;
+      else if (bmi < 25) bmiColor = const Color(0xFFF39C12);
+      else bmiColor = const Color(0xFFE74C3C);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Weight card
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3))
+              ],
+            ),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                          color: _green.withOpacity(0.1),
+                          shape: BoxShape.circle),
+                      child: const Icon(Icons.monitor_weight_outlined,
+                          size: 16, color: _green),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('น้ำหนัก',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87)),
+                  ]),
+                  const SizedBox(height: 12),
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${userData.weight.toInt()}',
+                          style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87),
+                        ),
+                        const TextSpan(
+                          text: ' กก.',
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'เป้าหมาย: ${userData.targetWeight.toInt()} กก.',
+                    style: const TextStyle(
+                        fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _greenLight,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(action == 'ลดอีก' ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded, size: 14, color: _greenDark),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$action ${diff.toStringAsFixed(1)} กก.',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: _greenDark,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]),
+          ),
+        ),
+
+        const SizedBox(width: 10),
+
+        // BMI card
+        Expanded(
+          child: GestureDetector(
+            onTap: bmi > 0
+                ? () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => BmiDetailScreen(
+                            currentBmi: bmi,
+                            weightKg: userData.weight,
+                            heightCm: userData.height)))
+                : null,
+            child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3))
+              ],
+            ),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                          color: bmiColor.withOpacity(0.1),
+                          shape: BoxShape.circle),
+                      child: Icon(Icons.speed_rounded,
+                          size: 16, color: bmiColor),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('BMI',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87)),
+                  ]),
+                  const SizedBox(height: 12),
+                  bmi > 0
+                      ? RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: bmi.toStringAsFixed(1),
+                                style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: bmiColor),
+                              ),
+                            ],
+                          ),
+                        )
+                      : const Text('-',
+                          style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'ส่วนสูง ${userData.height.toInt()} ซม.',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: bmiColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      bmiStatus,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: bmiColor,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ]),
+          ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ─── Meals Section ────────────────────────────────────────────────────────
+
+  Widget _buildMealsSection(dynamic userData) {
+    final meals = userData.dailyMeals as Map<String, String>;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header
+        Row(children: [
+          Container(
+            width: 4,
+            height: 22,
+            decoration: BoxDecoration(
+                color: _green,
+                borderRadius: BorderRadius.circular(2)),
+          ),
+          const SizedBox(width: 10),
+          const Text(
+            'มื้ออาหารวันนี้',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87),
+          ),
+        ]),
+
+        const SizedBox(height: 12),
+
+        if (meals.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3))
+              ],
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.restaurant_outlined,
+                  size: 48, color: Colors.grey.shade300),
+              const SizedBox(height: 12),
+              Text('ยังไม่มีรายการอาหาร',
+                  style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500)),
+              const SizedBox(height: 4),
+              Text('กดปุ่ม "บันทึก" เพื่อเพิ่มรายการ',
+                  style: TextStyle(
+                      fontSize: 12, color: Colors.grey.shade400)),
+            ]),
+          )
+        else
+          Column(
+            children: _getSortedMealKeys(meals).map((key) {
+              return _buildMealCard(
+                  key, _formatMealLabel(key), meals[key] ?? '-');
+            }).toList(),
+          ),
+      ]),
+    );
+  }
+
+  Widget _buildMealCard(String mealType, String mealLabel, String menuText) {
+    final bool hasMenu =
+        menuText.isNotEmpty && menuText != '-' && menuText != '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3))
+        ],
+      ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: _greenLight,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(_mealIcon(mealType), color: _green, size: 20),
+        ),
+        title: Text(mealLabel,
+            style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87)),
+        subtitle: Text(
+          hasMenu ? menuText : 'ยังไม่มีรายการ',
+          style: TextStyle(
+              fontSize: 13,
+              color: hasMenu ? Colors.grey.shade600 : Colors.grey.shade400),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: hasMenu
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () async => _editMeal(mealType, mealLabel),
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFEAF0FF),
+                          shape: BoxShape.circle),
+                      child: const Icon(Icons.edit_outlined,
+                          size: 16, color: Color(0xFF3498DB)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => _confirmDeleteMeal(mealType, mealLabel),
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                          color: Colors.red.shade50, shape: BoxShape.circle),
+                      child: const Icon(Icons.delete_outline,
+                          size: 16, color: Colors.red),
+                    ),
+                  ),
+                ],
+              )
+            : null,
+      ),
     );
   }
 }

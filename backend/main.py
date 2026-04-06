@@ -284,37 +284,47 @@ def _age_from_birth(birth_date: Optional[date]) -> int:
 
 def _compute_target_macros(user: dict) -> tuple:
 
-    """คืน (target_protein, target_carbs, target_fat) จาก target_calories กับ goal (อัตราส่วนเท่า Flutter)."""
+    """
+    คืน (target_protein, target_carbs, target_fat) อิงจากงานวิจัยทางโภชนาการ
+    - Protein: 1.6 - 2.0g ต่อน้ำหนักตัว 1kg (เพื่อรักษากล้ามเนื้อช่วงลด หรือสร้างช่วงเพิ่มไขมัน)
+    - Fat: 0.8 - 1.0g ต่อน้ำหนักตัว 1kg (เพื่อปรับสมดุลฮอร์โมน)
+    - Carbs: แคลอรีที่เหลือทั้งหมด
+    """
 
     cal = user.get('target_calories')
-
     if cal is None:
-
         cal = _compute_target_calories(user)
-
     cal = int(cal) if cal else 2000
-
     goal = (user.get('goal_type') or 'lose_weight').lower()
-
+    
+    w = float(user.get('current_weight_kg') or 0)
+    if w <= 0: w = cal / 25
+    
     if goal == 'maintain_weight':
-
-        p_ratio, c_ratio, f_ratio = 0.25, 0.45, 0.30
-
+        p_g = w * 1.6
+        f_g = w * 1.0
     elif goal == 'gain_muscle':
-
-        p_ratio, c_ratio, f_ratio = 0.30, 0.50, 0.20
-
-    else:
-
-        p_ratio, c_ratio, f_ratio = 0.30, 0.40, 0.30
-
-    p = int(round(cal * p_ratio / 4))
-
-    c = int(round(cal * c_ratio / 4))
-
-    f = int(round(cal * f_ratio / 9))
-
-    return (p, c, f)
+        p_g = w * 2.0
+        f_g = w * 1.0
+    else:  # lose_weight
+        p_g = w * 1.8
+        f_g = w * 0.8
+        
+    p_cal = p_g * 4
+    f_cal = f_g * 9
+    c_cal = cal - (p_cal + f_cal)
+    
+    # Fallback to percentage if calories are too low leading to negative/low carbs
+    if c_cal < cal * 0.1:
+        if goal == 'maintain_weight':
+            p_ratio, c_ratio, f_ratio = 0.25, 0.45, 0.30
+        elif goal == 'gain_muscle':
+            p_ratio, c_ratio, f_ratio = 0.30, 0.50, 0.20
+        else:
+            p_ratio, c_ratio, f_ratio = 0.30, 0.40, 0.30
+        return (int(round(cal * p_ratio / 4)), int(round(cal * c_ratio / 4)), int(round(cal * f_ratio / 9)))
+        
+    return (int(round(p_g)), int(round(c_cal / 4)), int(round(f_g)))
 
 
 
@@ -373,8 +383,64 @@ def _compute_target_calories(user: dict) -> int:
         num_weeks = max((goal_end - goal_start).days / 7.0, 1.0)
 
     kg_per_week = (target_kg - w) / num_weeks
+    target_cal = int(round(tdee + (kg_per_week * 1100)))
+    
+    # SAFETY FLOOR: Restrict target_calories from dropping to dangerous levels.
+    # Minimum safe calorie intake: women (1200 kcal), men (1500 kcal) or BMR, whichever is lower/higher.
+    min_safe_cal = max(bmr, 1500) if gender == 'male' else max(bmr, 1200)
+    
+    if target_cal < min_safe_cal:
+        target_cal = int(round(min_safe_cal))
+        
+    return target_cal
 
-    return int(round(tdee + (kg_per_week * 1100)))
+
+def _check_1700_calorie_warning(user_id: int, conn):
+    """
+    Check if it is past 17:00. If so, check if user's daily calories so far
+    is significantly below minimum safety floor. If it is, and no warning was sent today,
+    create a notification.
+    """
+    now = datetime.now()
+    if now.hour < 17:
+        return
+        
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        today_str = now.strftime('%Y-%m-%d')
+        cur.execute("SELECT notification_id FROM notifications WHERE user_id = %s AND type = 'warning' AND DATE(created_at) = %s AND title = 'เตือน: แคลอรีวันนี้ยังต่ำเกินไป!'", (user_id, today_str))
+        if cur.fetchone():
+            return
+            
+        cur.execute("SELECT current_weight_kg, height_cm, birth_date, gender FROM users WHERE user_id = %s", (user_id,))
+        user_row = cur.fetchone()
+        if not user_row: return
+        
+        w = float(user_row.get('current_weight_kg') or 0)
+        h = float(user_row.get('height_cm') or 0)
+        birth = user_row.get('birth_date')
+        if isinstance(birth, str):
+            birth = datetime.strptime(birth[:10], "%Y-%m-%d").date() if birth else None
+        age = _age_from_birth(birth)
+        gender = (user_row.get('gender') or 'male').lower()
+        bmr = (10 * w) + (6.25 * h) - (5 * age) + (5 if gender == 'male' else -161)
+        min_safe_cal = max(bmr, 1500) if gender == 'male' else max(bmr, 1200)
+        
+        # Calculate today's calories Intake
+        cur.execute("SELECT COALESCE(SUM(total_calories_intake), 0) as cal FROM daily_summaries WHERE user_id = %s AND date_record = %s", (user_id, today_str))
+        daily_row = cur.fetchone()
+        today_cal = float(daily_row['cal']) if daily_row else 0.0
+        
+        if today_cal < min_safe_cal:
+            msg = f"ขณะนี้เวลา {now.strftime('%H:%M')} น. คุณเพิ่งทานไปเพียง {int(today_cal)} kcal. ควรทานให้ถึงระะดับขั้นต่ำความปลอดภัย ({int(min_safe_cal)} kcal) เพื่อรักษาระบบเผาผลาญนะ"
+            cur.execute("""
+                INSERT INTO notifications (user_id, title, message, type)
+                VALUES (%s, 'เตือน: แคลอรีวันนี้ยังต่ำเกินไป!', %s, 'warning')
+            """, (user_id, msg))
+            conn.commit()
+    except Exception as e:
+        print(f"Warning Check Error: {e}")
+        conn.rollback()
 
 
 
@@ -626,6 +692,12 @@ class WaterLogUpdate(BaseModel):
 class AllergyUpdate(BaseModel):
     flag_ids: List[int]  # list of allergy flag_ids to save (replaces existing)
 
+class SocialLoginRequest(BaseModel):
+    email: str
+    name: str
+    uid: str        # Firebase UID
+    provider: str   # 'google' | 'facebook'
+
 
 
 # ==========================================
@@ -644,29 +716,21 @@ def read_root():
 
 
 
-# --- API: Upload Image ---
+# --- API: Upload Image (Supabase Storage) ---
+
+from supabase_storage import upload_to_supabase
 
 @app.post("/upload-image/")
-
 async def upload_image(file: UploadFile = File(...)):
-
-    file_extension = file.filename.split(".")[-1]
-
-    new_filename = f"food_{uuid4()}.{file_extension}"
-
-    file_path = f"{IMAGEDIR}/{new_filename}"
-
-    
-
-    with open(file_path, "wb") as buffer:
-
-        shutil.copyfileobj(file.file, buffer)
-
-    
-
-    # ⚠️ ถ้าใช้ Emulator ให้ใช้ 10.0.2.2, ถ้าเครื่องจริงใช้ IP เครื่อง (เช่น 192.168.1.x)
-
-    return {"url": f"https://goosenecked-caleb-blandishingly.ngrok-free.dev/images/{new_filename}"}
+    """อัปโหลดรูปภาพไปยัง Supabase Storage และคืน public URL"""
+    try:
+        file_bytes = await file.read()
+        public_url = upload_to_supabase(file_bytes, file.filename)
+        return {"url": public_url}
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload ล้มเหลว: {str(e)}")
 
 
 
@@ -1407,44 +1471,43 @@ def login(user: UserLogin):
 
 
         # Update last_login_date, total_login_days, current_streak
-
         today = date.today()
-
         last_login = db_user.get('last_login_date')
-
         if isinstance(last_login, datetime):
-
             last_login = last_login.date()
 
-        total_days = int(db_user.get('total_login_days') or 0) + 1
-
+        total_days = int(db_user.get('total_login_days') or 0)
         streak = int(db_user.get('current_streak') or 0)
 
-        if last_login is None:
+        if last_login != today:
+            total_days += 1
+            if last_login is None or (today - last_login).days > 1:
+                streak = 1
+            else:
+                streak += 1
 
-            streak = 1
+            cur.execute("""
+                UPDATE users
+                SET last_login_date = %s, total_login_days = %s, current_streak = %s
+                WHERE user_id = %s
+            """, (datetime.combine(today, datetime.min.time()), total_days, streak, db_user['user_id']))
 
-        elif (today - last_login).days == 1:
-
-            streak += 1
-
-        elif (today - last_login).days > 1:
-
-            streak = 1
-
-        cur.execute("""
-
-            UPDATE users
-
-            SET last_login_date = %s, total_login_days = %s, current_streak = %s
-
-            WHERE user_id = %s
-
-        """, (datetime.combine(today, datetime.min.time()), total_days, streak, db_user['user_id']))
-
+            # ── Push streak milestone notifications ──────────────────────────────
+            streak_milestones = {1: "ยินดีต้อนรับ! เริ่มต้นดูแลสุขภาพกับ Calories Guard วันนี้เลย 🌿",
+                                 3: "ยอดเยี่ยม! คุณใช้แอปต่อเนื่อง 3 วันแล้ว ไปต่อได้เลย!",
+                                 7: "เจ๋งมาก! 7 วันติดต่อกัน! คุณมีวินัยสุดๆ!",
+                                 14: "สุดยอด! 2 สัปดาห์ติดต่อกันแล้ว นับถือมากครับ!",
+                                 30: "ระดับตำนาน! 30 วันไม่เคยพลาด คุณทำได้แล้ว!"}
+            if streak in streak_milestones:
+                msg = streak_milestones[streak]
+                cur.execute("""
+                    INSERT INTO notifications (user_id, title, message, type)
+                    VALUES (%s, %s, %s, 'achievement')
+                    ON CONFLICT DO NOTHING
+                """, (db_user['user_id'], f"🔥 Streak {streak} วัน!", msg))
         conn.commit()
 
-            
+
 
         return {
 
@@ -1458,6 +1521,8 @@ def login(user: UserLogin):
 
             "role_id": db_user['role_id'],
 
+            "current_streak": streak,
+
         }
 
     except HTTPException:
@@ -1465,13 +1530,100 @@ def login(user: UserLogin):
         raise
 
     except Exception:
-
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="Login failed. Please try again later.")
 
     finally:
 
         if conn: conn.close()
 
+
+
+# --- API 4b: Social Login (Google / Facebook) ---
+
+@app.post("/social-login")
+def social_login(body: SocialLoginRequest):
+    """
+    Sign in or auto-register a user via social provider (Google/Facebook).
+    Looks up the user by email. If not found, creates a new verified account.
+    Returns the same shape as /login so the Flutter app can handle both uniformly.
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. Check if user already exists
+        cur.execute(
+            "SELECT * FROM users WHERE email = %s AND deleted_at IS NULL",
+            (body.email,)
+        )
+        user = cur.fetchone()
+
+        if user:
+            # 2a. User exists → update last login streak & return
+            from datetime import date
+            today = date.today()
+            last_login = user.get('last_login_date')
+            if last_login and hasattr(last_login, 'date'):
+                last_login = last_login.date()
+
+            total_days = int(user.get('total_login_days') or 0) + 1
+            streak = int(user.get('current_streak') or 0)
+            if last_login is None:
+                streak = 1
+            elif last_login == today:
+                total_days -= 1  # already counted
+            elif (today - last_login).days == 1:
+                streak += 1
+            else:
+                streak = 1
+
+            cur.execute(
+                """UPDATE users SET last_login_date = %s, total_login_days = %s,
+                   current_streak = %s WHERE user_id = %s""",
+                (today, total_days, streak, user['user_id'])
+            )
+            conn.commit()
+
+            return {
+                "user_id":    int(user['user_id']),
+                "email":      user['email'],
+                "username":   user.get('username') or body.name,
+                "role_id":    int(user.get('role_id') or 2),
+                "provider":   body.provider,
+            }
+
+        else:
+            # 2b. New user → auto-register (email already verified via social)
+            import secrets
+            fake_hash = secrets.token_hex(32)  # non-usable password hash
+
+            cur.execute(
+                """INSERT INTO users
+                   (username, email, password_hash, role_id, is_email_verified, created_at)
+                   VALUES (%s, %s, %s, 2, TRUE, NOW())
+                   RETURNING user_id""",
+                (body.name, body.email, fake_hash)
+            )
+            row = cur.fetchone()
+            new_id = row['user_id']
+            conn.commit()
+
+            return {
+                "user_id":  int(new_id),
+                "email":    body.email,
+                "username": body.name,
+                "role_id":  2,
+                "provider": body.provider,
+                "is_new_user": True,
+            }
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
 
 
 # --- API 5: Update User ---
@@ -1696,6 +1848,23 @@ def _init_missing_tables():
                 amount_ml   INT  NOT NULL DEFAULT 0 CHECK (amount_ml >= 0),
                 UNIQUE (user_id, date_record)
             )
+        """)
+
+        # notifications — in-app notification messages per user
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                notification_id BIGSERIAL PRIMARY KEY,
+                user_id         BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                title           VARCHAR(200) NOT NULL,
+                message         TEXT,
+                type            VARCHAR(50) DEFAULT 'info',
+                is_read         BOOLEAN DEFAULT FALSE,
+                created_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_notifications_user_id
+            ON notifications(user_id, created_at DESC)
         """)
 
         # food_allergy_flags — maps food → allergen flags (may not exist in older schemas)
@@ -2127,25 +2296,58 @@ def add_meal(user_id: int, log: DailyLogUpdate):
 
 
 
-        # 3. Upsert daily_summaries (cleangoal มีแค่ total_calories_intake, goal_calories, is_goal_met)
+        # 3. Upsert daily_summaries is handled by DB trigger (trg_sync_daily_summary)
 
-        cur.execute("""
-
-            INSERT INTO daily_summaries (user_id, date_record, total_calories_intake)
-
-            VALUES (%s, %s, %s)
-
-            ON CONFLICT (user_id, date_record)
-
-            DO UPDATE SET
-
-                total_calories_intake = daily_summaries.total_calories_intake + EXCLUDED.total_calories_intake
-
-        """, (user_id, log.date, total_cal))
+        # which calculates accurate total calories and macros automatically upon inserting detail_items.
 
 
 
+        # ── Commit meals + detail_items ก่อน (critical) ─────────────────────
         conn.commit()
+
+        # ── Push calorie warning notification (ทำหลัง commit เสมอ) ──────────
+        try:
+            cur2 = conn.cursor(cursor_factory=RealDictCursor)
+            cur2.execute("""
+                SELECT ds.total_calories_intake, u.target_calories
+                FROM daily_summaries ds
+                JOIN users u ON u.user_id = ds.user_id
+                WHERE ds.user_id = %s AND ds.date_record = %s
+            """, (user_id, log.date))
+            row = cur2.fetchone()
+            if row:
+                total_intake = float(row['total_calories_intake'] or 0)
+                target = float(row['target_calories'] or 2000)
+                if target > 0 and total_intake > target:
+                    over = int(total_intake - target)
+                    cur2.execute("""
+                        INSERT INTO notifications (user_id, title, message, type)
+                        SELECT %s, %s, %s, 'warning'
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM notifications
+                            WHERE user_id = %s AND type = 'warning'
+                              AND DATE(created_at) = CURRENT_DATE
+                        )
+                    """, (user_id,
+                          '⚠️ แคลอรี่เกินเป้าหมายแล้ว!',
+                          f'วันนี้คุณรับแคลอรี่ไปแล้ว {int(total_intake)} kcal เกินเป้าหมายมา {over} kcal',
+                          user_id))
+                elif target > 0 and total_intake >= target * 0.9:
+                    cur2.execute("""
+                        INSERT INTO notifications (user_id, title, message, type)
+                        SELECT %s, %s, %s, 'tip'
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM notifications
+                            WHERE user_id = %s AND type = 'tip'
+                              AND DATE(created_at) = CURRENT_DATE
+                        )
+                    """, (user_id,
+                          '💡 ใกล้ถึงเป้าหมายแล้ว',
+                          f'วันนี้คุณรับแคลอรี่ {int(total_intake)} kcal ใกล้ถึงเป้าแล้ว มื้อหน้าเลือกเบาๆ นะ',
+                          user_id))
+            conn.commit()
+        except Exception:
+            pass  # notification errors must not break meal save
 
         return {"message": "Meal recorded successfully"}
 
@@ -2203,11 +2405,13 @@ def get_daily_summary(user_id: int, date_record: date):
 
 
 
-        # โปรตีน/คาร์บ/ไขมัน จาก detail_items (ค่าที่บันทึกไว้โดยตรง ไม่คำนวณย้อนจากอัตราส่วน)
+        # โปรตีน/คาร์บ/ไขมัน/แคลอรี่ จาก detail_items (ค่าที่บันทึกไว้โดยตรง ไม่คำนวณย้อนจากอัตราส่วน)
 
         cur.execute("""
 
-            SELECT COALESCE(SUM(di.amount * di.protein_per_unit), 0) AS total_protein,
+            SELECT COALESCE(SUM(di.amount * di.cal_per_unit), 0) AS total_cal,
+            
+                   COALESCE(SUM(di.amount * di.protein_per_unit), 0) AS total_protein,
 
                    COALESCE(SUM(di.amount * di.carbs_per_unit), 0) AS total_carbs,
 
@@ -2222,6 +2426,11 @@ def get_daily_summary(user_id: int, date_record: date):
         """, (user_id, date_record))
 
         macro = cur.fetchone()
+
+        computed_cal = float(macro['total_cal']) if macro else 0
+
+        if computed_cal > 0 or total_cal == 0:
+            total_cal = int(computed_cal)
 
         total_prot = float(macro['total_protein']) if macro else 0
 
@@ -2267,6 +2476,86 @@ def get_daily_summary(user_id: int, date_record: date):
 
     finally:
 
+        if conn: conn.close()
+
+
+
+# --- API 8b: Get Meal Detail Items (รายการอาหารในมื้อ + แคล + รูป) ---
+
+@app.get("/meals/{user_id}/detail")
+def get_meal_detail(user_id: int, date_record: date, meal_type: str):
+    """คืนรายการอาหารแต่ละชิ้นในมื้อที่ระบุ พร้อม calories และ image_url"""
+    print(f"[meal_detail] user_id={user_id} date={date_record} meal_type={meal_type}")
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT
+                di.meal_id,
+                di.food_name,
+                di.amount,
+                COALESCE(di.cal_per_unit, 0)     AS cal_per_unit,
+                COALESCE(di.protein_per_unit, 0) AS protein_per_unit,
+                COALESCE(di.carbs_per_unit, 0)   AS carbs_per_unit,
+                COALESCE(di.fat_per_unit, 0)     AS fat_per_unit,
+                ROUND((COALESCE(di.amount,1) * COALESCE(di.cal_per_unit,0))::numeric, 1)     AS total_cal,
+                ROUND((COALESCE(di.amount,1) * COALESCE(di.protein_per_unit,0))::numeric, 1) AS total_protein,
+                ROUND((COALESCE(di.amount,1) * COALESCE(di.carbs_per_unit,0))::numeric, 1)   AS total_carbs,
+                ROUND((COALESCE(di.amount,1) * COALESCE(di.fat_per_unit,0))::numeric, 1)     AS total_fat,
+                COALESCE(
+                    f.image_url,
+                    (SELECT image_url FROM foods WHERE LOWER(food_name) = LOWER(di.food_name) LIMIT 1),
+                    ''
+                ) AS image_url
+            FROM meals m
+            JOIN detail_items di ON di.meal_id = m.meal_id
+            LEFT JOIN foods f ON f.food_id = di.food_id
+            WHERE m.user_id = %s
+              AND DATE(m.meal_time) = %s
+              AND m.meal_type::text = %s
+            ORDER BY di.meal_id
+        """, (user_id, date_record, meal_type))
+        items = [dict(r) for r in cur.fetchall()]
+        print(f"[meal_detail] found {len(items)} items for meal_type={meal_type}")
+
+        if not items:
+            # ลองค้นหา meal_type ที่มีในวันนั้นจริงๆ เพื่อ debug
+            cur.execute("""
+                SELECT DISTINCT m.meal_type::text AS mt
+                FROM meals m
+                WHERE m.user_id = %s AND DATE(m.meal_time) = %s
+            """, (user_id, date_record))
+            available = [r['mt'] for r in cur.fetchall()]
+            print(f"[meal_detail] available meal_types on {date_record}: {available}")
+            # ลองดึงโดยไม่ filter meal_type เพื่อดูว่ามีข้อมูลไหม
+            cur.execute("""
+                SELECT COUNT(*) AS cnt FROM meals m
+                JOIN detail_items di ON di.meal_id = m.meal_id
+                WHERE m.user_id = %s AND DATE(m.meal_time) = %s
+            """, (user_id, date_record))
+            cnt_row = cur.fetchone()
+            print(f"[meal_detail] total items on {date_record} (all meal_types): {cnt_row['cnt']}")
+
+        total_cal     = sum(float(i['total_cal']     or 0) for i in items)
+        total_protein = sum(float(i['total_protein'] or 0) for i in items)
+        total_carbs   = sum(float(i['total_carbs']   or 0) for i in items)
+        total_fat     = sum(float(i['total_fat']     or 0) for i in items)
+
+        return {
+            "meal_type": meal_type,
+            "date_record": str(date_record),
+            "items": items,
+            "summary": {
+                "total_cal":     round(total_cal, 1),
+                "total_protein": round(total_protein, 1),
+                "total_carbs":   round(total_carbs, 1),
+                "total_fat":     round(total_fat, 1),
+            }
+        }
+    except Exception as e:
+        print(f"[meal_detail] ERROR: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
         if conn: conn.close()
 
 
@@ -2383,21 +2672,9 @@ def get_weekly_logs(user_id: int, week_start: Optional[str] = None):
 
         cur.execute("""
 
-            SELECT date_record, total_calories_intake
-
-            FROM daily_summaries
-
-            WHERE user_id = %s AND date_record >= %s AND date_record <= %s
-
-        """, (user_id, monday, sunday))
-
-        cal_rows = {row["date_record"]: int(row["total_calories_intake"] or 0) for row in cur.fetchall()}
-
-
-
-        cur.execute("""
-
             SELECT DATE(m.meal_time) AS d,
+
+                   COALESCE(SUM(di.amount * di.cal_per_unit), 0) AS total_cal,
 
                    COALESCE(SUM(di.amount * di.protein_per_unit), 0) AS total_protein,
 
@@ -2425,9 +2702,9 @@ def get_weekly_logs(user_id: int, week_start: Optional[str] = None):
 
             d = monday + timedelta(days=i)
 
-            cal = cal_rows.get(d, 0)
-
             macro = macro_rows.get(d)
+
+            cal = int(macro["total_cal"]) if macro else 0
 
             result.append({
 
@@ -2469,21 +2746,9 @@ def get_daily_log_by_date(user_id: int, date_query: date):
 
         cur.execute("""
 
-            SELECT total_calories_intake FROM daily_summaries
+            SELECT COALESCE(SUM(di.amount * di.cal_per_unit), 0) AS total_cal,
 
-            WHERE user_id = %s AND date_record = %s
-
-        """, (user_id, date_query))
-
-        row = cur.fetchone()
-
-        total_cal = int(row["total_calories_intake"]) if row and row["total_calories_intake"] else 0
-
-
-
-        cur.execute("""
-
-            SELECT COALESCE(SUM(di.amount * di.protein_per_unit), 0) AS total_protein,
+                   COALESCE(SUM(di.amount * di.protein_per_unit), 0) AS total_protein,
 
                    COALESCE(SUM(di.amount * di.carbs_per_unit), 0) AS total_carbs,
 
@@ -2498,6 +2763,8 @@ def get_daily_log_by_date(user_id: int, date_query: date):
         """, (user_id, date_query))
 
         macro = cur.fetchone()
+
+        total_cal = int(macro['total_cal']) if macro else 0
 
 
 
@@ -2683,6 +2950,118 @@ def add_weight_log(user_id: int, entry: WeightLogEntry):
     finally:
         if conn: conn.close()
 
+# --- API 30b: GET Weight Logs (for line chart) ---
+@app.get("/users/{user_id}/weight_logs")
+def get_weight_logs(user_id: int):
+    """คืน weight logs ล่าสุด 30 รายการ (เรียงจากเก่าไปใหม่) สำหรับกราฟเส้น"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT recorded_date::text AS date, weight_kg AS weight
+            FROM weight_logs
+            WHERE user_id = %s
+            ORDER BY recorded_date ASC
+            LIMIT 30
+        """, (user_id,))
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        if conn: conn.close()
+
+
+# --- API 30c: GET Goal Progress ---
+@app.get("/users/{user_id}/goal_progress")
+def get_goal_progress(user_id: int):
+    """คืนข้อมูลความคืบหน้าสู่เป้าหมายน้ำหนัก"""
+    conn = get_db_connection()
+    try:
+        _check_1700_calorie_warning(user_id, conn)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT current_weight_kg, target_weight_kg, goal_type,
+                   goal_start_date, goal_target_date, target_calories
+            FROM users WHERE user_id = %s
+        """, (user_id,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        current = float(user["current_weight_kg"] or 0)
+        target  = float(user["target_weight_kg"]  or 0)
+
+        # หาน้ำหนักเริ่มต้น: weight_log แรกสุดตั้งแต่ goal_start_date
+        start_weight = None
+        if user.get("goal_start_date"):
+            cur.execute("""
+                SELECT weight_kg FROM weight_logs
+                WHERE user_id = %s AND recorded_date >= %s
+                ORDER BY recorded_date ASC LIMIT 1
+            """, (user_id, user["goal_start_date"]))
+            row = cur.fetchone()
+            if row:
+                start_weight = float(row["weight_kg"])
+
+        if start_weight is None:
+            cur.execute("""
+                SELECT weight_kg FROM weight_logs
+                WHERE user_id = %s ORDER BY recorded_date ASC LIMIT 1
+            """, (user_id,))
+            row = cur.fetchone()
+            start_weight = float(row["weight_kg"]) if row else current
+
+        # คำนวณ % ความคืบหน้า
+        needed = abs(target - start_weight)
+        done   = abs(current - start_weight)
+        if needed > 0:
+            progress_pct = round(min(100.0, (done / needed) * 100), 1)
+        else:
+            progress_pct = 100.0
+
+        remaining_kg = round(abs(target - current), 2)
+
+        # ประเมินจำนวนวันที่เหลือจากอัตราการเปลี่ยนน้ำหนักจริง
+        estimated_days = None
+        cur.execute("""
+            SELECT recorded_date, weight_kg FROM weight_logs
+            WHERE user_id = %s ORDER BY recorded_date DESC LIMIT 14
+        """, (user_id,))
+        recent = cur.fetchall()
+        if len(recent) >= 2:
+            newest  = recent[0]
+            oldest  = recent[-1]
+            day_gap = (newest["recorded_date"] - oldest["recorded_date"]).days
+            kg_diff = abs(float(newest["weight_kg"]) - float(oldest["weight_kg"]))
+            if day_gap > 0 and kg_diff > 0 and remaining_kg > 0:
+                rate = kg_diff / day_gap          # kg/day
+                estimated_days = int(remaining_kg / rate)
+
+        # แคลฯ ที่เผาผลาญสัปดาห์นี้ (จาก activities ถ้ามี — placeholder)
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        cur.execute("""
+            SELECT COALESCE(SUM(total_calories_intake), 0) AS weekly_intake
+            FROM daily_summaries
+            WHERE user_id = %s AND date_record >= %s AND date_record <= %s
+        """, (user_id, monday, monday + timedelta(days=6)))
+        row = cur.fetchone()
+        weekly_intake = int(row["weekly_intake"]) if row else 0
+
+        return {
+            "current_weight":   current,
+            "target_weight":    target,
+            "start_weight":     start_weight,
+            "progress_pct":     progress_pct,
+            "remaining_kg":     remaining_kg,
+            "goal_type":        user.get("goal_type"),
+            "goal_start_date":  str(user["goal_start_date"]) if user.get("goal_start_date") else None,
+            "goal_target_date": str(user["goal_target_date"]) if user.get("goal_target_date") else None,
+            "estimated_days":   estimated_days,
+            "weekly_intake":    weekly_intake,
+        }
+    finally:
+        if conn: conn.close()
+
+
 # --- API 31: GET Weight Status (Check if >= 14 days) ---
 @app.get("/weight_status/{user_id}")
 def get_weight_status(user_id: int):
@@ -2724,6 +3103,7 @@ def get_weight_status(user_id: int):
 def get_progress_summary(user_id: int):
     conn = get_db_connection()
     try:
+        _check_1700_calorie_warning(user_id, conn)
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         # 1. Get User Data
@@ -2783,23 +3163,16 @@ def get_progress_summary(user_id: int):
     finally:
         if conn: conn.close()
 
-# --- API 33: POST Upload Image (เก็บรูปเป็น Object บน Server) ---
+# --- API 33: POST Upload Image (Supabase Storage) ---
 @app.post("/upload_image")
-async def upload_image(file: UploadFile = File(...)):
-    """อัปโหลดรูปภาพมาเก็บไว้ใน backend/static/images โดยตรง แทนการแปะ URL ภายนอก"""
+async def upload_image_alt(file: UploadFile = File(...)):
+    """อัปโหลดรูปภาพไปยัง Supabase Storage (endpoint สำรอง)"""
     try:
-        # Generate a unique filename to prevent collisions
-        file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-        unique_filename = f"{uuid4().hex}.{file_ext}"
-        file_path = os.path.join(IMAGEDIR, unique_filename)
-        
-        # Save file to disk
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        # Return the local accessible URL route
-        image_url = f"/images/{unique_filename}"
-        return {"image_url": image_url, "message": "อัปโหลดรูปภาพสำเร็จ"}
+        file_bytes = await file.read()
+        public_url = upload_to_supabase(file_bytes, file.filename)
+        return {"image_url": public_url, "url": public_url, "message": "อัปโหลดรูปภาพสำเร็จ"}
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
 
@@ -2809,6 +3182,8 @@ from chatbot_agent import CoachingAgent
 class ChatMessage(BaseModel):
     user_id: int
     message: str
+    lat: float | None = None
+    lng: float | None = None
 
 coach_agent = CoachingAgent()
 
@@ -2820,6 +3195,26 @@ def chat_with_coach(payload: ChatMessage):
         return {"response": response_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Coach Error: {str(e)}")
+
+
+# --- API 34b: Multi-Agent Chat (3-Agent System) ---
+from ai_models.multi_agent_system import NutritionMultiAgent
+
+_multi_agent = NutritionMultiAgent()
+
+@app.post("/api/chat/multi")
+def chat_multi_agent(payload: ChatMessage):
+    """
+    3-Agent AI pipeline:
+      Agent1 (DataOrchestrator) → Agent2 (NutritionAnalysis) → Agent3 (ResponseComposer/Gemini)
+    """
+    try:
+        response_text = _multi_agent.run(
+            payload.user_id, payload.message,
+            lat=payload.lat, lng=payload.lng)
+        return {"response": response_text, "agent": "multi_3"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Multi-Agent Error: {str(e)}")
 
 
 # =============================================================================
@@ -3030,16 +3425,207 @@ def upsert_water_log(user_id: int, entry: WaterLogUpdate):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        glasses = max(0, round(entry.amount_ml / 250))
         cur.execute("""
-            INSERT INTO water_logs (user_id, date_record, amount_ml)
-            VALUES (%s, CURRENT_DATE, %s)
+            INSERT INTO water_logs (user_id, date_record, amount_ml, glasses)
+            VALUES (%s, CURRENT_DATE, %s, %s)
             ON CONFLICT (user_id, date_record)
-            DO UPDATE SET amount_ml = EXCLUDED.amount_ml
+            DO UPDATE SET amount_ml = EXCLUDED.amount_ml,
+                          glasses   = EXCLUDED.glasses,
+                          updated_at = NOW()
             RETURNING amount_ml
-        """, (user_id, entry.amount_ml))
+        """, (user_id, entry.amount_ml, glasses))
         saved = cur.fetchone()["amount_ml"]
         conn.commit()
         return {"date_record": date.today().isoformat(), "amount_ml": saved}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+# =============================================================================
+# API: Lifecycle Check — 2-week weight / 1-year birthday / 1-month summary
+# =============================================================================
+
+@app.get("/users/{user_id}/lifecycle_check")
+def lifecycle_check(user_id: int):
+    """
+    ตรวจสภาพ lifecycle ของ user:
+    - weight_overdue   : ไม่ได้บันทึกน้ำหนักเกิน 14 วัน
+    - is_birthday      : วันเกิดตรงกับวันนี้ → ควร recalc TDEE
+    - tdee_needs_update: birthday ผ่านแล้วปีนี้แต่ยัง recalc ไม่ได้
+    - monthly_summary  : ใช้งานครบ 1 เดือน (หรือทุก 30 วัน)
+    - days_since_weight: จำนวนวันนับจาก log น้ำหนักล่าสุด
+    - goal_days_left   : วันที่เหลือก่อนถึงเป้าหมาย
+    - on_track         : ค่าน้ำหนักปัจจุบันอยู่ใน trajectory ที่ถูกต้องไหม
+    """
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=503, detail="DB unavailable")
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        today = date.today()
+
+        # ── ข้อมูล user ─────────────────────────────
+        cur.execute("""
+            SELECT birth_date, goal_start_date, goal_target_date,
+                   current_weight_kg, target_weight_kg, target_calories,
+                   last_tdee_recalc_date, created_at, activity_level,
+                   gender, height_cm
+            FROM users WHERE user_id = %s
+        """, (user_id,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # ── 1. น้ำหนัก overdue (>14 วัน) ───────────
+        cur.execute("""
+            SELECT MAX(recorded_date) AS last_date
+            FROM weight_logs WHERE user_id = %s
+        """, (user_id,))
+        wrow = cur.fetchone()
+        last_weight_date = wrow["last_date"] if wrow else None
+        if last_weight_date:
+            days_since_weight = (today - last_weight_date).days
+        else:
+            days_since_weight = 9999  # ยังไม่เคยบันทึก
+        weight_overdue = days_since_weight >= 14
+
+        # ── 2. วันเกิด / TDEE recalculation ────────
+        is_birthday = False
+        tdee_needs_update = False
+        if user["birth_date"]:
+            bday = user["birth_date"]
+            is_birthday = (bday.month == today.month and bday.day == today.day)
+            # birthday ผ่านแล้วปีนี้แต่ last_tdee_recalc ยังเป็นปีก่อน
+            birthday_this_year = date(today.year, bday.month, bday.day)
+            last_recalc = user["last_tdee_recalc_date"]
+            if birthday_this_year <= today:
+                if last_recalc is None or last_recalc < birthday_this_year:
+                    tdee_needs_update = True
+
+        # ── 3. Monthly summary (ทุก 30 วัน) ────────
+        monthly_summary = False
+        created = user.get("created_at")
+        if created:
+            days_since_join = (today - created.date()).days if hasattr(created, 'date') else 0
+            monthly_summary = (days_since_join > 0 and days_since_join % 30 == 0)
+
+        # ── 4. Goal progress / on_track ─────────────
+        goal_days_left = None
+        on_track = None
+        if user["goal_target_date"] and user["goal_start_date"]:
+            goal_days_left = (user["goal_target_date"] - today).days
+            total_days = (user["goal_target_date"] - user["goal_start_date"]).days
+            days_elapsed = (today - user["goal_start_date"]).days
+            if total_days > 0 and user["current_weight_kg"] and user["target_weight_kg"]:
+                start_w = float(user["current_weight_kg"])   # ใช้ current แทน start (no start_weight stored)
+                target_w = float(user["target_weight_kg"])
+                # Expected weight by now (linear interpolation)
+                expected_loss_pct = days_elapsed / total_days
+                expected_weight = start_w + (target_w - start_w) * expected_loss_pct
+                # on_track ถ้าน้ำหนักปัจจุบัน ≤ expected (กรณีลด)
+                on_track = float(user["current_weight_kg"]) <= expected_weight + 0.5  # ±0.5 kg tolerance
+
+        return {
+            "user_id": user_id,
+            "today": today.isoformat(),
+            "weight_overdue": weight_overdue,
+            "days_since_weight": days_since_weight if days_since_weight != 9999 else None,
+            "is_birthday": is_birthday,
+            "tdee_needs_update": tdee_needs_update,
+            "monthly_summary": monthly_summary,
+            "goal_days_left": goal_days_left,
+            "on_track": on_track,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.post("/users/{user_id}/recalc_tdee")
+def recalc_tdee(user_id: int):
+    """
+    Recalculate TDEE based on latest weight log + current age (birthday passed).
+    Updates target_calories + last_tdee_recalc_date in users table.
+    Uses Mifflin-St Jeor formula.
+    """
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=503, detail="DB unavailable")
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT gender, birth_date, height_cm, current_weight_kg,
+                   target_weight_kg, activity_level, goal_target_date
+            FROM users WHERE user_id = %s
+        """, (user_id,))
+        u = cur.fetchone()
+        if not u:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if not all([u["gender"], u["birth_date"], u["height_cm"], u["current_weight_kg"]]):
+            raise HTTPException(status_code=400, detail="Insufficient user data for TDEE")
+
+        today = date.today()
+        age = today.year - u["birth_date"].year - (
+            (today.month, today.day) < (u["birth_date"].month, u["birth_date"].day))
+        w = float(u["current_weight_kg"])
+        h = float(u["height_cm"])
+
+        # Mifflin-St Jeor BMR
+        if u["gender"] == "male":
+            bmr = 10 * w + 6.25 * h - 5 * age + 5
+        else:
+            bmr = 10 * w + 6.25 * h - 5 * age - 161
+
+        activity_multipliers = {
+            "sedentary": 1.2, "lightly_active": 1.375,
+            "moderately_active": 1.55, "very_active": 1.725, "extra_active": 1.9
+        }
+        multiplier = activity_multipliers.get(u["activity_level"] or "sedentary", 1.2)
+        tdee = bmr * multiplier
+
+        # คำนวณ deficit จาก goal + remaining days
+        deficit = 0
+        if u["target_weight_kg"] and u["goal_target_date"]:
+            days_left = (u["goal_target_date"] - today).days
+            if days_left > 0:
+                kg_to_lose = w - float(u["target_weight_kg"])
+                if kg_to_lose > 0:
+                    # 1 kg fat ≈ 7700 kcal
+                    deficit_per_day = (kg_to_lose * 7700) / days_left
+                    deficit = min(deficit_per_day, 750)  # cap 750 kcal/day
+
+        # Floor: ชาย min 1500, หญิง min 1200
+        min_cal = 1500 if u["gender"] == "male" else 1200
+        new_target = max(min_cal, round(tdee - deficit))
+
+        cur.execute("""
+            UPDATE users
+            SET target_calories = %s, last_tdee_recalc_date = %s
+            WHERE user_id = %s
+            RETURNING target_calories
+        """, (new_target, today, user_id))
+        conn.commit()
+        saved = cur.fetchone()
+
+        return {
+            "user_id": user_id,
+            "age": age,
+            "bmr": round(bmr),
+            "tdee": round(tdee),
+            "deficit": round(deficit),
+            "new_target_calories": saved["target_calories"],
+            "recalc_date": today.isoformat(),
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -3356,3 +3942,102 @@ def set_user_allergies(user_id: int, body: AllergyUpdate):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn: conn.close()
+
+
+@app.get("/leaderboard")
+def get_leaderboard(limit: int = 50):
+    """Return top users ranked by current_streak (then total_login_days as tiebreaker)."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT
+                user_id,
+                COALESCE(username, 'ผู้ใช้') AS username,
+                COALESCE(current_streak, 0)   AS current_streak,
+                COALESCE(total_login_days, 0) AS total_login_days,
+                avatar_url
+            FROM users
+            WHERE deleted_at IS NULL
+              AND (current_streak > 0 OR total_login_days > 0)
+            ORDER BY current_streak DESC, total_login_days DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+        result = []
+        for i, row in enumerate(rows):
+            entry = dict(row)
+            entry['rank'] = i + 1
+            result.append(entry)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+# ─── Notifications ────────────────────────────────────────────────────────────
+
+@app.get("/notifications/{user_id}")
+def get_notifications(user_id: int, limit: int = 50):
+    """Return notifications for a user, newest first."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT notification_id, title, message, type, is_read,
+                   created_at
+            FROM notifications
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (user_id, limit))
+        rows = cur.fetchall()
+        result = []
+        for row in rows:
+            r = dict(row)
+            if r.get('created_at') and hasattr(r['created_at'], 'isoformat'):
+                r['created_at'] = r['created_at'].isoformat()
+            result.append(r)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.get("/notifications/{user_id}/unread_count")
+def get_unread_count(user_id: int):
+    """Return count of unread notifications."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = %s AND is_read = FALSE",
+            (user_id,)
+        )
+        return {"unread_count": cur.fetchone()[0]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.put("/notifications/{user_id}/read_all")
+def mark_all_read(user_id: int):
+    """Mark all notifications as read for the user."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE notifications SET is_read = TRUE WHERE user_id = %s AND is_read = FALSE",
+            (user_id,)
+        )
+        conn.commit()
+        return {"message": "All notifications marked as read"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+

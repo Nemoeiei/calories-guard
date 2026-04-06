@@ -1,0 +1,808 @@
+import 'package:flutter/material.dart';
+import 'dart:math' as math;
+
+class BmiDetailScreen extends StatefulWidget {
+  final double currentBmi;
+  final double weightKg;
+  final double heightCm;
+
+  const BmiDetailScreen({
+    super.key,
+    required this.currentBmi,
+    required this.weightKg,
+    required this.heightCm,
+  });
+
+  @override
+  State<BmiDetailScreen> createState() => _BmiDetailScreenState();
+}
+
+class _BmiDetailScreenState extends State<BmiDetailScreen>
+    with SingleTickerProviderStateMixin {
+  static const _green = Color(0xFF628141);
+  static const _greenDark = Color(0xFF3D5A27);
+
+  final _weightCtrl = TextEditingController();
+  final _heightCtrl = TextEditingController();
+  double? _calcBmi;
+  late AnimationController _gaugeAnim;
+  late Animation<double> _gaugeValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _weightCtrl.text = widget.weightKg.toStringAsFixed(1);
+    _heightCtrl.text = widget.heightCm.toStringAsFixed(0);
+
+    _gaugeAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _gaugeValue = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _gaugeAnim, curve: Curves.easeOut),
+    );
+    _gaugeAnim.forward();
+  }
+
+  @override
+  void dispose() {
+    _weightCtrl.dispose();
+    _heightCtrl.dispose();
+    _gaugeAnim.dispose();
+    super.dispose();
+  }
+
+  // ─── BMI helpers ───────────────────────────────────────────────────────────
+
+  double _computeBmi(double weight, double height) {
+    if (height <= 0) return 0;
+    final h = height / 100;
+    return weight / (h * h);
+  }
+
+  _BmiCategory _category(double bmi) {
+    if (bmi <= 0) return _BmiCategory.unknown;
+    if (bmi < 18.5) return _BmiCategory.underweight;
+    if (bmi < 23.0) return _BmiCategory.normal;
+    if (bmi < 25.0) return _BmiCategory.overweight;
+    if (bmi < 30.0) return _BmiCategory.obese1;
+    return _BmiCategory.obese2;
+  }
+
+  Color _bmiColor(double bmi) {
+    final cat = _category(bmi);
+    switch (cat) {
+      case _BmiCategory.underweight: return const Color(0xFF3498DB);
+      case _BmiCategory.normal:      return _green;
+      case _BmiCategory.overweight:  return const Color(0xFFF39C12);
+      case _BmiCategory.obese1:      return const Color(0xFFE67E22);
+      case _BmiCategory.obese2:      return const Color(0xFFE74C3C);
+      default:                        return Colors.grey;
+    }
+  }
+
+  // gauge angle: BMI 10→40 maps to -π…0 (left to right half-circle)
+  double _bmiToAngle(double bmi) {
+    final clamped = bmi.clamp(10.0, 40.0);
+    return math.pi * (clamped - 10) / 30; // 0..π
+  }
+
+  void _calculate() {
+    final w = double.tryParse(_weightCtrl.text);
+    final h = double.tryParse(_heightCtrl.text);
+    if (w != null && h != null && w > 0 && h > 0) {
+      setState(() {
+        _calcBmi = _computeBmi(w, h);
+        _gaugeAnim.reset();
+        _gaugeAnim.forward();
+      });
+    }
+  }
+
+  // ─── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final displayBmi = _calcBmi ?? widget.currentBmi;
+    final color = _bmiColor(displayBmi);
+    final catData = _categoryData(_category(displayBmi));
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7F0),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(displayBmi, color, catData),
+            const SizedBox(height: 20),
+            _buildFormulaCard(),
+            const SizedBox(height: 16),
+            _buildGaugeCard(displayBmi, color, catData),
+            const SizedBox(height: 16),
+            _buildTableCard(),
+            const SizedBox(height: 16),
+            _buildCalculatorCard(),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Header ────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader(double bmi, Color color, _CatData catData) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_greenDark, _green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 56, 20, 32),
+      child: Column(children: [
+        // Back row
+        Row(children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+              child: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white, size: 18),
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Text('ดัชนีมวลกาย (BMI)',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white)),
+        ]),
+        const SizedBox(height: 28),
+        // BMI big display
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Column(children: [
+            Text(
+              bmi > 0 ? bmi.toStringAsFixed(1) : '-',
+              style: const TextStyle(
+                  fontSize: 64,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1),
+            ),
+            const Text('kg/m²',
+                style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w500)),
+          ]),
+          const SizedBox(width: 28),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(catData.label,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+            ),
+            const SizedBox(height: 8),
+            Text(catData.riskText,
+                style: const TextStyle(
+                    fontSize: 13, color: Colors.white70)),
+            const SizedBox(height: 4),
+            Text(
+              '${widget.weightKg.toStringAsFixed(1)} กก. · ${widget.heightCm.toStringAsFixed(0)} ซม.',
+              style: const TextStyle(
+                  fontSize: 12, color: Colors.white60),
+            ),
+          ]),
+        ]),
+      ]),
+    );
+  }
+
+  // ─── Formula card ──────────────────────────────────────────────────────────
+
+  Widget _buildFormulaCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 3))
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                  color: _green.withOpacity(0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.calculate_outlined,
+                  size: 18, color: _green),
+            ),
+            const SizedBox(width: 12),
+            const Text('สูตรคำนวณ BMI',
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 16),
+          // Formula box
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F7E8),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _green.withOpacity(0.3)),
+            ),
+            child: Column(children: [
+              const Text(
+                'BMI  =  น้ำหนัก (กก.)',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _greenDark),
+              ),
+              Container(
+                  width: 220, height: 2, color: _greenDark, margin: const EdgeInsets.symmetric(vertical: 4)),
+              const Text(
+                'ส่วนสูง (ม.) × ส่วนสูง (ม.)',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: _greenDark),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 14),
+          // Example with user's data
+          const Text('ตัวอย่างของคุณ:',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black54)),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'BMI = ${widget.weightKg.toStringAsFixed(1)} ÷ '
+              '(${(widget.heightCm / 100).toStringAsFixed(2)} × ${(widget.heightCm / 100).toStringAsFixed(2)})'
+              '\n     = ${widget.currentBmi.toStringAsFixed(2)} kg/m²',
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontFamily: 'monospace',
+                  color: Colors.black87,
+                  height: 1.6),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // ─── Gauge card ────────────────────────────────────────────────────────────
+
+  Widget _buildGaugeCard(double bmi, Color color, _CatData catData) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 3))
+          ],
+        ),
+        child: Column(children: [
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('ระดับ BMI ของคุณ',
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 160,
+            child: AnimatedBuilder(
+              animation: _gaugeValue,
+              builder: (_, __) {
+                return CustomPaint(
+                  painter: _BmiGaugePainter(
+                    bmi: bmi,
+                    animValue: _gaugeValue.value,
+                  ),
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            bmi > 0 ? bmi.toStringAsFixed(1) : '-',
+                            style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: color),
+                          ),
+                          Text(catData.label,
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: color)),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Scale labels
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('10', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('18.5', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('23', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('25', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('30', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('40', style: TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // ─── Classification table ──────────────────────────────────────────────────
+
+  Widget _buildTableCard() {
+    const rows = [
+      _TableRow('น้ำหนักต่ำกว่าเกณฑ์', 'น้อยกว่า 18.5',
+          'เสี่ยงโรคขาดสารอาหาร', Color(0xFF3498DB)),
+      _TableRow('น้ำหนักสมส่วน', '18.5 – 22.9',
+          'โอกาสมีโรคแทรกซ้อนน้อย', Color(0xFF27AE60)),
+      _TableRow('น้ำหนักเกินมาตรฐาน', '23.0 – 24.9',
+          'ภาวะน้ำหนักเกินระยะเริ่มต้น', Color(0xFFF39C12)),
+      _TableRow('น้ำหนักอยู่ในเกณฑ์อ้วน', '25.0 – 29.9',
+          'ภาวะน้ำหนักเกินมาก ระยะอ้วนเริ่มต้น', Color(0xFFE67E22)),
+      _TableRow('น้ำหนักอยู่ในเกณฑ์อ้วนมาก', 'มากกว่า 30',
+          'ภาวะน้ำหนักเกินมาก โรคอ้วน', Color(0xFFE74C3C)),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 3))
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Row(children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                    color: _green.withOpacity(0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.table_chart_outlined,
+                    size: 18, color: _green),
+              ),
+              const SizedBox(width: 12),
+              const Text('เกณฑ์ค่า BMI (WHO อ้างอิงคนเอเชีย)',
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.bold)),
+            ]),
+          ),
+          // Table header
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding:
+                const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            decoration: BoxDecoration(
+              color: _green,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(children: [
+              Expanded(
+                  flex: 3,
+                  child: Text('การแปรผล',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold))),
+              Expanded(
+                  flex: 2,
+                  child: Text('ค่า BMI',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold))),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          // Table rows
+          ...rows.map((r) {
+            final userBmi = _calcBmi ?? widget.currentBmi;
+            final isUser = _isUserRow(userBmi, r.bmiRange);
+            return Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              padding: const EdgeInsets.symmetric(
+                  vertical: 12, horizontal: 12),
+              decoration: BoxDecoration(
+                color: isUser
+                    ? r.color.withOpacity(0.12)
+                    : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: isUser
+                    ? Border.all(color: r.color, width: 1.5)
+                    : null,
+              ),
+              child: Row(children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                              color: r.color, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(r.label,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isUser
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  color: isUser ? r.color : Colors.black87)),
+                        ),
+                      ]),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16, top: 2),
+                        child: Text(r.risk,
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey.shade500)),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(r.bmiRange,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isUser ? r.color : Colors.black54)),
+                      if (isUser) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.person_pin_rounded,
+                            size: 14, color: r.color),
+                      ],
+                    ],
+                  ),
+                ),
+              ]),
+            );
+          }),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Text(
+              '* เกณฑ์สำหรับผู้ใหญ่อายุ 18 ปีขึ้นไป อ้างอิง WHO / กรมอนามัย',
+              style: TextStyle(
+                  fontSize: 11, color: Colors.grey.shade400, height: 1.4),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  bool _isUserRow(double bmi, String range) {
+    if (bmi <= 0) return false;
+    if (range.contains('18.5') && bmi < 18.5) return true;
+    if (range.contains('22.9') && bmi >= 18.5 && bmi < 23.0) return true;
+    if (range.contains('24.9') && bmi >= 23.0 && bmi < 25.0) return true;
+    if (range.contains('29.9') && bmi >= 25.0 && bmi < 30.0) return true;
+    if (range.contains('30') && !range.contains('29.9') && bmi >= 30.0) return true;
+    return false;
+  }
+
+  // ─── Calculator card ────────────────────────────────────────────────────────
+
+  Widget _buildCalculatorCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 3))
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                  color: _green.withOpacity(0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.edit_note_rounded,
+                  size: 18, color: _green),
+            ),
+            const SizedBox(width: 12),
+            const Text('คำนวณ BMI ด้วยตัวเอง',
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 18),
+          // Input fields
+          Row(children: [
+            Expanded(child: _inputField(_weightCtrl, 'น้ำหนัก (กก.)', 'kg')),
+            const SizedBox(width: 12),
+            Expanded(child: _inputField(_heightCtrl, 'ส่วนสูง (ซม.)', 'cm')),
+          ]),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _calculate,
+              icon: const Icon(Icons.calculate_rounded),
+              label: const Text('คำนวณ',
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _green,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                elevation: 2,
+              ),
+            ),
+          ),
+          if (_calcBmi != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _bmiColor(_calcBmi!).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: _bmiColor(_calcBmi!).withOpacity(0.4)),
+              ),
+              child: Column(children: [
+                Text(
+                  'BMI ของคุณ = ${_calcBmi!.toStringAsFixed(2)}',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: _bmiColor(_calcBmi!)),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _categoryData(_category(_calcBmi!)).label,
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: _bmiColor(_calcBmi!),
+                      fontWeight: FontWeight.w500),
+                ),
+              ]),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _inputField(
+      TextEditingController ctrl, String label, String suffix) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label,
+          style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500)),
+      const SizedBox(height: 6),
+      TextField(
+        controller: ctrl,
+        keyboardType:
+            const TextInputType.numberWithOptions(decimal: true),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        decoration: InputDecoration(
+          suffixText: suffix,
+          suffixStyle:
+              TextStyle(color: Colors.grey.shade500, fontSize: 13),
+          filled: true,
+          fillColor: const Color(0xFFF5F7F0),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: _green, width: 1.5),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
+      ),
+    ]);
+  }
+
+  _CatData _categoryData(_BmiCategory cat) {
+    switch (cat) {
+      case _BmiCategory.underweight:
+        return _CatData('น้ำหนักน้อยกว่าเกณฑ์', 'เสี่ยงโรคขาดสารอาหาร');
+      case _BmiCategory.normal:
+        return _CatData('น้ำหนักสมส่วน', 'โอกาสเจ็บป่วยต่ำ');
+      case _BmiCategory.overweight:
+        return _CatData('น้ำหนักเกินมาตรฐาน', 'ควรควบคุมน้ำหนัก');
+      case _BmiCategory.obese1:
+        return _CatData('อ้วนระดับ 1', 'มีความเสี่ยงทางสุขภาพ');
+      case _BmiCategory.obese2:
+        return _CatData('อ้วนระดับ 2', 'ความเสี่ยงสูงมาก');
+      default:
+        return _CatData('ไม่ทราบ', '-');
+    }
+  }
+}
+
+// ─── Enums & Data classes ─────────────────────────────────────────────────────
+
+enum _BmiCategory { unknown, underweight, normal, overweight, obese1, obese2 }
+
+class _CatData {
+  final String label;
+  final String riskText;
+  const _CatData(this.label, this.riskText);
+}
+
+class _TableRow {
+  final String label;
+  final String bmiRange;
+  final String risk;
+  final Color color;
+  const _TableRow(this.label, this.bmiRange, this.risk, this.color);
+}
+
+// ─── BMI Gauge Painter ─────────────────────────────────────────────────────
+
+class _BmiGaugePainter extends CustomPainter {
+  final double bmi;
+  final double animValue;
+
+  _BmiGaugePainter({required this.bmi, required this.animValue});
+
+  static const _zones = [
+    _Zone(10.0, 18.5, Color(0xFF3498DB)),  // underweight
+    _Zone(18.5, 23.0, Color(0xFF27AE60)),  // normal
+    _Zone(23.0, 25.0, Color(0xFFF39C12)),  // overweight
+    _Zone(25.0, 30.0, Color(0xFFE67E22)),  // obese1
+    _Zone(30.0, 40.0, Color(0xFFE74C3C)),  // obese2
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height * 0.85;
+    final r = size.width * 0.42;
+    final strokeW = 22.0;
+
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
+
+    // Draw each zone arc
+    for (final zone in _zones) {
+      final startAngle = math.pi + math.pi * (zone.min - 10) / 30;
+      final sweepAngle = math.pi * (zone.max - zone.min) / 30;
+      final paint = Paint()
+        ..color = zone.color.withOpacity(0.3)
+        ..strokeWidth = strokeW
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.butt;
+      canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
+    }
+
+    // Animated filled zones up to BMI
+    final animBmi = 10.0 + (bmi.clamp(10.0, 40.0) - 10.0) * animValue;
+    for (final zone in _zones) {
+      if (animBmi <= zone.min) break;
+      final zoneEnd = animBmi < zone.max ? animBmi : zone.max;
+      final startAngle = math.pi + math.pi * (zone.min - 10) / 30;
+      final sweepAngle = math.pi * (zoneEnd - zone.min) / 30;
+      final paint = Paint()
+        ..color = zone.color
+        ..strokeWidth = strokeW
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.butt;
+      canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
+    }
+
+    // Needle
+    if (bmi > 0) {
+      final angle = math.pi + math.pi * (animBmi - 10) / 30;
+      final needleX = cx + (r) * math.cos(angle);
+      final needleY = cy + (r) * math.sin(angle);
+      final needlePaint = Paint()
+        ..color = Colors.black87
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(Offset(cx, cy), Offset(needleX, needleY), needlePaint);
+      canvas.drawCircle(
+          Offset(cx, cy), 6,
+          Paint()..color = Colors.black87);
+      canvas.drawCircle(
+          Offset(cx, cy), 4,
+          Paint()..color = Colors.white);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BmiGaugePainter old) =>
+      old.bmi != bmi || old.animValue != animValue;
+}
+
+class _Zone {
+  final double min;
+  final double max;
+  final Color color;
+  const _Zone(this.min, this.max, this.color);
+}

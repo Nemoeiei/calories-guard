@@ -183,4 +183,66 @@ class NotificationHelper {
     }
     return scheduledDate;
   }
+
+  // ═══════════════════════════════════════════════════════
+  // Lifecycle Notifications — weight/birthday/monthly
+  // ═══════════════════════════════════════════════════════
+
+  /// แจ้งเตือนน้ำหนักทุก 2 สัปดาห์ (เรียกหลังจาก lifecycle_check API)
+  static Future<void> showWeightReminderIfOverdue({
+    required bool overdue,
+    required int? daysSince,
+  }) async {
+    if (!overdue) return;
+    final since = daysSince != null ? ' (ผ่านมา $daysSince วันแล้ว)' : '';
+    await showNotification(
+      id: 602,
+      title: '⚖️ อัปเดตน้ำหนักด้วยนะ!',
+      body: 'ยังไม่ได้บันทึกน้ำหนักเลย$since ชั่งแล้วมาบันทึกเพื่อติดตามความก้าวหน้ากันเถอะ 💪',
+    );
+  }
+
+  /// แจ้งเตือนวันเกิด + แจ้งว่า TDEE จะถูกคำนวณใหม่
+  static Future<void> showBirthdayAndTdeeUpdate({
+    required bool isBirthday,
+    required bool tdeeNeedsUpdate,
+    required int? newTargetCalories,
+  }) async {
+    if (isBirthday) {
+      await showNotification(
+        id: 701,
+        title: '🎂 สุขสันต์วันเกิด!',
+        body: 'ขอให้มีสุขภาพดีตลอดปีนะ!'
+            '${newTargetCalories != null ? " เราได้อัปเดตโควตาแคลอรี่เป็น $newTargetCalories kcal/วัน" : ""}',
+      );
+    } else if (tdeeNeedsUpdate && newTargetCalories != null) {
+      await showNotification(
+        id: 702,
+        title: '🔄 อัปเดตเป้าหมายแล้ว',
+        body: 'คำนวณแคลอรี่ใหม่ตามอายุปีนี้ — โควตาใหม่: $newTargetCalories kcal/วัน',
+      );
+    }
+  }
+
+  /// แจ้งเตือนสรุปรายเดือน (ครบ 30 วัน / ทุก 30 วัน)
+  static Future<void> showMonthlySummary({
+    required bool trigger,
+    required int? goalDaysLeft,
+    required bool? onTrack,
+  }) async {
+    if (!trigger) return;
+    String body;
+    if (onTrack == true) {
+      body = 'คุณอยู่ในเส้นทางที่ถูกต้อง! เหลืออีก ${goalDaysLeft ?? "?"} วันถึงเป้าหมาย 🎯';
+    } else if (onTrack == false) {
+      body = 'ต้องปรับแผนนิดนึงนะ เหลือ ${goalDaysLeft ?? "?"} วัน ลองดูรายงานความก้าวหน้าดู';
+    } else {
+      body = 'ผ่านมา 1 เดือนแล้ว มาดูว่าคุณทำได้ดีแค่ไหน!';
+    }
+    await showNotification(
+      id: 801,
+      title: '📊 สรุปความก้าวหน้ารายเดือน',
+      body: body,
+    );
+  }
 }

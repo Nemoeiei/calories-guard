@@ -10,8 +10,9 @@ class UnitSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
-  
-  // อัปเดตหน่วยเฉพาะในแอป (backend schema ใหม่ไม่มี unit_* ใน users)
+  static const _green = Color(0xFF628141);
+  static const _greenDark = Color(0xFF3D5A27);
+
   void _updateUnit(String key, String value) {
     if (key == 'unit_weight') ref.read(userDataProvider.notifier).updateUnit(weight: value);
     if (key == 'unit_height') ref.read(userDataProvider.notifier).updateUnit(height: value);
@@ -21,99 +22,225 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userData = ref.watch(userDataProvider); // ดึงค่าปัจจุบันมาเช็ค
+    final userData = ref.watch(userDataProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE8EFCF),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+      backgroundColor: const Color(0xFFF5F7F0),
+      body: Column(children: [
+        // ─── Header ────────────────────────────────────────────
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF3D5A27), Color(0xFF628141)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 56, 20, 28),
+          child: Row(children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle),
+                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white, size: 18),
+              ),
+            ),
+            const Expanded(
+              child: Text('ยูนิต',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+            ),
+            const SizedBox(width: 40),
+          ]),
         ),
-        title: const Text('ยูนิต', style: TextStyle(fontFamily: 'Inter', color: Colors.black)),
-        centerTitle: true,
+
+        // ─── Body ──────────────────────────────────────────────
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Column(children: [
+              _buildUnitSection(
+                icon: Icons.monitor_weight_outlined,
+                label: 'น้ำหนัก',
+                options: [
+                  _UnitOption('กิโลกรัม (kg)', 'kg'),
+                  _UnitOption('ปอนด์ (lbs)', 'lbs'),
+                  _UnitOption('สโตน (st)', 'st'),
+                ],
+                currentValue: userData.unitWeight,
+                dbKey: 'unit_weight',
+              ),
+              const SizedBox(height: 16),
+              _buildUnitSection(
+                icon: Icons.height_rounded,
+                label: 'ส่วนสูง',
+                options: [
+                  _UnitOption('เซนติเมตร (cm)', 'cm'),
+                  _UnitOption('ฟุต (ft)', 'ft'),
+                  _UnitOption('นิ้ว (in)', 'in'),
+                ],
+                currentValue: userData.unitHeight,
+                dbKey: 'unit_height',
+              ),
+              const SizedBox(height: 16),
+              _buildUnitSection(
+                icon: Icons.local_fire_department_outlined,
+                label: 'พลังงาน',
+                options: [
+                  _UnitOption('กิโลแคลอรี่ (kcal)', 'kcal'),
+                  _UnitOption('แคลอรี่ (cal)', 'cal'),
+                  _UnitOption('กิโลจูล (kJ)', 'kj'),
+                ],
+                currentValue: userData.unitEnergy,
+                dbKey: 'unit_energy',
+              ),
+              const SizedBox(height: 16),
+              _buildUnitSection(
+                icon: Icons.water_drop_outlined,
+                label: 'น้ำ',
+                options: [
+                  _UnitOption('มิลลิลิตร (ml)', 'ml'),
+                  _UnitOption('ลิตร (L)', 'L'),
+                  _UnitOption('ออนซ์ (fl oz)', 'floz'),
+                  _UnitOption('ขวด (bottle)', 'bottle'),
+                ],
+                currentValue: userData.unitWater,
+                dbKey: 'unit_water',
+              ),
+              const SizedBox(height: 32),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildUnitSection({
+    required IconData icon,
+    required String label,
+    required List<_UnitOption> options,
+    required String currentValue,
+    required String dbKey,
+  }) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Section label
+      Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 8),
+        child: Row(children: [
+          Icon(icon, size: 16, color: Colors.grey.shade500),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                  letterSpacing: 0.4)),
+        ]),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-
-            _buildSectionHeader('น้ำหนัก'),
-            _buildUnitGroup([
-              _buildUnitOption('กิโลกรัม (kg)', 'kg', userData.unitWeight, 'unit_weight'),
-              _buildUnitOption('ปอนด์ (lbs)', 'lbs', userData.unitWeight, 'unit_weight'),
-              _buildUnitOption('สโตน (st)', 'st', userData.unitWeight, 'unit_weight', showDivider: false),
-            ]),
-
-            _buildSectionHeader('ส่วนสูง'),
-            _buildUnitGroup([
-              _buildUnitOption('เซนติเมตร (cm)', 'cm', userData.unitHeight, 'unit_height'),
-              _buildUnitOption('ฟุต (ft)', 'ft', userData.unitHeight, 'unit_height'),
-              _buildUnitOption('นิ้ว (in)', 'in', userData.unitHeight, 'unit_height', showDivider: false),
-            ]),
-
-            _buildSectionHeader('พลังงาน'),
-            _buildUnitGroup([
-              _buildUnitOption('กิโลแคลอรี่ (kcal)', 'kcal', userData.unitEnergy, 'unit_energy'),
-              _buildUnitOption('แคลอรี่ (cal)', 'cal', userData.unitEnergy, 'unit_energy'),
-              _buildUnitOption('กิโลจูล (kJ)', 'kj', userData.unitEnergy, 'unit_energy', showDivider: false),
-            ]),
-
-            _buildSectionHeader('น้ำ'),
-            _buildUnitGroup([
-              _buildUnitOption('มิลลิลิตร (ml)', 'ml', userData.unitWater, 'unit_water'),
-              _buildUnitOption('ลิตร (L)', 'L', userData.unitWater, 'unit_water'),
-              _buildUnitOption('ออนซ์ (fl oz)', 'floz', userData.unitWater, 'unit_water'),
-              _buildUnitOption('ขวด (bottle)', 'bottle', userData.unitWater, 'unit_water', showDivider: false),
-            ]),
-
-            const SizedBox(height: 40),
+      // Options card
+      Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3))
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 32, top: 20, bottom: 10),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(title, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, color: Color(0xFF6E6A6A))),
-      ),
-    );
-  }
-
-  Widget _buildUnitGroup(List<Widget> children) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black),
-      ),
-      child: Column(children: children),
-    );
-  }
-
-  // สร้างตัวเลือกที่มีเครื่องหมายถูก (Checkmark) ถ้าถูกเลือก
-  Widget _buildUnitOption(String title, String value, String currentValue, String dbKey, {bool showDivider = true}) {
-    bool isSelected = (value == currentValue);
-    
-    return InkWell( // ใช้ InkWell ให้กดได้
-      onTap: () => _updateUnit(dbKey, value),
-      child: Container(
-        decoration: BoxDecoration(
-          border: showDivider ? const Border(bottom: BorderSide(color: Colors.black, width: 1)) : null,
-        ),
-        child: ListTile(
-          title: Text(title, style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w400, color: Colors.black)),
-          trailing: isSelected 
-            ? const Icon(Icons.check, color: Color(0xFF4C6414)) // ✅ โชว์เครื่องหมายถูกถ้าเลือกอยู่
-            : null, 
+        child: Column(
+          children: List.generate(options.length, (i) {
+            final opt = options[i];
+            final isSelected = opt.value == currentValue;
+            final isLast = i == options.length - 1;
+            return _buildOptionTile(opt, isSelected, isLast, dbKey);
+          }),
         ),
       ),
-    );
+    ]);
   }
+
+  Widget _buildOptionTile(
+      _UnitOption opt, bool isSelected, bool isLast, String dbKey) {
+    return Column(children: [
+      InkWell(
+        onTap: () => _updateUnit(dbKey, opt.value),
+        borderRadius: BorderRadius.vertical(
+          top: const Radius.circular(16),
+          bottom: isLast ? const Radius.circular(16) : Radius.zero,
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? _green.withOpacity(0.06)
+                : Colors.transparent,
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(16),
+              bottom: isLast ? const Radius.circular(16) : Radius.zero,
+            ),
+          ),
+          child: Row(children: [
+            // Radio dot
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                    color: isSelected ? _green : Colors.grey.shade300,
+                    width: 2),
+                color: isSelected ? _green : Colors.transparent,
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, size: 13, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(opt.label,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                      color:
+                          isSelected ? _green : Colors.black87)),
+            ),
+            if (isSelected)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                    color: _green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20)),
+                child: const Text('ใช้งานอยู่',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: _green,
+                        fontWeight: FontWeight.w600)),
+              ),
+          ]),
+        ),
+      ),
+      if (!isLast)
+        Divider(height: 1, indent: 50, endIndent: 16, color: Colors.grey.shade100),
+    ]);
+  }
+}
+
+class _UnitOption {
+  final String label;
+  final String value;
+  const _UnitOption(this.label, this.value);
 }

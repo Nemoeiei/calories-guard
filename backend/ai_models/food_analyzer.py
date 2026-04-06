@@ -31,13 +31,18 @@ class FoodAnalyzer:
         gap_carb = user_target['target_carbs'] - avg_carb
         gap_fat = user_target['target_fat'] - avg_fat
 
+        target_cal = max(user_target['target_calories'], 1)
+        target_pro = max(user_target['target_protein'], 1)
+
         recommendations = []
-        if gap_pro > 20: 
-            recommendations.append("โปรตีน (ขาดเฉลี่ยกว่า 20g/วัน)")
-        if gap_cal < -300:
-            recommendations.append("ทานเกินแคลอรี่เป้าหมาย (เกินกว่า 300 kcal/วัน)")
-        if gap_cal > 500:
-            recommendations.append("ทานน้อยเกินไป (ขาดแคลอรี่กว่า 500 kcal/วัน)")
+        if (gap_pro / target_pro) > 0.15: 
+            recommendations.append(f"โปรตีน (ขาดเฉลี่ยกว่า {round((gap_pro/target_pro)*100)}% ของเป้าหมาย)")
+        if (gap_cal / target_cal) < -0.10:
+            surplus_pct = round((abs(gap_cal) / target_cal) * 100)
+            recommendations.append(f"ทานเกินแคลอรีเป้าหมาย (เกินกว่า {surplus_pct}%)")
+        if (gap_cal / target_cal) > 0.20:
+            deficit_pct = round((gap_cal / target_cal) * 100)
+            recommendations.append(f"ทานน้อยเกินไป (ขาดแคลอรีไปกว่า {deficit_pct}%)")
 
         return {
             "status": "analyzed",

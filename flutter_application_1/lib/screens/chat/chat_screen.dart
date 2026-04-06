@@ -1,0 +1,505 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_application_1/constants/constants.dart';
+import '../../providers/user_data_provider.dart';
+
+// ─── Message Model ────────────────────────────────────────────────────────────
+class ChatMessage {
+  final String text;
+  final bool isUser;
+  final DateTime time;
+
+  ChatMessage({required this.text, required this.isUser, DateTime? time})
+      : time = time ?? DateTime.now();
+}
+
+// ─── Quick Prompt suggestions ─────────────────────────────────────────────────
+const _quickPrompts = [
+  '📊 สรุปการกินวันนี้',
+  '🍱 แนะนำเมนูมื้อเย็น',
+  '🏃 วิ่ง 30 นาที เผาผลาญเท่าไหร่',
+  '💪 โปรตีนวันนี้พอไหม',
+  '⚖️ ความคืบหน้าน้ำหนัก',
+];
+
+// ─── Chat Screen ──────────────────────────────────────────────────────────────
+class ChatScreen extends ConsumerStatefulWidget {
+  const ChatScreen({super.key});
+
+  @override
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends ConsumerState<ChatScreen> {
+  static const _green = Color(0xFF628141);
+  static const _greenDark = Color(0xFF3D5A27);
+  static const _greenLight = Color(0xFFE8EFCF);
+  static const _bg = Color(0xFFF5F7F0);
+
+  final _controller = TextEditingController();
+  final _scrollController = ScrollController();
+  final List<ChatMessage> _messages = [];
+  bool _isTyping = false;
+  Position? _lastPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    // Welcome message
+    _messages.add(ChatMessage(
+      text: 'สวัสดีค่ะ! หนูคือน้องซีการ์ด 🌿\n\nผู้ช่วยดูแลสุขภาพส่วนตัวของคุณค่ะ '
+          'ไม่ว่าจะเป็นเรื่องอาหาร แคลอรี่ การออกกำลังกาย หรือเป้าหมายน้ำหนัก '
+          'น้องซีการ์ดพร้อมช่วยเสมอเลยนะคะ 😊\n\n'
+          'วันนี้มีอะไรให้ช่วยคะ?',
+      isUser: false,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // ─── Send Message ──────────────────────────────────────────────────────────
+
+  Future<Position?> _getLocation() async {
+    try {
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.always ||
+          perm == LocationPermission.whileInUse) {
+        return await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.medium,
+                timeLimit: Duration(seconds: 5)));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _send(String text) async {
+    final msg = text.trim();
+    if (msg.isEmpty || _isTyping) return;
+
+    _controller.clear();
+    setState(() {
+      _messages.add(ChatMessage(text: msg, isUser: true));
+      _isTyping = true;
+    });
+    _scrollToBottom();
+
+    final userId = ref.read(userDataProvider).userId;
+
+    // ดึง location ถ้าข้อความเกี่ยวกับร้านอาหาร
+    final isRestaurantQuery = msg.contains('ร้าน') ||
+        msg.contains('ใกล้') ||
+        msg.contains('restaurant') ||
+        msg.contains('แนะนำร้าน');
+    if (isRestaurantQuery || _lastPosition == null) {
+      _lastPosition = await _getLocation();
+    }
+
+    final body = <String, dynamic>{'user_id': userId, 'message': msg};
+    if (_lastPosition != null) {
+      body['lat'] = _lastPosition!.latitude;
+      body['lng'] = _lastPosition!.longitude;
+    }
+
+    try {
+      final res = await http
+          .post(
+            Uri.parse('${AppConstants.baseUrl}/api/chat/multi'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      String reply;
+      if (res.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes));
+        reply = data['response'] as String? ?? 'ไม่มีคำตอบ';
+      } else {
+        reply = 'เกิดข้อผิดพลาด (${res.statusCode}) กรุณาลองใหม่ครับ';
+      }
+
+      if (mounted) {
+        setState(() {
+          _messages.add(ChatMessage(text: reply, isUser: false));
+          _isTyping = false;
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _messages.add(ChatMessage(
+            text: 'ไม่สามารถเชื่อมต่อ AI ได้ในขณะนี้ กรุณาลองใหม่อีกครั้งครับ',
+            isUser: false,
+          ));
+          _isTyping = false;
+        });
+        _scrollToBottom();
+      }
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  // ─── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      body: Column(children: [
+        _buildHeader(),
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            itemCount: _messages.length + (_isTyping ? 1 : 0),
+            itemBuilder: (ctx, i) {
+              if (i == _messages.length) return _buildTypingIndicator();
+              return _buildMessageBubble(_messages[i]);
+            },
+          ),
+        ),
+        _buildQuickPrompts(),
+        _buildInputBar(),
+      ]),
+    );
+  }
+
+  // ─── Header ────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_greenDark, _green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 52, 20, 20),
+      child: Row(children: [
+        GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+            child: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: Colors.white, size: 18),
+          ),
+        ),
+        const SizedBox(width: 14),
+        // Avatar
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+          ),
+          child: const Icon(Icons.smart_toy_rounded,
+              color: Colors.white, size: 24),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('น้องซีการ์ด',
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+              Row(children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                      color: Color(0xFF2ECC71), shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 5),
+                Text('ผู้ช่วยดูแลสุขภาพ · พร้อมช่วยเหลือ',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.white.withOpacity(0.8))),
+              ]),
+            ],
+          ),
+        ),
+        // Info badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text('AI', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+        ),
+      ]),
+    );
+  }
+
+  // ─── Message Bubble ────────────────────────────────────────────────────────
+
+  Widget _buildMessageBubble(ChatMessage msg) {
+    final isUser = msg.isUser;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isUser) ...[
+            Container(
+              width: 32,
+              height: 32,
+              decoration: const BoxDecoration(
+                color: _green, shape: BoxShape.circle),
+              child: const Icon(Icons.smart_toy_rounded,
+                  color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isUser ? _green : Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(isUser ? 18 : 4),
+                  bottomRight: Radius.circular(isUser ? 4 : 18),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2))
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    msg.text,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isUser ? Colors.white : Colors.black87,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${msg.time.hour.toString().padLeft(2, '0')}:${msg.time.minute.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isUser
+                          ? Colors.white.withOpacity(0.65)
+                          : Colors.grey.shade400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isUser) const SizedBox(width: 8),
+        ],
+      ),
+    );
+  }
+
+  // ─── Typing Indicator ──────────────────────────────────────────────────────
+
+  Widget _buildTypingIndicator() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration:
+              const BoxDecoration(color: _green, shape: BoxShape.circle),
+          child: const Icon(Icons.smart_toy_rounded,
+              color: Colors.white, size: 18),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(18),
+              topRight: Radius.circular(18),
+              bottomRight: Radius.circular(18),
+              bottomLeft: Radius.circular(4),
+            ),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _dot(0),
+            const SizedBox(width: 4),
+            _dot(200),
+            const SizedBox(width: 4),
+            _dot(400),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _dot(int delayMs) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.4, end: 1.0),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOut,
+      builder: (_, v, __) => Opacity(
+        opacity: v,
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration:
+              const BoxDecoration(color: _green, shape: BoxShape.circle),
+        ),
+      ),
+    );
+  }
+
+  // ─── Quick Prompts ─────────────────────────────────────────────────────────
+
+  Widget _buildQuickPrompts() {
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _quickPrompts.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (ctx, i) => GestureDetector(
+          onTap: () => _send(_quickPrompts[i]),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _greenLight, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2))
+              ],
+            ),
+            child: Text(
+              _quickPrompts[i],
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: _greenDark,
+                  fontWeight: FontWeight.w500),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Input Bar ─────────────────────────────────────────────────────────────
+
+  Widget _buildInputBar() {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+          16, 10, 16, MediaQuery.of(context).padding.bottom + 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -3))
+        ],
+      ),
+      child: Row(children: [
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: _bg,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: _greenLight),
+            ),
+            child: TextField(
+              controller: _controller,
+              minLines: 1,
+              maxLines: 4,
+              textCapitalization: TextCapitalization.sentences,
+              style: const TextStyle(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'ถามน้องซีการ์ด...',
+                hintStyle:
+                    TextStyle(fontSize: 14, color: Colors.grey.shade400),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+              ),
+              onSubmitted: _send,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () => _send(_controller.text),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: _isTyping ? Colors.grey.shade300 : _green,
+              shape: BoxShape.circle,
+              boxShadow: _isTyping
+                  ? []
+                  : [
+                      BoxShadow(
+                          color: _green.withOpacity(0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4))
+                    ],
+            ),
+            child: Icon(
+              _isTyping ? Icons.hourglass_top_rounded : Icons.send_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}

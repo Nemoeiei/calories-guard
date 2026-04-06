@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter_application_1/constants/constants.dart';
 import '/providers/user_data_provider.dart';
+import '../../services/health_service.dart';
+import '../../services/notification_helper.dart';
 
 // ─────────────────────────────────────────────
 //  Models
@@ -99,6 +101,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
   List<Activity> _activities = [];
   late AnimationController _waterAnim;
   bool _isSaving = false;
+  bool _isLoadingData = false;
 
   @override
   void initState() {
@@ -107,6 +110,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
     _waterAnim = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 300));
     _fetchDailyLog();
+    _fetchWaterLog();
   }
 
   @override
@@ -133,9 +137,38 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
     ];
   }
 
+  // ─── Water Intake API ───────────────────────────────────────
+  Future<void> _fetchWaterLog() async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    try {
+      final res = await http.get(Uri.parse(
+          '${AppConstants.baseUrl}/water_logs/$userId?date_record=$dateStr'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final ml = (data['amount_ml'] as num?)?.toInt() ?? 0;
+        if (mounted) setState(() => _waterGlasses = (ml / 250).round().clamp(0, 20));
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveWaterLog() async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+    try {
+      await http.post(
+        Uri.parse('${AppConstants.baseUrl}/water_logs/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'amount_ml': _waterGlasses * 250}),
+      );
+    } catch (_) {}
+  }
+
   Future<void> _fetchDailyLog() async {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
+    if (mounted) setState(() => _isLoadingData = true);
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
     try {
       final res = await http.get(Uri.parse(
@@ -182,6 +215,8 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
       }
     } catch (e) {
       debugPrint('Error fetching daily log: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingData = false);
     }
   }
 
@@ -203,6 +238,11 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
       backgroundColor: _bg,
       body: Column(children: [
         _buildTopBar(),
+        if (_isLoadingData)
+          const LinearProgressIndicator(
+              color: _green,
+              backgroundColor: Color(0xFFE8EFCF),
+              minHeight: 3),
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -235,6 +275,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
                 _selectedDate = _selectedDate.subtract(const Duration(days: 1));
                 _initMeals();
                 _fetchDailyLog();
+                _fetchWaterLog();
               });
             }),
             const SizedBox(width: 8),
@@ -256,6 +297,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
                     _selectedDate = picked;
                     _initMeals();
                     _fetchDailyLog();
+                    _fetchWaterLog();
                   });
                 }
               },
@@ -281,6 +323,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
                               _selectedDate.add(const Duration(days: 1));
                           _initMeals();
                           _fetchDailyLog();
+                          _fetchWaterLog();
                         });
                       }),
           ],
@@ -452,7 +495,10 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
           const Spacer(),
           Row(children: [
             _waterBtn(Icons.remove, () {
-              if (_waterGlasses > 0) setState(() => _waterGlasses--);
+              if (_waterGlasses > 0) {
+                setState(() => _waterGlasses--);
+                _saveWaterLog();
+              }
             }),
             const SizedBox(width: 8),
             Text('$_waterGlasses',
@@ -463,7 +509,10 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
                     fontWeight: FontWeight.w800)),
             const SizedBox(width: 8),
             _waterBtn(Icons.add, () {
-              if (_waterGlasses < 20) setState(() => _waterGlasses++);
+              if (_waterGlasses < 20) {
+                setState(() => _waterGlasses++);
+                _saveWaterLog();
+              }
             }),
           ]),
         ]),
@@ -473,7 +522,10 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
                 _waterGoal,
                 (i) => Expanded(
                       child: GestureDetector(
-                        onTap: () => setState(() => _waterGlasses = i + 1),
+                        onTap: () {
+                          setState(() => _waterGlasses = i + 1);
+                          _saveWaterLog();
+                        },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           margin: const EdgeInsets.symmetric(horizontal: 2),
@@ -817,6 +869,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
           }),
         ],
         const Divider(height: 1, indent: 16, endIndent: 16),
+        // ── Add manually ────────────────────────────────────────
         GestureDetector(
           onTap: _showAddActivitySheet,
           child: Container(
@@ -840,6 +893,41 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
             ]),
           ),
         ),
+        const Divider(height: 1, indent: 16, endIndent: 16),
+        // ── Samsung Health Sync ──────────────────────────────────
+        GestureDetector(
+          onTap: _isSyncingHealth ? null : _syncSamsungHealth,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            child: _isSyncingHealth
+                ? const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Color(0xFF1565C0)),
+                    ),
+                  )
+                : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: const BoxDecoration(
+                          color: Color(0xFFE3F0FF), shape: BoxShape.circle),
+                      child: const Icon(Icons.watch_rounded,
+                          size: 14, color: Color(0xFF1565C0)),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('ซิงค์ Samsung Health',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1565C0),
+                            fontFamily: 'Inter')),
+                  ]),
+          ),
+        ),
       ]),
     );
   }
@@ -860,6 +948,70 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
         },
       ),
     );
+  }
+
+  // ─── Samsung Health Sync ──────────────────────────────────────────────────
+  bool _isSyncingHealth = false;
+
+  Future<void> _syncSamsungHealth() async {
+    setState(() => _isSyncingHealth = true);
+    try {
+      final granted = await HealthService.requestPermissions();
+      if (!granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('ไม่ได้รับอนุญาตให้เข้าถึงข้อมูลสุขภาพ\nกรุณาอนุญาตใน Settings'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ));
+        }
+        return;
+      }
+
+      final calories = await HealthService.fetchCaloriesBurned(_selectedDate);
+      final steps    = await HealthService.fetchSteps(_selectedDate);
+
+      if (calories > 0) {
+        // สร้าง activity จาก Samsung Health
+        final act = Activity(
+          name: 'Samsung Health — กิจกรรมรวม',
+          emoji: '⌚',
+          durationMin: 0,
+          caloriesBurned: calories,
+        );
+        setState(() {
+          // ลบข้อมูล Samsung Health เดิมออกก่อน
+          _activities.removeWhere((a) => a.name.startsWith('Samsung Health'));
+          _activities.add(act);
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+              'ซิงค์สำเร็จ! เผาผลาญ ${calories.toInt()} kcal | ก้าว $steps ก้าว',
+            ),
+            backgroundColor: const Color(0xFF628141),
+            duration: const Duration(seconds: 3),
+          ));
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('ไม่พบข้อมูลกิจกรรมจาก Samsung Health ในวันนี้'),
+            backgroundColor: Colors.orange,
+          ));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('เกิดข้อผิดพลาด: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isSyncingHealth = false);
+    }
   }
 
   void _showAddActivitySheet() {
@@ -941,6 +1093,18 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
             '💾 No items to POST (meal is empty - only DELETE was executed)');
       }
       debugPrint('✅ SAVE COMPLETE');
+
+      // ── Calorie notification trigger ──────────────────────
+      final targetCalDouble = ref.read(userDataProvider).targetCalories;
+      final targetCal = targetCalDouble.toInt();
+      final currentCal = _totalCalIn.toInt();
+      if (targetCal > 0) {
+        if (currentCal >= targetCal) {
+          NotificationHelper.showCalorieAlert(currentCal, targetCal);
+        } else if (currentCal >= (targetCalDouble * 0.85).toInt()) {
+          NotificationHelper.showCalorieWarning(currentCal, targetCal);
+        }
+      }
     } catch (e) {
       debugPrint('❌ Error saving meal: $e');
     } finally {
@@ -990,10 +1154,10 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
   static const _green = Color(0xFF628141);
   static const _greenL = Color(0xFFE8EFCF);
 
-  late TabController _tab;
   List<Map<String, dynamic>> _dbResults = [];
   List<Map<String, dynamic>> _units = [];
   bool _dbLoading = false;
+  bool _showQuickAdd = false;   // แสดง quick-add เมื่อค้นหาไม่เจอและกดปุ่ม
   final _searchCtrl = TextEditingController();
 
   final _qNameCtrl = TextEditingController();
@@ -1006,14 +1170,12 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
     _loadAllFoods();
     _loadUnits();
   }
 
   @override
   void dispose() {
-    _tab.dispose();
     _searchCtrl.dispose();
     _qNameCtrl.dispose();
     _qCalCtrl.dispose();
@@ -1380,44 +1542,25 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
                 onPressed: () => Navigator.pop(context)),
           ]),
         ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          decoration: BoxDecoration(
-              color: _greenL, borderRadius: BorderRadius.circular(12)),
-          child: TabBar(
-            controller: _tab,
-            indicator: BoxDecoration(
-                color: _green, borderRadius: BorderRadius.circular(10)),
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.black54,
-            labelStyle: const TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 13, fontFamily: 'Inter'),
-            tabs: const [
-              Tab(text: '🔍 เลือกจากฐานข้อมูล'),
-              Tab(text: '⚡ บันทึกด่วน'),
-            ],
-          ),
-        ),
         Expanded(
-          child: TabBarView(
-            controller: _tab,
-            children: [
-              _buildDBTab(scroll),
-              _buildQuickAddTab(),
-            ],
-          ),
+          child: _showQuickAdd
+              ? _buildQuickAddTab()
+              : _buildDBTab(scroll),
         ),
       ]),
     );
   }
 
   Widget _buildDBTab(ScrollController scroll) {
+    final hasQuery = _searchCtrl.text.trim().isNotEmpty;
+    final isEmpty  = _filtered.isEmpty;
+
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
         child: TextField(
           controller: _searchCtrl,
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) => setState(() { _showQuickAdd = false; }),
           decoration: InputDecoration(
             hintText: 'ค้นหาเมนูอาหาร...',
             prefixIcon: const Icon(Icons.search, color: _green),
@@ -1426,7 +1569,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
                     icon: const Icon(Icons.close, size: 18),
                     onPressed: () {
                       _searchCtrl.clear();
-                      setState(() {});
+                      setState(() { _showQuickAdd = false; });
                     })
                 : null,
             filled: true,
@@ -1441,9 +1584,50 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
       Expanded(
         child: _dbLoading
             ? const Center(child: CircularProgressIndicator(color: _green))
-            : _filtered.isEmpty
+            : (isEmpty && hasQuery)
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.search_off_rounded,
+                            size: 52, color: Colors.grey.shade300),
+                        const SizedBox(height: 12),
+                        Text(
+                          'ไม่พบ "${_searchCtrl.text.trim()}" ในฐานข้อมูล',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 14, color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              _qNameCtrl.text = _searchCtrl.text.trim();
+                              setState(() => _showQuickAdd = true);
+                            },
+                            icon: const Icon(Icons.add_circle_outline,
+                                size: 18),
+                            label: const Text('เพิ่มเมนูอาหารด่วน',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _green,
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  )
+                : isEmpty
                 ? const Center(
-                    child: Text('ไม่พบเมนูที่ค้นหา',
+                    child: Text('ยังไม่มีรายการอาหาร',
                         style: TextStyle(color: Colors.grey)))
                 : ListView.separated(
                     controller: scroll,
@@ -1542,6 +1726,21 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ปุ่มย้อนกลับ
+        GestureDetector(
+          onTap: () => setState(() => _showQuickAdd = false),
+          child: Row(children: [
+            const Icon(Icons.arrow_back_ios_new_rounded,
+                size: 15, color: Color(0xFF628141)),
+            const SizedBox(width: 4),
+            const Text('กลับไปค้นหา',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF628141),
+                    fontWeight: FontWeight.w600)),
+          ]),
+        ),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(

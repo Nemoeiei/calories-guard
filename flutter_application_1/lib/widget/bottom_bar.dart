@@ -10,6 +10,8 @@ import '../screens/record/record_food_screen.dart';
 import '../screens/recommened_exercise/exercise_recommendation_screen.dart';
 import '../screens/recommend_food/recommend_food_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/chat/chat_screen.dart';
+import 'notification_sheet.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -35,6 +37,20 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFE8EFCF),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 60),
+        child: FloatingActionButton(
+          heroTag: 'chatFab',
+          onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ChatScreen())),
+          backgroundColor: const Color(0xFF628141),
+          shape: const CircleBorder(),
+          tooltip: 'AI Coach',
+          child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 26),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Column(
         children: [
           _buildTopBar(), // ส่วนหัว (Logo + Profile)
@@ -59,7 +75,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                 Icons.food_bank_outlined, "บันทึก", 1, selectedIndex),
             _buildBottomNavItem(Icons.restaurant, "อาหาร", 2, selectedIndex),
             _buildBottomNavItem(
-                Icons.directions_run, "ออกกำลัง", 3, selectedIndex),
+                Icons.leaderboard_rounded, "แดชบอร์ด", 3, selectedIndex),
           ],
         ),
       ),
@@ -150,11 +166,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             ],
           ),
           const Spacer(),
-          IconButton(
-            onPressed: () {}, // Logic แจ้งเตือน
-            icon: const Icon(Icons.notifications_outlined,
-                color: Colors.white, size: 32),
-          ),
+          const NotificationBell(),
           IconButton(
             onPressed: () {
               Navigator.push(
