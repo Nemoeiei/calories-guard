@@ -1,12 +1,16 @@
 import psycopg2
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 DB_CONFIG = {
-    "dbname": "cleangoal_db",
-    "user": "postgres",
-    "password": "REDACTED_DB_PASSWORD",
-    "host": "localhost",
-    "port": "5432",
-    "options": "-c search_path=cleangoal,public"
+    "dbname": os.getenv("DB_NAME", "cleangoal_db"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "5432"),
+    "options": "-c search_path=cleangoal,public",
 }
 
 def add_mock_data():

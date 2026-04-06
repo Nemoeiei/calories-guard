@@ -1,13 +1,16 @@
 import psycopg2
 import csv
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 DB_CONFIG = {
-    "dbname": "cleangoal_db",
-    "user": "postgres",
-    "password": "REDACTED_DB_PASSWORD",
-    "host": "localhost",
-    "port": "5432"
+    "dbname": os.getenv("DB_NAME", "cleangoal_db"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "5432"),
 }
 
 output_file = "C:/Users/frame/.gemini/antigravity/brain/b5659d2a-2eaa-4ebe-8086-52e939d73c80/data_dictionary.csv"

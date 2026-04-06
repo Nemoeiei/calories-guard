@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:math' show cos, sqrt, asin;
+import '../config/secrets.dart';
 
 class RestaurantMapScreen extends StatefulWidget {
   final double remainingCalories;
@@ -28,7 +29,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
   static const Color _bg = Color(0xFFF2F7F4);
   static const Color _red = Color(0xFFD32F2F);
 
-  static const String _apiKey = 'YOUR_GOOGLE_API_KEY';
+  static const String _apiKey = Secrets.googleMapsApiKey;
 
   GoogleMapController? _mapController;
   Position? _currentPosition;
@@ -223,6 +224,21 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
     } else {
       return 'แคลอรี่เกินแล้ว ควรหลีกเลี่ยงอาหารหนัก';
     }
+  }
+
+  Widget _buildSafeImage(String url, {required double width, required double height, double iconSize = 24}) {
+    return FutureBuilder<http.Response>(
+      future: http.get(Uri.parse(url)),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(width: width, height: height, color: _greenL, child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: _green, strokeWidth: 2))));
+        }
+        if (snapshot.hasData && snapshot.data!.statusCode == 200 && snapshot.data!.headers['content-type']?.startsWith('image') == true) {
+           return Image.memory(snapshot.data!.bodyBytes, width: width, height: height, fit: BoxFit.cover);
+        }
+        return Container(width: width, height: height, color: _greenL, child: Icon(Icons.restaurant, color: _green, size: iconSize));
+      },
+    );
   }
 
   @override
@@ -530,20 +546,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: photoUrl.isNotEmpty
-                  ? Image.network(
-                      photoUrl,
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 80,
-                          height: 80,
-                          color: _greenL,
-                          child: const Icon(Icons.restaurant, color: _green),
-                        );
-                      },
-                    )
+                  ? _buildSafeImage(photoUrl, width: 80, height: 80)
                   : Container(
                       width: 80,
                       height: 80,
@@ -667,21 +670,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
                     if (photoUrl.isNotEmpty)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: Image.network(
-                          photoUrl,
-                          width: double.infinity,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: double.infinity,
-                              height: 200,
-                              color: _greenL,
-                              child: const Icon(Icons.restaurant,
-                                  size: 64, color: _green),
-                            );
-                          },
-                        ),
+                        child: _buildSafeImage(photoUrl, width: double.infinity, height: 200, iconSize: 64),
                       ),
                     const SizedBox(height: 16),
                     Row(

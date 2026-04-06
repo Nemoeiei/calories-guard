@@ -1,5 +1,25 @@
+# Environment / secrets
 .env
+*.env.local
+
+# Flutter secrets (contains real API keys — never commit)
+flutter_application_1/lib/config/secrets.dart
+
+# Python bytecode
 __pycache__/
 *.pyc
+
+# IDE
 .idea/
 .vscode/
+
+# Claude local settings (may contain personal paths / credentials)
+.claude/settings.local.json
+.claude/worktrees/
+
+# Android Gradle build cache
+flutter_application_1/android/.gradle/
+flutter_application_1/android/app/build/
+
+# Flutter generated / lock files (optional — remove if your team checks these in)
+flutter_application_1/.flutter-plugins-dependencies
