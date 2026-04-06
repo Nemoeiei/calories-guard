@@ -1,0 +1,424 @@
+erDiagram
+    allergy_flags {
+        INTEGER flag_id
+        CHARACTER_VARYING name
+        CHARACTER_VARYING description
+    }
+    beverages {
+        BIGINT beverage_id
+        BIGINT food_id
+        NUMERIC volume_ml
+        BOOLEAN is_alcoholic
+        NUMERIC caffeine_mg
+        CHARACTER_VARYING sugar_level_label
+        CHARACTER_VARYING container_type
+    }
+    chat_messages {
+        BIGINT message_id
+        BIGINT user_id
+        VARCHAR(10) role
+        TEXT content
+        TIMESTAMP created_at
+    }
+    daily_summaries {
+        BIGINT summary_id
+        BIGINT user_id
+        BIGINT item_id
+        DATE date_record
+        NUMERIC total_calories_intake
+        INTEGER goal_calories
+        BOOLEAN is_goal_met
+    }
+    detail_items {
+        BIGINT item_id
+        BIGINT meal_id
+        BIGINT plan_id
+        BIGINT summary_id
+        BIGINT food_id
+        CHARACTER_VARYING food_name
+        INTEGER day_number
+        NUMERIC amount
+        INTEGER unit_id
+        NUMERIC cal_per_unit
+        CHARACTER_VARYING note
+        TIMESTAMP created_at
+        NUMERIC protein_per_unit
+        NUMERIC carbs_per_unit
+        NUMERIC fat_per_unit
+    }
+    email_verification_codes {
+        BIGINT id
+        BIGINT user_id
+        VARCHAR(10) code
+        TIMESTAMP expires_at
+        BOOLEAN used
+        TIMESTAMP created_at
+    }
+    food_allergy_flags {
+        BIGINT food_id
+        INTEGER flag_id
+    }
+    food_ingredients {
+        BIGINT food_ing_id
+        BIGINT food_id
+        BIGINT ingredient_id
+        NUMERIC amount
+        INTEGER unit_id
+        NUMERIC calculated_grams
+        CHARACTER_VARYING note
+    }
+    food_requests {
+        BIGINT request_id
+        BIGINT user_id
+        CHARACTER_VARYING food_name
+        USER-DEFINED status
+        JSONB ingredients_json
+        BIGINT reviewed_by
+        TIMESTAMP created_at
+        NUMERIC calories
+        NUMERIC protein
+        NUMERIC carbs
+        NUMERIC fat
+    }
+    foods {
+        BIGINT food_id
+        CHARACTER_VARYING food_name
+        USER-DEFINED food_type
+        NUMERIC calories
+        NUMERIC protein
+        NUMERIC carbs
+        NUMERIC fat
+        NUMERIC sodium
+        NUMERIC sugar
+        NUMERIC cholesterol
+        NUMERIC serving_quantity
+        CHARACTER_VARYING serving_unit
+        CHARACTER_VARYING image_url
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+        TIMESTAMP deleted_at
+        NUMERIC fiber_g
+        CHARACTER_VARYING food_category
+    }
+    health_contents {
+        BIGINT content_id
+        CHARACTER_VARYING title
+        USER-DEFINED type
+        CHARACTER_VARYING thumbnail_url
+        CHARACTER_VARYING resource_url
+        TEXT description
+        CHARACTER_VARYING category_tag
+        CHARACTER_VARYING difficulty_level
+        BOOLEAN is_published
+        TIMESTAMP created_at
+    }
+    ingredients {
+        BIGINT ingredient_id
+        CHARACTER_VARYING name
+        CHARACTER_VARYING category
+        INTEGER default_unit_id
+        NUMERIC calories_per_unit
+        TIMESTAMP created_at
+    }
+    meals {
+        BIGINT meal_id
+        BIGINT user_id
+        BIGINT item_id
+        USER-DEFINED meal_type
+        TIMESTAMP meal_time
+        NUMERIC total_amount
+        TIMESTAMP created_at
+    }
+    notifications {
+        BIGINT notification_id
+        BIGINT user_id
+        CHARACTER_VARYING title
+        TEXT message
+        USER-DEFINED type
+        BOOLEAN is_read
+        TIMESTAMP created_at
+        BIGINT related_id
+        CHARACTER_VARYING action_url
+    }
+    password_reset_codes {
+        BIGINT id
+        BIGINT user_id
+        VARCHAR(10) code
+        TIMESTAMP expires_at
+        BOOLEAN used
+        TIMESTAMP created_at
+    }
+    password_reset_codes {
+        BIGINT id
+        BIGINT user_id
+        VARCHAR(10) code
+        TIMESTAMP expires_at
+        BOOLEAN used
+        TIMESTAMP created_at
+    }
+    progress {
+        BIGINT progress_id
+        BIGINT user_id
+        BIGINT weight_id
+        BIGINT daily_id
+        INTEGER current_streak
+        CHARACTER_VARYING weekly_target
+        TIMESTAMP created_at
+    }
+    recipe_favorites {
+        BIGINT fav_id
+        BIGINT recipe_id
+        BIGINT user_id
+        TIMESTAMP created_at
+    }
+    recipe_ingredients {
+        BIGINT ing_id
+        BIGINT recipe_id
+        CHARACTER_VARYING ingredient_name
+        NUMERIC quantity
+        CHARACTER_VARYING unit
+        BOOLEAN is_optional
+        CHARACTER_VARYING note
+        INTEGER sort_order
+        TIMESTAMP created_at
+    }
+    recipe_reviews {
+        BIGINT review_id
+        BIGINT recipe_id
+        BIGINT user_id
+        SMALLINT rating
+        TEXT comment
+        TIMESTAMP created_at
+    }
+    recipe_steps {
+        BIGINT step_id
+        BIGINT recipe_id
+        INTEGER step_number
+        CHARACTER_VARYING title
+        TEXT instruction
+        INTEGER time_minutes
+        CHARACTER_VARYING image_url
+        TEXT tips
+        TIMESTAMP created_at
+    }
+    recipe_tips {
+        BIGINT tip_id
+        BIGINT recipe_id
+        TEXT tip_text
+        INTEGER sort_order
+        TIMESTAMP created_at
+    }
+    recipe_tools {
+        BIGINT tool_id
+        BIGINT recipe_id
+        CHARACTER_VARYING tool_name
+        CHARACTER_VARYING tool_emoji
+        INTEGER sort_order
+        TIMESTAMP created_at
+    }
+    recipes {
+        BIGINT recipe_id
+        BIGINT food_id
+        CHARACTER_VARYING description
+        TEXT instructions
+        INTEGER prep_time_minutes
+        INTEGER cooking_time_minutes
+        NUMERIC serving_people
+        CHARACTER_VARYING source_reference
+        CHARACTER_VARYING image_url
+        TIMESTAMP created_at
+        TIMESTAMP deleted_at
+        CHARACTER_VARYING recipe_name
+        CHARACTER_VARYING category
+        CHARACTER_VARYING cuisine
+        CHARACTER_VARYING difficulty
+        NUMERIC avg_rating
+        INTEGER review_count
+        INTEGER favorite_count
+        BOOLEAN is_published
+        INTEGER total_time_minutes
+    }
+    recipes {
+        BIGINT recipe_id
+        BIGINT food_id
+        CHARACTER_VARYING description
+        TEXT instructions
+        INTEGER prep_time_minutes
+        INTEGER cooking_time_minutes
+        NUMERIC serving_people
+        CHARACTER_VARYING source_reference
+        CHARACTER_VARYING image_url
+        TIMESTAMP created_at
+        TIMESTAMP deleted_at
+    }
+    roles {
+        INTEGER role_id
+        CHARACTER_VARYING role_name
+    }
+    snacks {
+        BIGINT snack_id
+        BIGINT food_id
+        BOOLEAN is_sweet
+        CHARACTER_VARYING packaging_type
+        NUMERIC trans_fat
+    }
+    unit_conversions {
+        INTEGER conversion_id
+        INTEGER from_unit_id
+        INTEGER to_unit_id
+        NUMERIC factor
+        CHARACTER_VARYING note
+        TIMESTAMP created_at
+    }
+    units {
+        INTEGER unit_id
+        CHARACTER_VARYING name
+        NUMERIC quantity
+    }
+    user_activities {
+        BIGINT activity_id
+        BIGINT user_id
+        USER-DEFINED activity_level
+        BOOLEAN is_current
+        DATE date_record
+        TIMESTAMP created_at
+    }
+    user_allergy_preferences {
+        BIGINT user_id
+        INTEGER flag_id
+        CHARACTER_VARYING preference_type
+        TIMESTAMP created_at
+    }
+    user_favorites {
+        BIGINT id
+        BIGINT user_id
+        BIGINT food_id
+        TIMESTAMP created_at
+    }
+    user_goals {
+        BIGINT goal_id
+        BIGINT user_id
+        CHARACTER_VARYING goal_name
+        USER-DEFINED goal_type
+        NUMERIC target_weight_kg
+        BOOLEAN is_current
+        DATE goal_start_at
+        DATE goal_target_date
+        DATE goal_end_at
+        TIMESTAMP created_at
+    }
+    user_health_content_views {
+        BIGINT user_id
+        BIGINT content_id
+        TIMESTAMP viewed_at
+        BOOLEAN is_bookmarked
+    }
+    user_meal_plans {
+        BIGINT plan_id
+        BIGINT user_id
+        BIGINT item_id
+        CHARACTER_VARYING name
+        TEXT description
+        CHARACTER_VARYING source_type
+        BOOLEAN is_premium
+        TIMESTAMP created_at
+    }
+    users {
+        BIGINT user_id
+        CHARACTER_VARYING username
+        CHARACTER_VARYING email
+        CHARACTER_VARYING password_hash
+        USER-DEFINED gender
+        DATE birth_date
+        NUMERIC height_cm
+        NUMERIC current_weight_kg
+        USER-DEFINED goal_type
+        NUMERIC target_weight_kg
+        INTEGER target_calories
+        USER-DEFINED activity_level
+        DATE goal_start_date
+        DATE goal_target_date
+        DATE last_kpi_check_date
+        INTEGER current_streak
+        TIMESTAMP last_login_date
+        INTEGER total_login_days
+        CHARACTER_VARYING avatar_url
+        INTEGER role_id
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+        TIMESTAMP deleted_at
+        INTEGER target_protein
+        INTEGER target_carbs
+        INTEGER target_fat
+        BOOLEAN is_email_verified
+    }
+    water_logs {
+        BIGINT log_id
+        BIGINT user_id
+        INTEGER glasses
+        DATE date_record
+        TIMESTAMP created_at
+    }
+    weekly_summaries {
+        BIGINT weekly_id
+        BIGINT user_id
+        DATE start_date
+        INTEGER avg_daily_calories
+        INTEGER days_logged_count
+    }
+    weight_logs {
+        BIGINT log_id
+        BIGINT user_id
+        NUMERIC weight_kg
+        DATE recorded_date
+        TIMESTAMP created_at
+    }
+    foods ||--o{ beverages : "food_id"
+    users ||--o{ daily_summaries : "user_id"
+    foods ||--o{ detail_items : "food_id"
+    meals ||--o{ detail_items : "meal_id"
+    user_meal_plans ||--o{ detail_items : "plan_id"
+    daily_summaries ||--o{ detail_items : "summary_id"
+    units ||--o{ detail_items : "unit_id"
+    foods ||--o{ food_ingredients : "food_id"
+    ingredients ||--o{ food_ingredients : "ingredient_id"
+    units ||--o{ food_ingredients : "unit_id"
+    users ||--o{ food_requests : "user_id"
+    units ||--o{ ingredients : "default_unit_id"
+    users ||--o{ meals : "user_id"
+    users ||--o{ notifications : "user_id"
+    daily_summaries ||--o{ progress : "daily_id"
+    users ||--o{ progress : "user_id"
+    weight_logs ||--o{ progress : "weight_id"
+    foods ||--o{ recipes : "food_id"
+    foods ||--o{ snacks : "food_id"
+    users ||--o{ user_activities : "user_id"
+    allergy_flags ||--o{ user_allergy_preferences : "flag_id"
+    users ||--o{ user_allergy_preferences : "user_id"
+    users ||--o{ user_goals : "user_id"
+    users ||--o{ user_meal_plans : "user_id"
+    roles ||--o{ users : "role_id"
+    users ||--o{ weekly_summaries : "user_id"
+    users ||--o{ weight_logs : "user_id"
+    users ||--o{ password_reset_codes : "user_id"
+    users ||--o{ password_reset_codes : "user_id"
+    users ||--o{ email_verification_codes : "user_id"
+    users ||--o{ food_requests : "reviewed_by"
+    recipes ||--o{ recipe_ingredients : "recipe_id"
+    recipes ||--o{ recipe_steps : "recipe_id"
+    recipes ||--o{ recipe_tips : "recipe_id"
+    recipes ||--o{ recipe_tools : "recipe_id"
+    recipes ||--o{ recipe_reviews : "recipe_id"
+    users ||--o{ recipe_reviews : "user_id"
+    recipes ||--o{ recipe_favorites : "recipe_id"
+    users ||--o{ recipe_favorites : "user_id"
+    foods ||--o{ food_allergy_flags : "food_id"
+    allergy_flags ||--o{ food_allergy_flags : "flag_id"
+    users ||--o{ water_logs : "user_id"
+    users ||--o{ chat_messages : "user_id"
+    users ||--o{ user_health_content_views : "user_id"
+    health_contents ||--o{ user_health_content_views : "content_id"
+    users ||--o{ user_favorites : "user_id"
+    foods ||--o{ user_favorites : "food_id"
+    units ||--o{ unit_conversions : "from_unit_id"
+    units ||--o{ unit_conversions : "to_unit_id"
