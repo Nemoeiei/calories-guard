@@ -79,20 +79,19 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
       bool isApproval = widget.requestData != null;
 
       if (isApproval) {
-        // 2A. โหมดอนุมัติ (Approve Request)
-        final requestId = widget.requestData!['request_id'];
+        // 2A. โหมดอนุมัติเมนูด่วน (temp_food → verified_food + foods)
+        final tfId = widget.requestData!['tf_id'];
         final body = jsonEncode({
-          "admin_id": 1, // จำลอง admin_id
-          "status": "approved",
+          "admin_id": 1, // TODO: ใช้ admin_id จริงหลัง Phase 2 (auth)
+          "food_name": widget.initialMenuName,
           "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
           "protein": double.tryParse(_proteinCtrl.text) ?? 0,
           "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
           "fat": double.tryParse(_fatCtrl.text) ?? 0,
-          "image_url": imageUrl
         });
 
-        res = await http.put(
-          Uri.parse('${AppConstants.baseUrl}/admin/food-requests/$requestId'),
+        res = await http.post(
+          Uri.parse('${AppConstants.baseUrl}/admin/temp-foods/$tfId/approve'),
           headers: {"Content-Type": "application/json"},
           body: body,
         );

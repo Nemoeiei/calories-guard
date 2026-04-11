@@ -884,80 +884,187 @@ def create_food(food: FoodCreate):
 
 
 
-# --- API: User Auto-Add Food and Request Verification ---
+# --- API: User Auto-Add Food (writes to temp_food, awaits admin review) ---
 
 @app.post("/foods/auto-add")
-
 def user_auto_add_food(req: FoodAutoAdd):
-
     """
-
-    ผู้ใช้เพิ่มเมนูเอง (บันทึกลง foods ทันทีเพื่อใช้งาน) 
-
-    และสร้างคำขอใน food_requests เพื่อให้ Admin ตรวจสอบโภชนาการทีหลัง
-
+    User เพิ่มเมนูด่วน: ใส่ชื่อพอ (ค่าโภชนาการไม่บังคับ) → INSERT temp_food
+    Trigger v13 สร้าง verified_food (is_verify=FALSE) คู่กันอัตโนมัติ
+    Admin จะเข้ามาแก้ไข/ยืนยันผ่าน /admin/temp-foods/*
     """
-
     conn = get_db_connection()
-
     try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            INSERT INTO temp_food (food_name, calories, protein, carbs, fat, user_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING tf_id
+            """,
+            (
+                req.food_name,
+                req.calories or 0,
+                req.protein or 0,
+                req.carbs or 0,
+                req.fat or 0,
+                req.user_id,
+            ),
+        )
+        new_tf_id = cur.fetchone()["tf_id"]
+        conn.commit()
+        return {
+            "message": "บันทึกเมนูด่วนสำเร็จ รอ admin ตรวจสอบ",
+            "tf_id": new_tf_id,
+        }
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
 
+
+# --- Admin: Temp Food Review (v13 flow) ---
+
+@app.get("/admin/temp-foods")
+def admin_list_temp_foods(status: str = "pending"):
+    """
+    ดึงรายการเมนูด่วนสำหรับ admin ตรวจสอบ
+    status: 'pending' (ยังไม่ verify), 'verified', 'all'
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        where = ""
+        if status == "pending":
+            where = "WHERE is_verify = FALSE"
+        elif status == "verified":
+            where = "WHERE is_verify = TRUE"
+        cur.execute(
+            f"""
+            SELECT
+                tf_id,
+                food_name,
+                calories, protein, carbs, fat,
+                submitted_by           AS user_id,
+                submitted_by_username  AS requester_name,
+                submitted_at,
+                is_verify,
+                verified_by,
+                verified_at
+            FROM v_admin_temp_food_review
+            {where}
+            ORDER BY submitted_at DESC
+            """
+        )
+        return cur.fetchall()
+    finally:
+        if conn:
+            conn.close()
+
+
+class TempFoodApprove(BaseModel):
+    admin_id: int
+    food_name: str | None = None
+    calories: float | None = None
+    protein: float | None = None
+    carbs: float | None = None
+    fat: float | None = None
+
+
+@app.post("/admin/temp-foods/{tf_id}/approve")
+def admin_approve_temp_food(tf_id: int, req: TempFoodApprove):
+    """
+    Admin ยืนยัน temp_food:
+      1) อัปเดตค่าโภชนาการใน temp_food (ถ้ามีการแก้)
+      2) set verified_food.is_verify = TRUE, verified_by = admin_id
+         (trigger ตั้ง verified_at อัตโนมัติ)
+      3) คัดลอกเข้า foods table เพื่อให้ user ทุกคนใช้ได้
+    """
+    conn = get_db_connection()
+    try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        
+        # 1) update nutrition ถ้ามีการส่งมา
+        update_fields = []
+        update_values = []
+        for field in ("food_name", "calories", "protein", "carbs", "fat"):
+            val = getattr(req, field)
+            if val is not None:
+                update_fields.append(f"{field} = %s")
+                update_values.append(val)
 
-        # 1. Insert into foods for immediate use
+        if update_fields:
+            update_values.append(tf_id)
+            cur.execute(
+                f"UPDATE temp_food SET {', '.join(update_fields)} WHERE tf_id = %s",
+                update_values,
+            )
 
-        cur.execute("""
+        # 2) verify
+        cur.execute(
+            """
+            UPDATE verified_food
+            SET is_verify = TRUE, verified_by = %s
+            WHERE tf_id = %s
+            RETURNING vf_id, verified_at
+            """,
+            (req.admin_id, tf_id),
+        )
+        vf_row = cur.fetchone()
+        if not vf_row:
+            raise HTTPException(status_code=404, detail="temp_food not found")
 
+        # 3) copy to foods table for global use
+        cur.execute(
+            """
             INSERT INTO foods (food_name, calories, protein, carbs, fat)
-
-            VALUES (%s, %s, %s, %s, %s)
-
+            SELECT food_name, calories, protein, carbs, fat
+            FROM temp_food
+            WHERE tf_id = %s
             RETURNING food_id
-
-        """, (req.food_name, req.calories, req.protein, req.carbs, req.fat))
-
-        new_food_id = cur.fetchone()['food_id']
-
-        
-
-        # 2. Insert into food_requests for Admin review
-
-        import json
-
-        metadata = json.dumps({
-
-            "auto_added_food_id": new_food_id
-
-        })
-
-        
-
-        cur.execute("""
-
-            INSERT INTO food_requests 
-            (user_id, food_name, status, calories, protein, carbs, fat, ingredients_json)
-
-            VALUES (%s, %s, 'pending', %s, %s, %s, %s, %s)
-
-        """, (req.user_id, req.food_name, req.calories, req.protein, req.carbs, req.fat, metadata))
-
-        
+            """,
+            (tf_id,),
+        )
+        food_row = cur.fetchone()
 
         conn.commit()
-
-        return {"message": "Menu added locally and sent for review", "food_id": new_food_id}
-
+        return {
+            "message": "อนุมัติและคัดลอกไป foods สำเร็จ",
+            "tf_id": tf_id,
+            "food_id": food_row["food_id"] if food_row else None,
+            "verified_at": vf_row["verified_at"],
+        }
+    except HTTPException:
+        raise
     except Exception as e:
-
         conn.rollback()
-
         raise HTTPException(status_code=500, detail=str(e))
-
     finally:
+        if conn:
+            conn.close()
 
-        if conn: conn.close()
+
+@app.delete("/admin/temp-foods/{tf_id}")
+def admin_reject_temp_food(tf_id: int):
+    """Admin ปฏิเสธเมนูด่วน → ลบ temp_food (verified_food จะถูกลบตาม CASCADE)"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM temp_food WHERE tf_id = %s", (tf_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="temp_food not found")
+        conn.commit()
+        return {"message": "ลบเมนูด่วนสำเร็จ", "tf_id": tf_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
 
 
 

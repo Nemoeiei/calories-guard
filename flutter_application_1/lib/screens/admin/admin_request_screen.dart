@@ -23,7 +23,7 @@ class _AdminRequestScreenState extends State<AdminRequestScreen> {
   void _fetchRequests() {
     setState(() {
       _requestsFuture = http
-          .get(Uri.parse('${AppConstants.baseUrl}/admin/food-requests'))
+          .get(Uri.parse('${AppConstants.baseUrl}/admin/temp-foods?status=pending'))
           .then((res) {
         if (res.statusCode == 200) {
           return jsonDecode(res.body);
