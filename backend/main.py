@@ -202,20 +202,21 @@ def send_password_reset_email(email: str, username: str, code: str):
 
 
 
-# --- CORS: ให้แอป Flutter / เบราว์เซอร์ จาก origin อื่น (เช่น ngrok, APK) ยิง API ได้ ---
+# --- CORS: allow list อ่านจาก env ALLOWED_ORIGINS (comma-separated) ---
+# ตัวอย่าง: ALLOWED_ORIGINS=https://app.calories-guard.example,https://admin.calories-guard.example
+# Mobile app (Flutter บน Android/iOS) ไม่ส่ง Origin header อยู่แล้ว จึงไม่ติด CORS
+# Whitelist ใช้เฉพาะ browser-based client (เช่น dashboard หรือ dev tools)
+
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
+_allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
-
     CORSMiddleware,
-
-    allow_origins=["*"],
-
+    allow_origins=_allowed_origins,
     allow_credentials=True,
-
-    allow_methods=["*"],
-
-    allow_headers=["*"],
-
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
+    max_age=600,
 )
 
 
@@ -713,6 +714,12 @@ class SocialLoginRequest(BaseModel):
 def read_root():
 
     return {"message": "API is running with Infinite Meals & Image Upload!"}
+
+
+@app.get("/health")
+def health():
+    """Liveness probe for Render/Railway/Docker health checks."""
+    return {"status": "ok"}
 
 
 

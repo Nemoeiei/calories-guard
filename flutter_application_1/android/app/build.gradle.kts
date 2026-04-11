@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 val localProperties = Properties()
@@ -14,11 +15,11 @@ if (localPropertiesFile.exists()) {
 val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY") ?: ""
 
 android {
-    namespace = "com.example.flutter_application_1"
+    namespace = "com.caloriesguard.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.flutter_application_1"
+        applicationId = "com.caloriesguard.app"
         minSdk = 26
         targetSdk = 36
         versionCode = flutter.versionCode

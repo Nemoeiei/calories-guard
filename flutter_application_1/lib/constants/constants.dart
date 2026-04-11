@@ -1,9 +1,12 @@
 class AppConstants {
-  // เปลี่ยนที่นี่ที่เดียว จบทั้งแอป
-  static const String baseUrl =
-      // 'https://goosenecked-caleb-blandishingly.ngrok-free.dev';
-      // 'https://unshirred-wendolyn-audiometrically.ngrok-free.dev';
-      'http://10.0.2.2:8000';
-  // สำหรับ Android Emulator ใช้ localhost:
-  // static const String baseUrl = 'http://10.0.2.2:8000';
+  // อ่านจาก --dart-define=API_BASE_URL=https://... ตอน build
+  // Default เป็น Android emulator loopback สำหรับ dev
+  //
+  // ตัวอย่าง release build:
+  //   flutter build apk --release \
+  //     --dart-define=API_BASE_URL=https://api.calories-guard.example
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:8000',
+  );
 }

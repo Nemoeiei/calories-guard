@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "523714837784",
+    "project_id": "calguard-project",
+    "storage_bucket": "calguard-project.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:523714837784:android:a4feaffc195916c836726d",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlxb20G7I3ptX7URRBw6WCzBaQVYZCp0I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
