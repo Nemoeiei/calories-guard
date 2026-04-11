@@ -5,9 +5,30 @@
 # Flutter secrets (contains real API keys — never commit)
 flutter_application_1/lib/config/secrets.dart
 
+# Python virtual environments — must NEVER be committed
+backend/venv/
+backend/.venv/
+venv/
+.venv/
+
 # Python bytecode
 __pycache__/
+**/__pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Backend debug / scratch dumps
+backend/current_db.txt
+backend/db_output.txt
+backend/db_output_utf8.txt
+backend/output_mermaid.txt
 
 # IDE
 .idea/
