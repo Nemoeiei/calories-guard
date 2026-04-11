@@ -620,13 +620,13 @@ class FoodAutoAdd(BaseModel):
 
     food_name: str
 
-    calories: float
+    calories: float | None = 0
 
-    protein: float
+    protein: float | None = 0
 
-    carbs: float
+    carbs: float | None = 0
 
-    fat: float
+    fat: float | None = 0
 
 
 

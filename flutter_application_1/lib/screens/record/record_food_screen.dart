@@ -1763,10 +1763,10 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
         _qLabel('ชื่อเมนู *'),
         _qField(_qNameCtrl, 'เช่น ข้าวผัดปู, ลาบหมู'),
         const SizedBox(height: 12),
-        _qLabel('แคลอรี่ (kcal) *'),
-        _qField(_qCalCtrl, '0', isNumber: true),
+        _qLabel('แคลอรี่ (kcal)'),
+        _qField(_qCalCtrl, '0 (ไม่บังคับ)', isNumber: true),
         const SizedBox(height: 12),
-        _qLabel('ข้อมูลโภชนาการ (กรัม)'),
+        _qLabel('ข้อมูลโภชนาการ (กรัม) — ไม่บังคับ'),
         Row(children: [
           Expanded(
               child: Column(
@@ -1856,11 +1856,6 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
     if (_qNameCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('กรุณากรอกชื่อเมนู')));
-      return false;
-    }
-    if (_qCalCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('กรุณากรอกแคลอรี่')));
       return false;
     }
     return true;
