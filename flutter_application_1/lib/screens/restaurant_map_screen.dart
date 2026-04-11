@@ -187,9 +187,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
         markerId: MarkerId(restaurant['place_id']),
         position: LatLng(restaurant['lat'], restaurant['lng']),
         icon: BitmapDescriptor.defaultMarkerWithHue(
-          restaurant['open_now']
-              ? BitmapDescriptor.hueOrange
-              : BitmapDescriptor.hueRed,
+          BitmapDescriptor.hueRed,
         ),
         onTap: () {
           setState(() {
