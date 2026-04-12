@@ -727,13 +727,22 @@ def health():
 
 from supabase_storage import upload_to_supabase
 
+_ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+_MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
+
 @app.post("/upload-image/")
 async def upload_image(file: UploadFile = File(...)):
     """อัปโหลดรูปภาพไปยัง Supabase Storage และคืน public URL"""
+    if file.content_type not in _ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Accepted: {', '.join(_ALLOWED_MIME_TYPES)}")
     try:
         file_bytes = await file.read()
+        if len(file_bytes) > _MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=413, detail="File too large. Maximum size is 5 MB.")
         public_url = upload_to_supabase(file_bytes, file.filename)
         return {"url": public_url}
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
@@ -3281,10 +3290,16 @@ def get_progress_summary(user_id: int):
 @app.post("/upload_image")
 async def upload_image_alt(file: UploadFile = File(...)):
     """อัปโหลดรูปภาพไปยัง Supabase Storage (endpoint สำรอง)"""
+    if file.content_type not in _ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Accepted: {', '.join(_ALLOWED_MIME_TYPES)}")
     try:
         file_bytes = await file.read()
+        if len(file_bytes) > _MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=413, detail="File too large. Maximum size is 5 MB.")
         public_url = upload_to_supabase(file_bytes, file.filename)
         return {"image_url": public_url, "url": public_url, "message": "อัปโหลดรูปภาพสำเร็จ"}
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:

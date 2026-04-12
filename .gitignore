@@ -5,6 +5,11 @@
 # Flutter secrets (contains real API keys — never commit)
 flutter_application_1/lib/config/secrets.dart
 
+# Android release signing
+flutter_application_1/android/key.properties
+flutter_application_1/android/*.jks
+flutter_application_1/android/app/*.jks
+
 # Python virtual environments — must NEVER be committed
 backend/venv/
 backend/.venv/
