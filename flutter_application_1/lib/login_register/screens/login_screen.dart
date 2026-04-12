@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../providers/user_data_provider.dart';
 import '../../services/auth_service.dart';
@@ -136,58 +134,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  // ── Google Sign-In ────────────────────────────────────────────
+  // ── Google Sign-In (via Supabase OAuth) ────────────────────────
   Future<void> _handleGoogleSignIn() async {
     setState(() => _socialLoading = 'google');
     try {
-      final googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) {
-        setState(() => _socialLoading = null);
-        return; // user cancelled
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'com.caloriesguard.app://login-callback',
+      );
+      // After OAuth redirect, Supabase session is set automatically.
+      // The auth state change listener will handle navigation.
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await _syncSocialBackend(
+          email: user.email ?? '',
+          name: user.userMetadata?['full_name'] ?? user.email ?? 'User',
+          uid: user.id,
+          provider: 'google',
+        );
       }
-      final googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      final userCred =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-      final fbUser = userCred.user!;
-
-      await _syncSocialBackend(
-        email: fbUser.email ?? googleUser.email,
-        name: fbUser.displayName ?? googleUser.displayName ?? 'User',
-        uid: fbUser.uid,
-        provider: 'google',
-      );
     } catch (e) {
       _showError('Google Sign-In ล้มเหลว กรุณาลองใหม่');
     }
     if (mounted) setState(() => _socialLoading = null);
   }
 
-  // ── Facebook Sign-In ──────────────────────────────────────────
+  // ── Facebook Sign-In (via Supabase OAuth) ─────────────────────
   Future<void> _handleFacebookSignIn() async {
     setState(() => _socialLoading = 'facebook');
     try {
-      final loginResult = await FacebookAuth.instance.login();
-      if (loginResult.status != LoginStatus.success) {
-        setState(() => _socialLoading = null);
-        return; // user cancelled or error
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.facebook,
+        redirectTo: 'com.caloriesguard.app://login-callback',
+      );
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await _syncSocialBackend(
+          email: user.email ?? '',
+          name: user.userMetadata?['full_name'] ?? 'User',
+          uid: user.id,
+          provider: 'facebook',
+        );
       }
-      final credential = FacebookAuthProvider.credential(
-        loginResult.accessToken!.tokenString,
-      );
-      final userCred =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-      final fbUser = userCred.user!;
-
-      await _syncSocialBackend(
-        email: fbUser.email ?? '',
-        name: fbUser.displayName ?? 'User',
-        uid: fbUser.uid,
-        provider: 'facebook',
-      );
     } catch (e) {
       _showError('Facebook Sign-In ล้มเหลว กรุณาลองใหม่');
     }

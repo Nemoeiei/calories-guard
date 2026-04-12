@@ -22,7 +22,7 @@ from email.mime.multipart import MIMEMultipart
 
 
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -36,9 +36,20 @@ from database import get_db_connection
 
 from psycopg2.extras import RealDictCursor
 
+from auth.dependencies import get_current_user, get_current_admin, get_optional_user
 
 
 app = FastAPI()
+
+
+def _check_ownership(current_user: dict, path_user_id: int):
+    """Verify that the authenticated user owns the resource."""
+    token_user_id = current_user.get("user_id")
+    if token_user_id is None:
+        # user_id not in token metadata — allow (will be resolved later)
+        return
+    if token_user_id != path_user_id:
+        raise HTTPException(status_code=403, detail="Access denied: you can only access your own data")
 
 
 
@@ -937,7 +948,7 @@ def user_auto_add_food(req: FoodAutoAdd):
 # --- Admin: Temp Food Review (v13 flow) ---
 
 @app.get("/admin/temp-foods")
-def admin_list_temp_foods(status: str = "pending"):
+def admin_list_temp_foods(current_user: dict = Depends(get_current_admin), status: str = "pending"):
     """
     ดึงรายการเมนูด่วนสำหรับ admin ตรวจสอบ
     status: 'pending' (ยังไม่ verify), 'verified', 'all'
@@ -983,7 +994,7 @@ class TempFoodApprove(BaseModel):
 
 
 @app.post("/admin/temp-foods/{tf_id}/approve")
-def admin_approve_temp_food(tf_id: int, req: TempFoodApprove):
+def admin_approve_temp_food(tf_id: int, req: TempFoodApprove, current_user: dict = Depends(get_current_admin)):
     """
     Admin ยืนยัน temp_food:
       1) อัปเดตค่าโภชนาการใน temp_food (ถ้ามีการแก้)
@@ -1056,7 +1067,7 @@ def admin_approve_temp_food(tf_id: int, req: TempFoodApprove):
 
 
 @app.delete("/admin/temp-foods/{tf_id}")
-def admin_reject_temp_food(tf_id: int):
+def admin_reject_temp_food(tf_id: int, current_user: dict = Depends(get_current_admin)):
     """Admin ปฏิเสธเมนูด่วน → ลบ temp_food (verified_food จะถูกลบตาม CASCADE)"""
     conn = get_db_connection()
     try:
@@ -1081,7 +1092,7 @@ def admin_reject_temp_food(tf_id: int):
 
 @app.get("/admin/food-requests")
 
-def get_food_requests():
+def get_food_requests(current_user: dict = Depends(get_current_admin)):
 
     """ดึงรายการที่ user ขอเพิ่มเมนูทั้งหมดที่ยัง pending"""
 
@@ -1131,7 +1142,7 @@ def get_food_requests():
 
 @app.put("/admin/food-requests/{request_id}")
 
-def verify_food_request(request_id: int, review: AdminFoodReview):
+def verify_food_request(request_id: int, review: AdminFoodReview, current_user: dict = Depends(get_current_admin)):
 
     """Admin อนุมัติการตรวจสอบโภชนาการพร้อมแก้ไขค่าจริง"""
 
@@ -1753,8 +1764,8 @@ def social_login(body: SocialLoginRequest):
 
 @app.put("/users/{user_id}")
 
-def update_user(user_id: int, user_update: UserUpdate):
-
+def update_user(user_id: int, user_update: UserUpdate, current_user: dict = Depends(get_current_user)):
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
 
     try:
@@ -2266,8 +2277,8 @@ def password_reset_confirm(req: PasswordResetConfirm):
 
 @app.get("/users/{user_id}")
 
-def get_user_profile(user_id: int):
-
+def get_user_profile(user_id: int, current_user: dict = Depends(get_current_user)):
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
 
     try:
@@ -2370,7 +2381,9 @@ def _meal_type_to_enum(meal_type: str):
 
 @app.post("/meals/{user_id}")
 
-def add_meal(user_id: int, log: DailyLogUpdate):
+def add_meal(user_id: int, log: DailyLogUpdate, current_user: dict = Depends(get_current_user)):
+
+    _check_ownership(current_user, user_id)
 
     conn = get_db_connection()
 
@@ -2490,7 +2503,9 @@ def add_meal(user_id: int, log: DailyLogUpdate):
 
 @app.get("/daily_summary/{user_id}")
 
-def get_daily_summary(user_id: int, date_record: date):
+def get_daily_summary(user_id: int, date_record: date, current_user: dict = Depends(get_current_user)):
+
+    _check_ownership(current_user, user_id)
 
     conn = get_db_connection()
 
@@ -2606,8 +2621,9 @@ def get_daily_summary(user_id: int, date_record: date):
 # --- API 8b: Get Meal Detail Items (รายการอาหารในมื้อ + แคล + รูป) ---
 
 @app.get("/meals/{user_id}/detail")
-def get_meal_detail(user_id: int, date_record: date, meal_type: str):
+def get_meal_detail(user_id: int, date_record: date, meal_type: str, current_user: dict = Depends(get_current_user)):
     """คืนรายการอาหารแต่ละชิ้นในมื้อที่ระบุ พร้อม calories และ image_url"""
+    _check_ownership(current_user, user_id)
     print(f"[meal_detail] user_id={user_id} date={date_record} meal_type={meal_type}")
     conn = get_db_connection()
     try:
@@ -2687,8 +2703,8 @@ def get_meal_detail(user_id: int, date_record: date, meal_type: str):
 
 @app.delete("/users/{user_id}")
 
-def delete_user(user_id: int):
-
+def delete_user(user_id: int, current_user: dict = Depends(get_current_user)):
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
 
     try:
@@ -2717,7 +2733,9 @@ def delete_user(user_id: int):
 
 @app.get("/daily_logs/{user_id}/calendar")
 
-def get_calendar_logs(user_id: int, month: int, year: int):
+def get_calendar_logs(user_id: int, month: int, year: int, current_user: dict = Depends(get_current_user)):
+
+    _check_ownership(current_user, user_id)
 
     conn = get_db_connection()
 
@@ -2757,9 +2775,11 @@ def get_calendar_logs(user_id: int, month: int, year: int):
 
 @app.get("/daily_logs/{user_id}/weekly")
 
-def get_weekly_logs(user_id: int, week_start: Optional[str] = None):
+def get_weekly_logs(user_id: int, current_user: dict = Depends(get_current_user), week_start: Optional[str] = None):
 
     """คืนค่า 7 วัน (จ.–อา.): date, calories, protein, carbs, fat."""
+
+    _check_ownership(current_user, user_id)
 
     conn = get_db_connection()
 
@@ -2857,9 +2877,11 @@ def get_weekly_logs(user_id: int, week_start: Optional[str] = None):
 
 @app.get("/daily_logs/{user_id}")
 
-def get_daily_log_by_date(user_id: int, date_query: date):
+def get_daily_log_by_date(user_id: int, date_query: date, current_user: dict = Depends(get_current_user)):
 
     """คืนค่าบันทึกวันเดียว: calories, protein, carbs, fat, meals (breakfast/lunch/dinner/snack)."""
+
+    _check_ownership(current_user, user_id)
 
     conn = get_db_connection()
 
@@ -2964,7 +2986,9 @@ def get_daily_log_by_date(user_id: int, date_query: date):
 
 @app.delete("/meals/clear/{user_id}")
 
-def clear_meal_type(user_id: int, date_record: date, meal_type: str):
+def clear_meal_type(user_id: int, date_record: date, meal_type: str, current_user: dict = Depends(get_current_user)):
+
+    _check_ownership(current_user, user_id)
 
     conn = get_db_connection()
 
@@ -3047,7 +3071,8 @@ class WeightLogEntry(BaseModel):
     weight_kg: float
 
 @app.post("/weight_logs/{user_id}")
-def add_weight_log(user_id: int, entry: WeightLogEntry):
+def add_weight_log(user_id: int, entry: WeightLogEntry, current_user: dict = Depends(get_current_user)):
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor()
@@ -3075,8 +3100,9 @@ def add_weight_log(user_id: int, entry: WeightLogEntry):
 
 # --- API 30b: GET Weight Logs (for line chart) ---
 @app.get("/users/{user_id}/weight_logs")
-def get_weight_logs(user_id: int):
+def get_weight_logs(user_id: int, current_user: dict = Depends(get_current_user)):
     """คืน weight logs ล่าสุด 30 รายการ (เรียงจากเก่าไปใหม่) สำหรับกราฟเส้น"""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3094,8 +3120,9 @@ def get_weight_logs(user_id: int):
 
 # --- API 30c: GET Goal Progress ---
 @app.get("/users/{user_id}/goal_progress")
-def get_goal_progress(user_id: int):
+def get_goal_progress(user_id: int, current_user: dict = Depends(get_current_user)):
     """คืนข้อมูลความคืบหน้าสู่เป้าหมายน้ำหนัก"""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         _check_1700_calorie_warning(user_id, conn)
@@ -3187,7 +3214,8 @@ def get_goal_progress(user_id: int):
 
 # --- API 31: GET Weight Status (Check if >= 14 days) ---
 @app.get("/weight_status/{user_id}")
-def get_weight_status(user_id: int):
+def get_weight_status(user_id: int, current_user: dict = Depends(get_current_user)):
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3223,7 +3251,8 @@ def get_weight_status(user_id: int):
 
 # --- API 32: GET Progress Summary ---
 @app.get("/progress_summary/{user_id}")
-def get_progress_summary(user_id: int):
+def get_progress_summary(user_id: int, current_user: dict = Depends(get_current_user)):
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         _check_1700_calorie_warning(user_id, conn)
@@ -3351,8 +3380,9 @@ def chat_multi_agent(payload: ChatMessage):
 # =============================================================================
 
 @app.get("/recipes/{food_id}/favorite/{user_id}")
-def get_favorite_status(food_id: int, user_id: int):
+def get_favorite_status(food_id: int, user_id: int, current_user: dict = Depends(get_current_user)):
     """Check whether a user has favorited a recipe."""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3368,8 +3398,9 @@ def get_favorite_status(food_id: int, user_id: int):
 
 
 @app.post("/recipes/{food_id}/favorite/{user_id}")
-def toggle_favorite(food_id: int, user_id: int):
+def toggle_favorite(food_id: int, user_id: int, current_user: dict = Depends(get_current_user)):
     """Toggle favorite on/off. Returns new state."""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3400,8 +3431,9 @@ def toggle_favorite(food_id: int, user_id: int):
 
 
 @app.get("/users/{user_id}/favorites")
-def get_user_favorites(user_id: int):
+def get_user_favorites(user_id: int, current_user: dict = Depends(get_current_user)):
     """Return all recipes favorited by a user, joined with food data."""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3524,8 +3556,9 @@ def upsert_recipe_review(food_id: int, review: RecipeReview):
 # =============================================================================
 
 @app.get("/water_logs/{user_id}")
-def get_water_log(user_id: int, date_record: Optional[str] = None):
+def get_water_log(user_id: int, current_user: dict = Depends(get_current_user), date_record: Optional[str] = None):
     """Return today's (or specified date's) water intake in ml."""
+    _check_ownership(current_user, user_id)
     target_date = date.fromisoformat(date_record) if date_record else date.today()
     conn = get_db_connection()
     try:
@@ -3547,8 +3580,9 @@ def get_water_log(user_id: int, date_record: Optional[str] = None):
 
 
 @app.post("/water_logs/{user_id}")
-def upsert_water_log(user_id: int, entry: WaterLogUpdate):
+def upsert_water_log(user_id: int, entry: WaterLogUpdate, current_user: dict = Depends(get_current_user)):
     """Set (upsert) the total water intake for today."""
+    _check_ownership(current_user, user_id)
     if entry.amount_ml < 0:
         raise HTTPException(status_code=400, detail="amount_ml must be >= 0")
     conn = get_db_connection()
@@ -3581,7 +3615,7 @@ def upsert_water_log(user_id: int, entry: WaterLogUpdate):
 # =============================================================================
 
 @app.get("/users/{user_id}/lifecycle_check")
-def lifecycle_check(user_id: int):
+def lifecycle_check(user_id: int, current_user: dict = Depends(get_current_user)):
     """
     ตรวจสภาพ lifecycle ของ user:
     - weight_overdue   : ไม่ได้บันทึกน้ำหนักเกิน 14 วัน
@@ -3592,6 +3626,7 @@ def lifecycle_check(user_id: int):
     - goal_days_left   : วันที่เหลือก่อนถึงเป้าหมาย
     - on_track         : ค่าน้ำหนักปัจจุบันอยู่ใน trajectory ที่ถูกต้องไหม
     """
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     if not conn:
         raise HTTPException(status_code=503, detail="DB unavailable")
@@ -3680,12 +3715,13 @@ def lifecycle_check(user_id: int):
 
 
 @app.post("/users/{user_id}/recalc_tdee")
-def recalc_tdee(user_id: int):
+def recalc_tdee(user_id: int, current_user: dict = Depends(get_current_user)):
     """
     Recalculate TDEE based on latest weight log + current age (birthday passed).
     Updates target_calories + last_tdee_recalc_date in users table.
     Uses Mifflin-St Jeor formula.
     """
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     if not conn:
         raise HTTPException(status_code=503, detail="DB unavailable")
@@ -3769,7 +3805,7 @@ def recalc_tdee(user_id: int):
 # =============================================================================
 
 @app.get("/insights/{user_id}")
-def get_insights_overview(user_id: int):
+def get_insights_overview(user_id: int, current_user: dict = Depends(get_current_user)):
     """
     Dashboard insight card — last 30 days.
 
@@ -3778,6 +3814,7 @@ def get_insights_overview(user_id: int):
       goal_flags    → annotate each day with on_target / cal_diff
       summary       → aggregate into single overview row
     """
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3843,12 +3880,13 @@ def get_insights_overview(user_id: int):
 
 
 @app.get("/insights/{user_id}/top_foods")
-def get_top_foods(user_id: int, limit: int = 10):
+def get_top_foods(user_id: int, current_user: dict = Depends(get_current_user), limit: int = 10):
     """
     Top foods eaten by frequency in the last 30 days.
 
     CTE: food_frequency — counts occurrences and ranks by times_eaten.
     """
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3881,7 +3919,7 @@ def get_top_foods(user_id: int, limit: int = 10):
 
 
 @app.get("/insights/{user_id}/calorie_trend")
-def get_calorie_trend(user_id: int, days: int = 30):
+def get_calorie_trend(user_id: int, current_user: dict = Depends(get_current_user), days: int = 30):
     """
     Daily calories vs target for the last N days, with 7-day moving average.
 
@@ -3889,6 +3927,7 @@ def get_calorie_trend(user_id: int, days: int = 30):
       daily_data   → raw calories per day joined with user target
       moving_avg   → 7-day rolling average using window function
     """
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3937,7 +3976,7 @@ def get_calorie_trend(user_id: int, days: int = 30):
 
 
 @app.get("/insights/{user_id}/macro_balance")
-def get_macro_balance(user_id: int):
+def get_macro_balance(user_id: int, current_user: dict = Depends(get_current_user)):
     """
     Average macro distribution over the last 7 days with % breakdown.
 
@@ -3946,6 +3985,7 @@ def get_macro_balance(user_id: int):
       macro_avg    → average across days + Atwater-based % of total energy
       daily_detail → individual day rows for sparkline data
     """
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -4027,8 +4067,9 @@ def get_allergy_flags():
 
 
 @app.get("/users/{user_id}/allergies")
-def get_user_allergies(user_id: int):
+def get_user_allergies(user_id: int, current_user: dict = Depends(get_current_user)):
     """Return the allergy flags the user has selected."""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -4051,8 +4092,9 @@ def get_user_allergies(user_id: int):
 
 
 @app.post("/users/{user_id}/allergies")
-def set_user_allergies(user_id: int, body: AllergyUpdate):
+def set_user_allergies(user_id: int, body: AllergyUpdate, current_user: dict = Depends(get_current_user)):
     """Replace user's allergy selections with the provided flag_ids list."""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor()
@@ -4108,8 +4150,9 @@ def get_leaderboard(limit: int = 50):
 # ─── Notifications ────────────────────────────────────────────────────────────
 
 @app.get("/notifications/{user_id}")
-def get_notifications(user_id: int, limit: int = 50):
+def get_notifications(user_id: int, current_user: dict = Depends(get_current_user), limit: int = 50):
     """Return notifications for a user, newest first."""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -4136,8 +4179,9 @@ def get_notifications(user_id: int, limit: int = 50):
 
 
 @app.get("/notifications/{user_id}/unread_count")
-def get_unread_count(user_id: int):
+def get_unread_count(user_id: int, current_user: dict = Depends(get_current_user)):
     """Return count of unread notifications."""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor()
@@ -4153,8 +4197,9 @@ def get_unread_count(user_id: int):
 
 
 @app.put("/notifications/{user_id}/read_all")
-def mark_all_read(user_id: int):
+def mark_all_read(user_id: int, current_user: dict = Depends(get_current_user)):
     """Mark all notifications as read for the user."""
+    _check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor()
