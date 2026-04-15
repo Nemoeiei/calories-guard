@@ -22,7 +22,7 @@ from email.mime.multipart import MIMEMultipart
 
 
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -433,7 +433,7 @@ def _check_1700_calorie_warning(user_id: int, conn):
         today_cal = float(daily_row['cal']) if daily_row else 0.0
         
         if today_cal < min_safe_cal:
-            msg = f"ขณะนี้เวลา {now.strftime('%H:%M')} น. คุณเพิ่งทานไปเพียง {int(today_cal)} kcal. ควรทานให้ถึงระะดับขั้นต่ำความปลอดภัย ({int(min_safe_cal)} kcal) เพื่อรักษาระบบเผาผลาญนะ"
+            msg = f"ขณะนี้เวลา {now.strftime('%H:%M')} น. คุณเพิ่งทานไปเพียง {int(today_cal)} kcal. ควรทานให้ถึงระดับขั้นต่ำความปลอดภัย ({int(min_safe_cal)} kcal) เพื่อรักษาระบบเผาผลาญนะ"
             cur.execute("""
                 INSERT INTO notifications (user_id, title, message, type)
                 VALUES (%s, 'เตือน: แคลอรีวันนี้ยังต่ำเกินไป!', %s, 'warning')
@@ -728,11 +728,22 @@ def health():
 from supabase_storage import upload_to_supabase
 
 @app.post("/upload-image/")
-async def upload_image(file: UploadFile = File(...)):
-    """อัปโหลดรูปภาพไปยัง Supabase Storage และคืน public URL"""
+async def upload_image(file: UploadFile = File(...), food_id: int = Form(None)):
+    """
+    อัปโหลดรูปภาพไปยัง Supabase Storage และคืน public URL
+    ถ้าส่ง food_id มาด้วย จะตั้งชื่อไฟล์เป็น '{food_id}_{originalname}.ext'
+    เพื่อให้ sync_food_images.py ค้นหาเจอได้อัตโนมัติ
+    """
     try:
         file_bytes = await file.read()
-        public_url = upload_to_supabase(file_bytes, file.filename)
+        filename = file.filename or "image.jpg"
+        override = None
+        if food_id:
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+            if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
+                ext = "jpg"
+            override = f"{food_id}_{filename.rsplit('.', 1)[0]}.{ext}"
+        public_url = upload_to_supabase(file_bytes, filename, filename_override=override)
         return {"url": public_url}
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -925,6 +936,34 @@ def user_auto_add_food(req: FoodAutoAdd):
             conn.close()
 
 
+# --- Admin: List All Users ---
+
+@app.get("/admin/users")
+def admin_list_users(search: str = ""):
+    """ดึงรายการ user ทั้งหมด สำหรับ admin panel"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        if search:
+            cur.execute("""
+                SELECT user_id, username, email, role_id, created_at, last_login_date, current_streak, total_login_days
+                FROM users
+                WHERE username ILIKE %s OR email ILIKE %s
+                ORDER BY created_at DESC
+            """, (f"%{search}%", f"%{search}%"))
+        else:
+            cur.execute("""
+                SELECT user_id, username, email, role_id, created_at, last_login_date, current_streak, total_login_days
+                FROM users
+                ORDER BY created_at DESC
+            """)
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
 # --- Admin: Temp Food Review (v13 flow) ---
 
 @app.get("/admin/temp-foods")
@@ -964,6 +1003,45 @@ def admin_list_temp_foods(status: str = "pending"):
             conn.close()
 
 
+@app.get("/admin/temp-foods/pending-count")
+def admin_pending_count():
+    """จำนวน temp_food ที่รอ admin อนุมัติ — ใช้แสดง badge บน nav"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM v_admin_temp_food_review WHERE is_verify = FALSE")
+        return {"count": cur.fetchone()[0]}
+    finally:
+        if conn: conn.close()
+
+
+@app.get("/admin/foods/similar")
+def admin_similar_foods(name: str = ""):
+    """
+    หาเมนูในตาราง foods ที่ชื่อคล้ายกับ name ที่ส่งมา
+    ใช้ pg_trgm similarity + ILIKE เพื่อ detect duplicate ก่อน admin อนุมัติ
+    """
+    if not name.strip():
+        return []
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT food_id, food_name, calories, protein, carbs, fat, image_url
+            FROM foods
+            WHERE food_name ILIKE %s
+               OR food_name ILIKE %s
+            ORDER BY food_name
+            LIMIT 5
+            """,
+            (f"%{name.strip()}%", f"%{name.strip().split()[0]}%"),
+        )
+        return cur.fetchall()
+    finally:
+        if conn: conn.close()
+
+
 class TempFoodApprove(BaseModel):
     admin_id: int
     food_name: str | None = None
@@ -971,6 +1049,15 @@ class TempFoodApprove(BaseModel):
     protein: float | None = None
     carbs: float | None = None
     fat: float | None = None
+    image_url: str | None = None
+    food_type: str | None = None
+    food_category: str | None = None
+    sodium: float | None = None
+    sugar: float | None = None
+    cholesterol: float | None = None
+    fiber_g: float | None = None
+    serving_quantity: float | None = None
+    serving_unit: str | None = None
 
 
 @app.post("/admin/temp-foods/{tf_id}/approve")
@@ -1016,16 +1103,35 @@ def admin_approve_temp_food(tf_id: int, req: TempFoodApprove):
         if not vf_row:
             raise HTTPException(status_code=404, detail="temp_food not found")
 
-        # 3) copy to foods table for global use
+        # 3) copy to foods table for global use (with admin-supplied extra fields)
         cur.execute(
             """
-            INSERT INTO foods (food_name, calories, protein, carbs, fat)
-            SELECT food_name, calories, protein, carbs, fat
+            INSERT INTO foods (
+                food_name, calories, protein, carbs, fat, image_url,
+                food_type, food_category,
+                sodium, sugar, cholesterol, fiber_g,
+                serving_quantity, serving_unit
+            )
+            SELECT
+                food_name, calories, protein, carbs, fat,
+                COALESCE(%s, NULL),
+                COALESCE(%s, 'dish'),
+                COALESCE(%s, NULL),
+                COALESCE(%s, NULL), COALESCE(%s, NULL),
+                COALESCE(%s, NULL), COALESCE(%s, 0),
+                COALESCE(%s, 1), COALESCE(%s, 'serving')
             FROM temp_food
             WHERE tf_id = %s
             RETURNING food_id
             """,
-            (tf_id,),
+            (
+                req.image_url,
+                req.food_type, req.food_category,
+                req.sodium, req.sugar,
+                req.cholesterol, req.fiber_g,
+                req.serving_quantity, req.serving_unit,
+                tf_id,
+            ),
         )
         food_row = cur.fetchone()
 
@@ -1194,6 +1300,9 @@ def verify_food_request(request_id: int, review: AdminFoodReview):
 
         return {"message": f"Request {review.status} successfully"}
 
+    except HTTPException:
+        raise
+
     except Exception as e:
 
         conn.rollback()
@@ -1336,6 +1445,54 @@ def update_food(food_id: int, food: FoodCreate):
 
 
 
+@app.patch("/foods/{food_id}")
+def patch_food(food_id: int, data: dict):
+    """Partial update — อัปเดตเฉพาะ field ที่ส่งมา"""
+    allowed = {"food_name", "calories", "protein", "carbs", "fat", "image_url"}
+    fields = {k: v for k, v in data.items() if k in allowed}
+    if not fields:
+        raise HTTPException(status_code=400, detail="ไม่มี field ที่อัปเดตได้")
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        set_clause = ", ".join(f"{k} = %s" for k in fields)
+        cur.execute(
+            f"UPDATE foods SET {set_clause} WHERE food_id = %s RETURNING food_id",
+            [*fields.values(), food_id],
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="ไม่พบเมนูนี้")
+        conn.commit()
+        return {"message": "อัปเดตสำเร็จ", "food_id": food_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
+@app.delete("/foods/{food_id}")
+def delete_food(food_id: int):
+    """ลบเมนูอาหารออกจากระบบ"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM foods WHERE food_id = %s RETURNING food_id", (food_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="ไม่พบเมนูนี้")
+        conn.commit()
+        return {"message": "ลบเมนูเรียบร้อย", "food_id": food_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn: conn.close()
+
+
 # --- API 3: Register ---
 
 @app.post("/register")
@@ -1476,6 +1633,9 @@ def verify_email(req: UserVerifyEmail):
 
         return {"message": "Email verified successfully", "user_id": user['user_id']}
 
+    except HTTPException:
+        raise
+
     except Exception as e:
 
         conn.rollback()
@@ -1543,6 +1703,9 @@ def resend_verification_email(req: PasswordResetRequest):
         
 
         return {"message": "ส่งรหัสยืนยันใหม่ไปยังอีเมลแล้ว"}
+
+    except HTTPException:
+        raise
 
     except Exception as e:
 
@@ -1960,8 +2123,19 @@ def _init_missing_tables():
                 user_id     BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
                 date_record DATE NOT NULL DEFAULT CURRENT_DATE,
                 amount_ml   INT  NOT NULL DEFAULT 0 CHECK (amount_ml >= 0),
+                glasses     INT  NOT NULL DEFAULT 0,
+                updated_at  TIMESTAMP DEFAULT NOW(),
                 UNIQUE (user_id, date_record)
             )
+        """)
+        cur.execute("""
+            ALTER TABLE water_logs ADD COLUMN IF NOT EXISTS amount_ml INT NOT NULL DEFAULT 0
+        """)
+        cur.execute("""
+            ALTER TABLE water_logs ADD COLUMN IF NOT EXISTS glasses INT NOT NULL DEFAULT 0
+        """)
+        cur.execute("""
+            ALTER TABLE water_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
         """)
 
         # notifications — in-app notification messages per user
@@ -3047,7 +3221,7 @@ def add_weight_log(user_id: int, entry: WeightLogEntry):
         cur.execute("""
             INSERT INTO weight_logs (user_id, weight_kg, recorded_date)
             VALUES (%s, %s, %s)
-            ON CONFLICT (log_id) DO NOTHING
+            ON CONFLICT (user_id, recorded_date) DO UPDATE SET weight_kg = EXCLUDED.weight_kg
         """, (user_id, entry.weight_kg, today))
         
         # We need to rely on the fact that if we can't ON CONFLICT recorded_date (no unique constraint possibly), we just insert.
@@ -3272,6 +3446,8 @@ def get_progress_summary(user_id: int):
             "target_weight_kg": target_w,
             "progress_percent": progress_percent
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -3604,6 +3780,8 @@ def lifecycle_check(user_id: int):
         wrow = cur.fetchone()
         last_weight_date = wrow["last_date"] if wrow else None
         if last_weight_date:
+            if hasattr(last_weight_date, 'date'):
+                last_weight_date = last_weight_date.date()
             days_since_weight = (today - last_weight_date).days
         else:
             days_since_weight = 9999  # ยังไม่เคยบันทึก
@@ -3633,9 +3811,13 @@ def lifecycle_check(user_id: int):
         goal_days_left = None
         on_track = None
         if user["goal_target_date"] and user["goal_start_date"]:
-            goal_days_left = (user["goal_target_date"] - today).days
-            total_days = (user["goal_target_date"] - user["goal_start_date"]).days
-            days_elapsed = (today - user["goal_start_date"]).days
+            gtd = user["goal_target_date"]
+            gsd = user["goal_start_date"]
+            if hasattr(gtd, 'date'): gtd = gtd.date()
+            if hasattr(gsd, 'date'): gsd = gsd.date()
+            goal_days_left = (gtd - today).days
+            total_days = (gtd - gsd).days
+            days_elapsed = (today - gsd).days
             if total_days > 0 and user["current_weight_kg"] and user["target_weight_kg"]:
                 start_w = float(user["current_weight_kg"])   # ใช้ current แทน start (no start_weight stored)
                 target_w = float(user["target_weight_kg"])

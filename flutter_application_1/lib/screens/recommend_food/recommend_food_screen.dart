@@ -666,12 +666,12 @@ Widget _imagePlaceholder() {
     color: const Color(0xFFE8EFCF),
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Icon(Icons.restaurant_menu_rounded,
-          color: const Color(0xFF628141).withValues(alpha: 0.55), size: 44),
+          color: const Color(0xFF628141).withOpacity(0.55), size: 44),
       const SizedBox(height: 6),
       Text('ไม่มีรูปภาพ',
           style: TextStyle(
               fontSize: 11,
-              color: const Color(0xFF628141).withValues(alpha: 0.6),
+              color: const Color(0xFF628141).withOpacity(0.6),
               fontWeight: FontWeight.w500)),
     ]),
   );
@@ -687,7 +687,7 @@ Widget _imageLoading() {
         child: CircularProgressIndicator(
             strokeWidth: 2.5,
             valueColor: AlwaysStoppedAnimation<Color>(
-                const Color(0xFF628141).withValues(alpha: 0.6))),
+                const Color(0xFF628141).withOpacity(0.6))),
       ),
     ),
   );

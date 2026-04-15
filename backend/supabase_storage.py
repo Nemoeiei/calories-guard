@@ -26,21 +26,26 @@ MIME_MAP = {
 }
 
 
-def upload_to_supabase(file_bytes: bytes, original_filename: str) -> str:
+def upload_to_supabase(file_bytes: bytes, original_filename: str, filename_override: str = None) -> str:
     """
     อัปโหลดไฟล์รูปไปยัง Supabase Storage bucket 'food-images'
     คืน public URL ของรูปที่อัปโหลด
+    filename_override: ถ้าระบุ จะใช้ชื่อนี้ตรงๆ แทน UUID
     raises ValueError ถ้า config ไม่ครบหรือ upload ล้มเหลว
     """
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise ValueError("ยังไม่ได้ตั้งค่า SUPABASE_PROJECT_URL หรือ SUPABASE_ANON_KEY ใน .env")
 
-    # สร้างชื่อไฟล์ unique
     ext = original_filename.rsplit(".", 1)[-1].lower() if "." in original_filename else "jpg"
     if ext not in ALLOWED_EXTENSIONS:
         ext = "jpg"
 
-    new_filename = f"food_{uuid4().hex}.{ext}"
+    if filename_override:
+        # ใช้ชื่อที่ระบุ เช่น '103_kaijeawkung.jpg'
+        safe = filename_override.replace(" ", "_")
+        new_filename = safe if "." in safe else f"{safe}.{ext}"
+    else:
+        new_filename = f"food_{uuid4().hex}.{ext}"
     content_type = MIME_MAP.get(ext, "image/jpeg")
 
     upload_url = f"{SUPABASE_URL}/storage/v1/object/{STORAGE_BUCKET}/{new_filename}"
