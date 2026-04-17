@@ -61,7 +61,7 @@ _REJECT_MSG = (
 
 def _is_in_scope(text: str) -> bool:
     t = text.lower()
-    return any(kw in t for kw in _SCOPE_KEYWORDS)
+    return any(kw.lower() in t for kw in _SCOPE_KEYWORDS)
 
 
 # ─── Shared State ─────────────────────────────────────────────────────────────

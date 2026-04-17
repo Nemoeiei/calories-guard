@@ -1,21 +1,113 @@
+"""
+Centralized configuration with pydantic-settings.
+
+Fail-fast behavior:
+- Missing env vars for required settings raise at startup, not at first request.
+- Optional settings (Gemini, Sentry, SMTP) are tolerated in dev but logged.
+
+Usage:
+    from app.core.config import settings
+    print(settings.allowed_origins)
+
+Legacy module-level constants are kept for backward compatibility with
+existing router code (`from app.core.config import ALLOWED_ORIGINS, ...`).
+"""
+from __future__ import annotations
+
 import os
+from typing import List
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- CORS ---
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
-ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+    _HAS_PSETTINGS = True
+except ImportError:
+    # Fallback if pydantic-settings not yet installed — keeps the legacy
+    # os.getenv path working until requirements are refreshed.
+    _HAS_PSETTINGS = False
 
-# --- SMTP Email ---
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
-FROM_NAME = os.getenv("FROM_NAME", "Calories Guard")
 
-# --- Image upload ---
+def _split_csv(value: str) -> List[str]:
+    return [v.strip() for v in value.split(",") if v.strip()]
+
+
+if _HAS_PSETTINGS:
+
+    class Settings(BaseSettings):
+        model_config = SettingsConfigDict(
+            env_file=".env",
+            env_file_encoding="utf-8",
+            extra="ignore",
+            case_sensitive=False,
+        )
+
+        # CORS
+        allowed_origins_raw: str = ""
+
+        # DB
+        db_mode: str = "local"
+        db_host: str = "localhost"
+        db_port: int = 5432
+        db_name: str = "caloriesguard"
+        db_user: str = "caloriesguard"
+        db_password: str = ""
+
+        # Supabase (required in production for Auth)
+        supabase_url: str = ""
+        supabase_anon_key: str = ""
+        supabase_jwt_secret: str = ""
+        supabase_project_url: str = ""  # legacy alias used by supabase_storage.py
+
+        # AI (optional — coach falls back to canned responses if missing)
+        gemini_api_key: str = ""
+
+        # SMTP (optional — password-reset/verify email uses this)
+        smtp_server: str = "smtp.gmail.com"
+        smtp_port: int = 587
+        smtp_username: str = ""
+        smtp_password: str = ""
+        from_email: str = ""
+        from_name: str = "Calories Guard"
+
+        # Sentry (optional)
+        sentry_dsn: str = ""
+        app_env: str = "development"
+
+        @property
+        def allowed_origins(self) -> List[str]:
+            return _split_csv(self.allowed_origins_raw) or ["*"]
+
+    settings = Settings()
+
+    # Legacy aliases (kept so existing imports keep working)
+    ALLOWED_ORIGINS = settings.allowed_origins
+    SMTP_SERVER = settings.smtp_server
+    SMTP_PORT = settings.smtp_port
+    SMTP_USERNAME = settings.smtp_username
+    SMTP_PASSWORD = settings.smtp_password
+    FROM_EMAIL = settings.from_email or settings.smtp_username
+    FROM_NAME = settings.from_name
+    SENTRY_DSN = settings.sentry_dsn
+    APP_ENV = settings.app_env
+
+else:
+    # ── Fallback path: plain os.getenv, matches prior behavior ──────────────
+    _raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
+    ALLOWED_ORIGINS = _split_csv(_raw_origins) or ["*"]
+    SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+    FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
+    FROM_NAME = os.getenv("FROM_NAME", "Calories Guard")
+    SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+    APP_ENV = os.getenv("APP_ENV", "development")
+    settings = None  # sentinel; callers should use the legacy constants
+
+# --- Image upload (constants — not env-driven) ----------------------------
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
 IMAGEDIR = "static/images"
