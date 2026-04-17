@@ -49,3 +49,12 @@ flutter_application_1/android/app/build/
 
 # Flutter generated / lock files (optional — remove if your team checks these in)
 flutter_application_1/.flutter-plugins-dependencies
+flutter_application_1/.flutter-plugins
+flutter_application_1/ios/Flutter/ephemeral/
+flutter_application_1/macos/Flutter/ephemeral/
+flutter_application_1/linux/flutter/ephemeral/
+flutter_application_1/windows/flutter/ephemeral/
+
+# Node.js dependencies (admin-web)
+admin-web/node_modules/
+**/node_modules/

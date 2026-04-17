@@ -174,6 +174,8 @@ def lifecycle_check(user_id: int, current_user: dict = Depends(get_current_user)
         cur.execute("SELECT MAX(recorded_date) AS last_date FROM weight_logs WHERE user_id = %s", (user_id,))
         wrow = cur.fetchone()
         last_weight_date = wrow["last_date"] if wrow else None
+        if last_weight_date and hasattr(last_weight_date, 'date'):
+            last_weight_date = last_weight_date.date()
         days_since_weight = (today - last_weight_date).days if last_weight_date else 9999
         weight_overdue = days_since_weight >= 14
 
@@ -197,9 +199,13 @@ def lifecycle_check(user_id: int, current_user: dict = Depends(get_current_user)
         goal_days_left = None
         on_track = None
         if user["goal_target_date"] and user["goal_start_date"]:
-            goal_days_left = (user["goal_target_date"] - today).days
-            total_days = (user["goal_target_date"] - user["goal_start_date"]).days
-            days_elapsed = (today - user["goal_start_date"]).days
+            gtd = user["goal_target_date"]
+            gsd = user["goal_start_date"]
+            if hasattr(gtd, 'date'): gtd = gtd.date()
+            if hasattr(gsd, 'date'): gsd = gsd.date()
+            goal_days_left = (gtd - today).days
+            total_days = (gtd - gsd).days
+            days_elapsed = (today - gsd).days
             if total_days > 0 and user["current_weight_kg"] and user["target_weight_kg"]:
                 start_w = float(user["current_weight_kg"])
                 target_w = float(user["target_weight_kg"])

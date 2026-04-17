@@ -22,7 +22,7 @@ def add_weight_log(user_id: int, entry: WeightLogEntry, current_user: dict = Dep
         cur.execute("""
             INSERT INTO weight_logs (user_id, weight_kg, recorded_date)
             VALUES (%s, %s, %s)
-            ON CONFLICT (log_id) DO NOTHING
+            ON CONFLICT (user_id, recorded_date) DO UPDATE SET weight_kg = EXCLUDED.weight_kg
         """, (user_id, entry.weight_kg, today))
         cur.execute("""
             UPDATE users SET current_weight_kg = %s, updated_at = NOW() WHERE user_id = %s

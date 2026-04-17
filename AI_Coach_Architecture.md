@@ -1,6 +1,6 @@
-# AI Coach Architecture (Calories Guard)
+# AI Coach Architecture (Calorie Guard)
 
-ระบบ "Chatbot Coaching" หรือ "AI Coach" ที่เราสร้างขึ้นใน Calories Guard เป็นสถาปัตยกรรมแบบ **Hybrid Agentic AI** ที่ผสมผสานความฉลาดสองรูปแบบเข้าด้วยกัน เพื่อให้คำแนะนำเรื่องโภชนาการและการออกกำลังกายที่แม่นยำที่สุด
+ระบบ "Chatbot Coaching" หรือ "AI Coach" ที่เราสร้างขึ้นใน Calorie Guard เป็นสถาปัตยกรรมแบบ **Hybrid Agentic AI** ที่ผสมผสานความฉลาดสองรูปแบบเข้าด้วยกัน เพื่อให้คำแนะนำเรื่องโภชนาการและการออกกำลังกายที่แม่นยำที่สุด
 
 ## 1. ภาพรวมของสถาปัตยกรรม (Architecture Overview)
 

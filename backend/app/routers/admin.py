@@ -10,6 +10,81 @@ from app.models.schemas import AdminFoodReview, TempFoodApprove
 router = APIRouter()
 
 
+@router.get("/admin/users")
+def admin_list_users(search: str = "", current_user: dict = Depends(get_current_admin)):
+    """ดึงรายการ user ทั้งหมด สำหรับ admin panel"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        if search:
+            cur.execute(
+                """
+                SELECT user_id, username, email, role_id, created_at,
+                       last_login_date, current_streak, total_login_days
+                FROM users
+                WHERE username ILIKE %s OR email ILIKE %s
+                ORDER BY created_at DESC
+                """,
+                (f"%{search}%", f"%{search}%"),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT user_id, username, email, role_id, created_at,
+                       last_login_date, current_streak, total_login_days
+                FROM users
+                ORDER BY created_at DESC
+                """
+            )
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.get("/admin/temp-foods/pending-count")
+def admin_pending_count(current_user: dict = Depends(get_current_admin)):
+    """จำนวน temp_food ที่รอ admin อนุมัติ — ใช้แสดง badge บน nav"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM v_admin_temp_food_review WHERE is_verify = FALSE")
+        return {"count": cur.fetchone()[0]}
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.get("/admin/foods/similar")
+def admin_similar_foods(name: str = "", current_user: dict = Depends(get_current_admin)):
+    """
+    หาเมนูในตาราง foods ที่ชื่อคล้ายกับ name ที่ส่งมา.
+    ใช้ ILIKE เพื่อ detect duplicate ก่อน admin อนุมัติ.
+    """
+    if not name.strip():
+        return []
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT food_id, food_name, calories, protein, carbs, fat, image_url
+            FROM foods
+            WHERE food_name ILIKE %s
+               OR food_name ILIKE %s
+            ORDER BY food_name
+            LIMIT 5
+            """,
+            (f"%{name.strip()}%", f"%{name.strip().split()[0]}%"),
+        )
+        return cur.fetchall()
+    finally:
+        if conn:
+            conn.close()
+
+
 @router.get("/admin/temp-foods")
 def admin_list_temp_foods(current_user: dict = Depends(get_current_admin), status: str = "pending"):
     conn = get_db_connection()
@@ -69,12 +144,35 @@ def admin_approve_temp_food(tf_id: int, req: TempFoodApprove, current_user: dict
             WHERE tf_id = %s
         """, (req.admin_id, tf_id))
 
-        cur.execute("""
-            INSERT INTO foods (food_name, calories, protein, carbs, fat)
-            SELECT food_name, calories, protein, carbs, fat
-            FROM temp_food WHERE tf_id = %s
+        cur.execute(
+            """
+            INSERT INTO foods (
+                food_name, calories, protein, carbs, fat, image_url,
+                food_type, food_category,
+                sodium, sugar, cholesterol, fiber_g,
+                serving_quantity, serving_unit
+            )
+            SELECT
+                food_name, calories, protein, carbs, fat,
+                COALESCE(%s, NULL),
+                COALESCE(%s, 'dish'),
+                COALESCE(%s, NULL),
+                COALESCE(%s, NULL), COALESCE(%s, NULL),
+                COALESCE(%s, NULL), COALESCE(%s, 0),
+                COALESCE(%s, 1), COALESCE(%s, 'serving')
+            FROM temp_food
+            WHERE tf_id = %s
             RETURNING food_id
-        """, (tf_id,))
+            """,
+            (
+                req.image_url,
+                req.food_type, req.food_category,
+                req.sodium, req.sugar,
+                req.cholesterol, req.fiber_g,
+                req.serving_quantity, req.serving_unit,
+                tf_id,
+            ),
+        )
         new_food = cur.fetchone()
         conn.commit()
         return {"message": "Approved and added to foods", "food_id": new_food["food_id"] if new_food else None}

@@ -105,6 +105,15 @@ class TempFoodApprove(BaseModel):
     protein: float | None = None
     carbs: float | None = None
     fat: float | None = None
+    image_url: str | None = None
+    food_type: str | None = None
+    food_category: str | None = None
+    sodium: float | None = None
+    sugar: float | None = None
+    cholesterol: float | None = None
+    fiber_g: float | None = None
+    serving_quantity: float | None = None
+    serving_unit: str | None = None
 
 
 class MealItem(BaseModel):

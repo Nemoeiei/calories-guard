@@ -143,3 +143,53 @@ def update_food(food_id: int, food: FoodCreate):
     finally:
         if conn:
             conn.close()
+
+
+@router.patch("/foods/{food_id}")
+def patch_food(food_id: int, data: dict, current_user: dict = Depends(get_current_admin)):
+    """Partial update — อัปเดตเฉพาะ field ที่ส่งมา (admin only)"""
+    allowed = {"food_name", "calories", "protein", "carbs", "fat", "image_url"}
+    fields = {k: v for k, v in data.items() if k in allowed}
+    if not fields:
+        raise HTTPException(status_code=400, detail="ไม่มี field ที่อัปเดตได้")
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        set_clause = ", ".join(f"{k} = %s" for k in fields)
+        cur.execute(
+            f"UPDATE foods SET {set_clause} WHERE food_id = %s RETURNING food_id",
+            [*fields.values(), food_id],
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="ไม่พบเมนูนี้")
+        conn.commit()
+        return {"message": "อัปเดตสำเร็จ", "food_id": food_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.delete("/foods/{food_id}")
+def delete_food(food_id: int, current_user: dict = Depends(get_current_admin)):
+    """ลบเมนูอาหารออกจากระบบ (admin only)"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM foods WHERE food_id = %s RETURNING food_id", (food_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="ไม่พบเมนูนี้")
+        conn.commit()
+        return {"message": "ลบเมนูเรียบร้อย", "food_id": food_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()

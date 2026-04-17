@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
 from psycopg2.extras import RealDictCursor
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -26,15 +26,30 @@ def health():
 
 @router.post("/upload-image/")
 @limiter.limit("10/minute")
-async def upload_image(request: Request, file: UploadFile = File(...)):
-    """อัปโหลดรูปภาพไปยัง Supabase Storage และคืน public URL"""
+async def upload_image(
+    request: Request,
+    file: UploadFile = File(...),
+    food_id: int = Form(None),
+):
+    """อัปโหลดรูปภาพไปยัง Supabase Storage และคืน public URL.
+
+    ถ้าส่ง ``food_id`` มาด้วย จะตั้งชื่อไฟล์เป็น ``{food_id}_{originalname}.ext``
+    เพื่อให้ sync_food_images.py ค้นหาเจอได้อัตโนมัติ.
+    """
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=400, detail=f"File type not allowed. Accepted: {', '.join(ALLOWED_MIME_TYPES)}")
     try:
         file_bytes = await file.read()
         if len(file_bytes) > MAX_UPLOAD_SIZE:
             raise HTTPException(status_code=413, detail="File too large. Maximum size is 5 MB.")
-        public_url = upload_to_supabase(file_bytes, file.filename)
+        filename = file.filename or "image.jpg"
+        override = None
+        if food_id:
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+            if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
+                ext = "jpg"
+            override = f"{food_id}_{filename.rsplit('.', 1)[0]}.{ext}"
+        public_url = upload_to_supabase(file_bytes, filename, filename_override=override)
         return {"url": public_url}
     except HTTPException:
         raise

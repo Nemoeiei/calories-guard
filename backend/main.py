@@ -77,9 +77,14 @@ def _init_missing_tables():
                 user_id     BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
                 date_record DATE NOT NULL DEFAULT CURRENT_DATE,
                 amount_ml   INT  NOT NULL DEFAULT 0 CHECK (amount_ml >= 0),
+                glasses     INT  NOT NULL DEFAULT 0,
+                updated_at  TIMESTAMP DEFAULT NOW(),
                 UNIQUE (user_id, date_record)
             )
         """)
+        cur.execute("ALTER TABLE water_logs ADD COLUMN IF NOT EXISTS amount_ml INT NOT NULL DEFAULT 0")
+        cur.execute("ALTER TABLE water_logs ADD COLUMN IF NOT EXISTS glasses INT NOT NULL DEFAULT 0")
+        cur.execute("ALTER TABLE water_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS notifications (
                 notification_id BIGSERIAL PRIMARY KEY,

@@ -21,11 +21,11 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.caloriesguard.app"
+    namespace = "com.example.flutter_application_1"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.caloriesguard.app"
+        applicationId = "com.example.flutter_application_1"
         minSdk = 26
         targetSdk = 36
         versionCode = flutter.versionCode
