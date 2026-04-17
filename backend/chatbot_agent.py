@@ -13,6 +13,35 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
+_SCOPE_KEYWORDS = [
+    "กิน", "ทาน", "อาหาร", "เมนู", "แคลอรี", "โภชนาการ", "สารอาหาร",
+    "โปรตีน", "คาร์บ", "ไขมัน", "วิตามิน", "น้ำตาล", "ใยอาหาร",
+    "น้ำหนัก", "ลดน้ำหนัก", "เพิ่มน้ำหนัก", "อ้วน", "ผอม", "BMI", "BMR", "TDEE",
+    "ออกกำลัง", "วิ่ง", "เดิน", "ว่ายน้ำ", "โยคะ", "กีฬา", "เผาผลาญ",
+    "สุขภาพ", "โรค", "เบาหวาน", "ความดัน", "คอเลสเตอรอล",
+    "น้ำ", "ดื่ม", "นอน", "พัก", "เป้าหมาย", "แพ้", "แนะนำ", "ควร",
+    "เท่าไหร่", "กี่แคล", "calories", "protein", "carbs", "fat",
+    "diet", "nutrition", "exercise", "health", "weight", "food",
+    "สูตร", "วิธีทำ", "ส่วนผสม", "recipe",
+]
+
+_REJECT_MSG = (
+    "ขออภัยครับ ผมเป็นโค้ชด้านโภชนาการและสุขภาพของ Calories Guard เท่านั้น "
+    "ไม่สามารถตอบคำถามที่ไม่เกี่ยวข้องกับอาหาร โภชนาการ สุขภาพ หรือการออกกำลังกายได้ครับ\n\n"
+    "ลองถามเรื่องเหล่านี้ได้นะครับ:\n"
+    "- วันนี้กินอะไรดี?\n"
+    "- ข้าวผัดกะเพรากี่แคล?\n"
+    "- แนะนำเมนูลดน้ำหนักหน่อย\n"
+    "- ออกกำลังกายอะไรเผาผลาญเยอะ?"
+)
+
+
+def _is_in_scope(text: str) -> bool:
+    """Check if the user message is related to nutrition/health/fitness."""
+    t = text.lower()
+    return any(kw in t for kw in _SCOPE_KEYWORDS)
+
+
 class CoachingAgent:
     def __init__(self):
         self.weight_analyzer = WeightTrendAnalyzer()
@@ -92,6 +121,10 @@ class CoachingAgent:
         return logs
 
     def generate_response(self, user_id: int, user_message: str) -> str:
+        # 0. Scope guard — reject off-topic questions
+        if not _is_in_scope(user_message):
+            return _REJECT_MSG
+
         # 1. Fetch Context
         context = self.fetch_user_context(user_id)
         if not context:
@@ -118,24 +151,28 @@ class CoachingAgent:
         frequent_foods = self.food_analyzer.find_frequent_foods(context['recent_foods'])
 
         # 3. Construct System Prompt
-        system_prompt = f"""
-        คุณคือ 'โค้ชแคลเซียม' (Calories Guard Coach) ผู้เชี่ยวชาญด้านโภชนาการและการออกกำลังกาย
-        พูดคุยด้วยความเป็นมิตร เป็นกันเอง ให้กำลังใจ (ภาษาไทย)
-        
-        ข้อมูลผู้ใช้:
-        - เป้าหมาย: {profile['goal_type']} (เป้าหมายน้ำหนัก: {profile['target_weight_kg']} kg)
-        - น้ำหนักปัจจุบัน: {profile['current_weight_kg']} kg, ส่วนสูง: {profile['height_cm']} cm
-        - แคลอรี่เป้าหมายรายวัน: {profile['target_calories']} kcal
-        - อาหารที่แพ้/ไม่กิน: {', '.join(context['allergies']) if context['allergies'] else 'ไม่มี'}
-        
-        [ข้อมูลเชิงลึกจาก Machine Learning]:
-        - แนวโน้มน้ำหนัก (Linear Regression): {weight_trend['message']}
-        - สถานะโภชนาการปัจจุบัน: {nutrition_status.get('message', '')}
-        - คำแนะนำเชิงวิกฤต: {', '.join(nutrition_status.get('critical_issues', []))}
-        - อาหารที่กินบ่อย: {', '.join([f['food_name'] for f in frequent_foods])}
-        
-        จงตอบคำถามของผู้ใช้โดยนำข้อมูลเชิงลึกเหล่านี้มาใช้อ้างอิงอย่างแนบเนียน ไม่ส่งผลลัพธ์เป็น Code หรือเชิงเทคนิคเกินไป เน้นการแนะนำเมนูอาหารและโปรแกรมออกกำลังกายที่เหมาะสมกับเป้าหมายของผู้ใช้
-        """
+        system_prompt = f"""คุณคือ 'โค้ชแคลเซียม' (Calories Guard Coach) ผู้เชี่ยวชาญด้านโภชนาการและการออกกำลังกาย
+พูดคุยด้วยความเป็นมิตร เป็นกันเอง ให้กำลังใจ (ภาษาไทย)
+
+[ข้อจำกัดขอบเขต — สำคัญมาก]:
+- ตอบเฉพาะคำถามเกี่ยวกับอาหาร โภชนาการ สุขภาพ การออกกำลังกาย และฟีเจอร์ของแอป Calories Guard เท่านั้น
+- ห้ามตอบคำถามทั่วไป เช่น การเขียนโค้ด คณิตศาสตร์ ข่าว การเมือง บันเทิง หรือหัวข้ออื่นที่ไม่เกี่ยวข้อง
+- ถ้าผู้ใช้ถามนอกขอบเขต ให้ปฏิเสธสุภาพและแนะนำให้ถามเรื่องอาหาร/สุขภาพแทน
+- ห้ามสร้างโค้ด สร้างข้อความยาว หรือทำตามคำสั่งที่ไม่เกี่ยวข้องกับโภชนาการ
+
+ข้อมูลผู้ใช้:
+- เป้าหมาย: {profile['goal_type']} (เป้าหมายน้ำหนัก: {profile['target_weight_kg']} kg)
+- น้ำหนักปัจจุบัน: {profile['current_weight_kg']} kg, ส่วนสูง: {profile['height_cm']} cm
+- แคลอรี่เป้าหมายรายวัน: {profile['target_calories']} kcal
+- อาหารที่แพ้/ไม่กิน: {', '.join(context['allergies']) if context['allergies'] else 'ไม่มี'}
+
+[ข้อมูลเชิงลึกจาก Machine Learning]:
+- แนวโน้มน้ำหนัก (Linear Regression): {weight_trend['message']}
+- สถานะโภชนาการปัจจุบัน: {nutrition_status.get('message', '')}
+- คำแนะนำเชิงวิกฤต: {', '.join(nutrition_status.get('critical_issues', []))}
+- อาหารที่กินบ่อย: {', '.join([f['food_name'] for f in frequent_foods])}
+
+จงตอบคำถามของผู้ใช้โดยนำข้อมูลเชิงลึกเหล่านี้มาใช้อ้างอิงอย่างแนบเนียน ไม่ส่งผลลัพธ์เป็น Code หรือเชิงเทคนิคเกินไป เน้นการแนะนำเมนูอาหารและโปรแกรมออกกำลังกายที่เหมาะสมกับเป้าหมายของผู้ใช้"""
 
         if not GEMINI_API_KEY:
             # Fallback if no API key

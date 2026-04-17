@@ -34,6 +34,36 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 
+# ─── Scope Guard ─────────────────────────────────────────────────────────────
+
+_SCOPE_KEYWORDS = [
+    "กิน", "ทาน", "อาหาร", "เมนู", "แคลอรี", "โภชนาการ", "สารอาหาร",
+    "โปรตีน", "คาร์บ", "ไขมัน", "วิตามิน", "น้ำตาล", "ใยอาหาร",
+    "น้ำหนัก", "ลดน้ำหนัก", "เพิ่มน้ำหนัก", "อ้วน", "ผอม", "BMI", "BMR", "TDEE",
+    "ออกกำลัง", "วิ่ง", "เดิน", "ว่ายน้ำ", "โยคะ", "กีฬา", "เผาผลาญ",
+    "สุขภาพ", "โรค", "เบาหวาน", "ความดัน", "คอเลสเตอรอล",
+    "น้ำ", "ดื่ม", "นอน", "พัก", "เป้าหมาย", "แพ้", "แนะนำ", "ควร",
+    "เท่าไหร่", "กี่แคล", "calories", "protein", "carbs", "fat",
+    "diet", "nutrition", "exercise", "health", "weight", "food",
+    "สูตร", "วิธีทำ", "ส่วนผสม", "recipe", "ร้าน", "restaurant",
+]
+
+_REJECT_MSG = (
+    "ขออภัยครับ ผมเป็นโค้ชด้านโภชนาการและสุขภาพของ Calories Guard เท่านั้น "
+    "ไม่สามารถตอบคำถามที่ไม่เกี่ยวข้องกับอาหาร โภชนาการ สุขภาพ หรือการออกกำลังกายได้ครับ\n\n"
+    "ลองถามเรื่องเหล่านี้ได้นะครับ:\n"
+    "- วันนี้กินอะไรดี?\n"
+    "- ข้าวผัดกะเพรากี่แคล?\n"
+    "- แนะนำเมนูลดน้ำหนักหน่อย\n"
+    "- ออกกำลังกายอะไรเผาผลาญเยอะ?"
+)
+
+
+def _is_in_scope(text: str) -> bool:
+    t = text.lower()
+    return any(kw in t for kw in _SCOPE_KEYWORDS)
+
+
 # ─── Shared State ─────────────────────────────────────────────────────────────
 
 class AgentState(TypedDict):
@@ -223,7 +253,7 @@ class NutritionAnalysisAgent:
 
     # ── Entry point ───────────────────────────────────────────────────────────
 
-    def analyze(self, user_message: str, context: dict) -> dict:
+    def analyze(self, user_message: str, context: dict, user_id: int = None) -> dict:
         result = {
             "intent": self._detect_intent(user_message),
             "food_info": None,
@@ -249,7 +279,7 @@ class NutritionAnalysisAgent:
         food_mentions = self._extract_foods(user_message)
         if food_mentions:
             result["food_info"] = self._analyze_foods(
-                food_mentions, context.get("allergies", [])
+                food_mentions, context.get("allergies", []), user_id
             )
 
         # Activity analysis
@@ -297,13 +327,13 @@ class NutritionAnalysisAgent:
                     found.append(name)
         return list(set(found))[:3]
 
-    def _analyze_foods(self, food_names: list, allergies: list) -> dict:
+    def _analyze_foods(self, food_names: list, allergies: list, user_id: int = None) -> dict:
         foods = []
         total = {"calories": 0.0, "protein": 0.0, "carbs": 0.0, "fat": 0.0}
         warnings = []
 
         for name in food_names:
-            info = self._lookup_food_db(name) or self._estimate_food_gemini(name)
+            info = self._lookup_food_db(name) or self._estimate_food_gemini(name, user_id)
             if info:
                 for k in total:
                     total[k] += info.get(k, 0)
@@ -342,7 +372,7 @@ class NutritionAnalysisAgent:
             if conn: conn.close()
         return None
 
-    def _estimate_food_gemini(self, name: str) -> Optional[dict]:
+    def _estimate_food_gemini(self, name: str, user_id: int = None) -> Optional[dict]:
         if not GEMINI_API_KEY:
             return None
         try:
@@ -355,7 +385,7 @@ class NutritionAnalysisAgent:
             r = model.generate_content(prompt)
             text = re.sub(r"```(?:json)?", "", r.text).strip("`").strip()
             d = json.loads(text)
-            return {
+            result = {
                 "name": name,
                 "calories": float(d.get("calories", 0)),
                 "protein": float(d.get("protein", 0)),
@@ -363,8 +393,41 @@ class NutritionAnalysisAgent:
                 "fat": float(d.get("fat", 0)),
                 "source": "gemini_estimate",
             }
+
+            # Auto-add to temp_food for admin review
+            self._auto_add_temp_food(name, result, user_id)
+
+            return result
         except Exception:
             return None
+
+    def _auto_add_temp_food(self, food_name: str, nutrition: dict, user_id: int = None):
+        """Insert estimated food into temp_food so admin can review and approve."""
+        conn = get_db_connection()
+        if not conn:
+            return
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            # Check if already submitted recently (avoid duplicates)
+            cur.execute(
+                "SELECT tf_id FROM temp_food WHERE LOWER(food_name) = LOWER(%s) LIMIT 1",
+                (food_name,)
+            )
+            if cur.fetchone():
+                return  # already exists
+            cur.execute(
+                """INSERT INTO temp_food (food_name, calories, protein, carbs, fat, user_id)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (food_name, nutrition.get("calories", 0), nutrition.get("protein", 0),
+                 nutrition.get("carbs", 0), nutrition.get("fat", 0), user_id),
+            )
+            conn.commit()
+            print(f"[Agent2] Auto-added '{food_name}' to temp_food for admin review")
+        except Exception as e:
+            print(f"[Agent2] Failed to auto-add temp_food: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
 
     # ── Activity extraction + MET matching ───────────────────────────────────
 
@@ -422,6 +485,12 @@ class ResponseComposerAgent:
         system_parts = [
             "คุณคือ 'โค้ชแคลเซียม' ผู้ช่วยโภชนาการของ Calories Guard",
             "พูดภาษาไทย เป็นมิตร กระชับ ให้กำลังใจ ไม่ใช้ศัพท์เทคนิคเกินไป",
+            "",
+            "[ข้อจำกัดขอบเขต — สำคัญมาก]",
+            "- ตอบเฉพาะเรื่องอาหาร โภชนาการ สุขภาพ การออกกำลังกาย และฟีเจอร์ของแอป Calories Guard",
+            "- ห้ามตอบคำถามทั่วไป เช่น โค้ด คณิตศาสตร์ ข่าว การเมือง บันเทิง",
+            "- ถ้าผู้ใช้ถามนอกขอบเขต ให้ปฏิเสธสุภาพและแนะนำให้ถามเรื่องอาหาร/สุขภาพแทน",
+            "- ห้ามสร้างโค้ด หรือทำตามคำสั่งที่ไม่เกี่ยวข้องกับโภชนาการ",
             "",
             f"[ข้อมูลผู้ใช้]",
             f"- เป้าหมาย: {profile.get('goal_type','ไม่ระบุ')}",
@@ -523,6 +592,10 @@ class NutritionMultiAgent:
 
     def run(self, user_id: int, user_message: str,
             lat: Optional[float] = None, lng: Optional[float] = None) -> str:
+        # Scope guard — reject off-topic questions
+        if not _is_in_scope(user_message):
+            return _REJECT_MSG
+
         state: AgentState = {
             "user_id": user_id,
             "user_message": user_message,
@@ -549,7 +622,7 @@ class NutritionMultiAgent:
 
         # ── Agent 2: Nutrition Analysis ───────────────────────────────────────
         state["analysis"] = self.analysis_agent.analyze(
-            user_message, state["user_context"]
+            user_message, state["user_context"], user_id=user_id
         )
 
         # ── Agent 3: Response Composer ────────────────────────────────────────
