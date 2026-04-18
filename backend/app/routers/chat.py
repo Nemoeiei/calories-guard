@@ -14,14 +14,15 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from chatbot_agent import CoachingAgent
-from ai_models.multi_agent_system import NutritionMultiAgent
-from app.models.schemas import ChatMessage
+from ai_models.multi_agent_system import NutritionMultiAgent, NutritionAnalysisAgent
+from app.models.schemas import ChatMessage, MealEstimateRequest
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
 coach_agent = CoachingAgent()
 _multi_agent = NutritionMultiAgent()
+_nutrition_agent = NutritionAnalysisAgent()
 
 _AI_TIMEOUT_SEC = 30
 _MAX_MSG_LEN = 2000
@@ -63,6 +64,41 @@ def chat_with_coach(request: Request, payload: ChatMessage):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Coach Error: {str(e)}")
+
+
+@router.post("/api/meals/estimate")
+@limiter.limit("30/hour")
+def estimate_meal_from_text(request: Request, payload: MealEstimateRequest):
+    """
+    Take free Thai text (e.g. "มื้อเช้ากินข้าวผัดกะเพรา 1 จาน ต้มยำกุ้ง ครึ่งถ้วย")
+    and return per-item + total calorie/macro estimates.
+
+    Food extraction uses pythainlp word segmentation + DB-backed dictionary,
+    falling back to regex if pythainlp is unavailable. Unknown foods that
+    Gemini estimates get auto-inserted into temp_food for admin review
+    (see NutritionAnalysisAgent._auto_add_temp_food).
+
+    The client typically follows this with POST /meals/{user_id} to persist.
+    """
+    msg = _sanitize_message(payload.message)
+    if not msg:
+        raise HTTPException(status_code=400, detail="ข้อความว่างเปล่า")
+    try:
+        def _do():
+            mentions = _nutrition_agent._extract_foods(msg)
+            if not mentions:
+                return {"items": [], "total": {"calories": 0, "protein": 0, "carbs": 0, "fat": 0},
+                        "allergy_warnings": [], "meal_type": payload.meal_type,
+                        "message": "ไม่พบเมนูอาหารในข้อความ"}
+            info = _nutrition_agent._analyze_foods(mentions, [], payload.user_id)
+            info["meal_type"] = payload.meal_type
+            info["extracted"] = mentions
+            return info
+        return _run_with_timeout(_do)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Meal estimate error: {str(e)}")
 
 
 @router.post("/api/chat/multi")

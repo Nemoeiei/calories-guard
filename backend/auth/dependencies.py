@@ -100,18 +100,36 @@ async def get_current_user(
 
 
 async def get_current_admin(
-    current_user: dict = Depends(get_current_user),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> dict:
     """
     FastAPI dependency: require admin role (role_id == 1).
 
-    For now, check app_metadata.role_id or user_metadata.role_id.
-    Falls back to checking the DB if needed (done at endpoint level).
+    Verifies the JWT and checks app_metadata.role_id == 1.
+    Raises 401 if no/invalid token, 403 if not an admin.
     """
-    # This is a simple check — in production, verify against DB
-    # For now, we pass through and let endpoints check role_id from DB
-    # The main purpose is to ensure authentication exists
-    return current_user
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = _decode_token(credentials.credentials)
+    app_meta = payload.get("app_metadata") or {}
+    role_id = app_meta.get("role_id")
+    if role_id != 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+
+    return {
+        "sub": payload.get("sub"),
+        "email": payload.get("email"),
+        "user_id": _get_user_id_from_payload(payload),
+        "role_id": role_id,
+    }
 
 
 def get_optional_user(

@@ -5,11 +5,33 @@ export function normalizeImageUrl(url: string | null | undefined): string | null
   return url.replace(/https?:\/\/10\.0\.2\.2(:\d+)?/, BASE_URL)
 }
 
+// ── Token + 401 plumbing ────────────────────────────────────────
+// AuthContext wires getToken + onUnauthorized at startup so api requests
+// can attach the Bearer token and auto-logout on 401.
+
+type TokenGetter = () => string | null
+type UnauthorizedHandler = () => void
+
+let _getToken: TokenGetter = () => null
+let _onUnauthorized: UnauthorizedHandler = () => {}
+
+export function configureApiAuth(getter: TokenGetter, onUnauthorized: UnauthorizedHandler) {
+  _getToken = getter
+  _onUnauthorized = onUnauthorized
+}
+
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
-  })
+  const token = _getToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> | undefined),
+  }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
+  if (res.status === 401) {
+    _onUnauthorized()
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
     throw new Error(err.detail || `HTTP ${res.status}`)

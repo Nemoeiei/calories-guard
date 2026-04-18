@@ -134,7 +134,7 @@ flutter build apk --release \
 | `ModuleNotFoundError: slowapi` | run `pip install -r requirements.txt` |
 | APK can't reach API | release build missing `android.permission.INTERNET`, or `API_BASE_URL` baked in as `http://10.0.2.2` |
 | Chat returns `AI ตอบช้าเกินไป` | Gemini timeout — check API key / network |
-| Admin endpoints return 401 | admin-web not sending `Authorization` header yet (see follow-ups) |
+| Admin endpoints return 403 after login | account's `role_id` is not 1 — only admin users can reach `/admin/*` |
 
 ---
 

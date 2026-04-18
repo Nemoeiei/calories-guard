@@ -3,6 +3,7 @@ export interface AuthState {
   username: string
   email: string
   role_id: number
+  access_token: string
 }
 
 export interface Food {

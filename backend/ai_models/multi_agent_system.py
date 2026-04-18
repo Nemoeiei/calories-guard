@@ -28,6 +28,8 @@ from psycopg2.extras import RealDictCursor
 from database import get_db_connection
 from dotenv import load_dotenv
 
+from ai_models.food_extraction import extract_foods as _tok_extract_foods
+
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
@@ -314,33 +316,70 @@ class NutritionAnalysisAgent:
     # ── Food extraction ───────────────────────────────────────────────────────
 
     def _extract_foods(self, text: str) -> list:
-        # ดึงชื่ออาหารแบบ pattern matching
-        found = []
-        patterns = [
-            r'(?:กิน|ทาน|อยากกิน|แนะนำ)\s+([ก-๛a-zA-Z ]+?)(?:\s|ไหม|ได้|ดี|$)',
-            r'(ข้าวผัด|กะเพรา|ต้มยำ|แกงเขียวหวาน|ผัดไทย|ส้มตำ|ลาบ|ราดหน้า|ข้าวมันไก่|หมูกะทะ|ยำ\w+)',
-        ]
-        for p in patterns:
-            for m in re.findall(p, text):
-                name = m.strip()
-                if name and len(name) > 1:
-                    found.append(name)
-        return list(set(found))[:3]
+        """
+        Pull food mentions out of free Thai text.
 
-    def _analyze_foods(self, food_names: list, allergies: list, user_id: int = None) -> dict:
+        Uses pythainlp word segmentation + DB-backed dictionary of known food
+        names (see ai_models/food_extraction.py). Returns a list of dicts:
+            [{"name": ..., "quantity": float|None, "source": "dict|regex"}]
+        """
+        db_names = self._load_food_dictionary()
+        mentions = _tok_extract_foods(text, db_food_names=db_names, limit=5)
+        return mentions
+
+    def _load_food_dictionary(self) -> list:
+        """Pull all non-deleted food names from DB to power the tokenizer match."""
+        conn = get_db_connection()
+        if not conn:
+            return []
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT food_name FROM foods WHERE deleted_at IS NULL LIMIT 5000"
+            )
+            return [r[0] for r in cur.fetchall() if r[0]]
+        except Exception:
+            return []
+        finally:
+            conn.close()
+
+    def _analyze_foods(self, food_mentions: list, allergies: list, user_id: int = None) -> dict:
+        """
+        food_mentions may be either a list of str (legacy) or a list of dicts
+        {"name", "quantity", "source"} from _extract_foods.
+        Multiplies the per-serving nutrition by `quantity` when provided so
+        "ข้าวผัด 2 จาน" counts as 2x.
+        """
         foods = []
         total = {"calories": 0.0, "protein": 0.0, "carbs": 0.0, "fat": 0.0}
         warnings = []
 
-        for name in food_names:
+        for item in food_mentions:
+            if isinstance(item, dict):
+                name = item.get("name", "")
+                qty = item.get("quantity") or 1.0
+            else:
+                name = item
+                qty = 1.0
+
             info = self._lookup_food_db(name) or self._estimate_food_gemini(name, user_id)
-            if info:
-                for k in total:
-                    total[k] += info.get(k, 0)
-                # allergy check
-                if any(a in name for a in allergies):
-                    warnings.append(f"⚠️ {name} อาจมีส่วนผสมที่คุณแพ้")
-                foods.append(info)
+            if not info:
+                continue
+
+            # Scale by quantity
+            scaled = {
+                **info,
+                "quantity": qty,
+                "calories": info.get("calories", 0) * qty,
+                "protein": info.get("protein", 0) * qty,
+                "carbs": info.get("carbs", 0) * qty,
+                "fat": info.get("fat", 0) * qty,
+            }
+            for k in total:
+                total[k] += scaled.get(k, 0)
+            if any(a in name for a in allergies):
+                warnings.append(f"⚠️ {name} อาจมีส่วนผสมที่คุณแพ้")
+            foods.append(scaled)
 
         return {
             "items": foods,

@@ -23,7 +23,17 @@ export default function Login() {
         setError('บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน Admin Panel')
         return
       }
-      login({ user_id: res.user_id, username: res.username, email: res.email, role_id: res.role_id })
+      if (!res.access_token) {
+        setError('เซิร์ฟเวอร์ไม่ได้ส่ง access token — โปรดอัปเดต backend')
+        return
+      }
+      login({
+        user_id: res.user_id,
+        username: res.username,
+        email: res.email,
+        role_id: res.role_id,
+        access_token: res.access_token,
+      })
       navigate('/', { replace: true })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'เข้าสู่ระบบไม่สำเร็จ')

@@ -55,7 +55,34 @@ Target: **Railway** (backend container) + **Supabase** (DB + Auth + Storage).
 
 ---
 
-## 3. Flutter release build
+## 3. Android release keystore
+
+Before shipping a signed APK you need a real `.jks` keystore — the one bundled
+with Flutter is the **debug** keystore and will be rejected by the Play Store.
+
+```bash
+# Generate once, keep safe
+keytool -genkey -v \
+  -keystore ~/calories-guard-release.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -alias calories-guard
+```
+
+Create `flutter_application_1/android/key.properties` (**gitignored**):
+```properties
+storePassword=<your_store_password>
+keyPassword=<your_key_password>
+keyAlias=calories-guard
+storeFile=/absolute/path/to/calories-guard-release.jks
+```
+
+`android/app/build.gradle.kts` already reads this file for signing config.
+Back up the `.jks` **somewhere safe** — losing it means you can't publish
+updates under the same app id.
+
+---
+
+## 4. Flutter release build
 
 ```bash
 cd flutter_application_1
@@ -70,7 +97,7 @@ Distribute via:
 
 ---
 
-## 4. Admin web (optional)
+## 5. Admin web (optional)
 
 Deploy `admin-web/` to Vercel / Netlify / Cloudflare Pages:
 ```
@@ -79,11 +106,14 @@ Output dir:      dist
 Env vars:        VITE_API_BASE_URL=https://<railway-url>
 ```
 
-> **Known follow-up:** `admin-web/src/api/client.ts` currently does not attach `Authorization: Bearer <jwt>`. The backend's `/admin/*` routes require admin JWT. Wire token storage + header injection in `AuthContext.tsx` before production use.
+> The admin-web attaches `Authorization: Bearer <jwt>` automatically once
+> logged in — the `/login` endpoint returns `access_token`, `AuthContext`
+> persists it, and `api/client.ts` injects it into every request + signs the
+> user out on 401.
 
 ---
 
-## 5. Monitoring
+## 6. Monitoring
 
 - **Sentry** (free 5k events/month): set `SENTRY_DSN` on Railway; add `sentry-sdk[fastapi]` and init in `main.py`.
 - **UptimeRobot**: monitor `GET /health` every 5 min.
@@ -91,14 +121,14 @@ Env vars:        VITE_API_BASE_URL=https://<railway-url>
 
 ---
 
-## 6. Backups
+## 7. Backups
 
 Supabase free tier: automatic daily backups retained for 7 days.
 Pro tier: 30-day retention + point-in-time recovery.
 
 ---
 
-## 7. CI/CD
+## 8. CI/CD
 
 GitHub Actions runs on every push/PR (`.github/workflows/ci.yml`):
 1. Backend: `ruff check` → `pytest`

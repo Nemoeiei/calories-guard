@@ -163,3 +163,14 @@ class ChatMessage(BaseModel):
     message: str
     lat: float | None = None
     lng: float | None = None
+
+
+class MealEstimateRequest(BaseModel):
+    """
+    User types free text like "มื้อเช้ากินข้าวผัดกะเพรา 1 จาน ต้มยำกุ้ง ครึ่งถ้วย"
+    and we return per-item + total calorie/macro estimates without committing
+    to DB yet — the app can then confirm + POST /meals/{user_id} to persist.
+    """
+    user_id: int
+    message: str
+    meal_type: str | None = None  # breakfast/lunch/dinner/snack (optional hint)

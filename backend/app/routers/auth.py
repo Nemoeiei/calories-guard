@@ -1,3 +1,4 @@
+import os
 import re
 import secrets
 from datetime import date, datetime, timedelta
@@ -7,9 +8,34 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from psycopg2.extras import RealDictCursor
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from jose import jwt
 
 from database import get_db_connection
 from app.core.security import get_password_hash, verify_password
+
+
+_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+_JWT_ALGO = "HS256"
+_JWT_TTL_HOURS = 12
+
+
+def _issue_access_token(user_id: int, email: str, role_id: int) -> str:
+    """
+    Issue an HS256 JWT signed with SUPABASE_JWT_SECRET so that
+    backend's get_current_user / get_current_admin can verify it.
+    Payload mirrors what Supabase Auth would set, so the same
+    verification path works for both self-issued + Supabase tokens.
+    """
+    now = datetime.utcnow()
+    payload = {
+        "sub": f"cg-user-{user_id}",
+        "email": email,
+        "role": "authenticated",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(hours=_JWT_TTL_HOURS)).timestamp()),
+        "app_metadata": {"user_id": user_id, "role_id": role_id},
+    }
+    return jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGO)
 from app.services.email_service import (
     send_welcome_email, send_verification_email, send_password_reset_email,
 )
@@ -193,6 +219,9 @@ def login(request: Request, user: UserLogin):
                     ON CONFLICT DO NOTHING
                 """, (db_user['user_id'], f"Streak {streak} วัน!", msg))
         conn.commit()
+        access_token = _issue_access_token(
+            db_user['user_id'], db_user['email'], db_user['role_id']
+        )
         return {
             "message": "Login successful",
             "user_id": db_user['user_id'],
@@ -200,6 +229,8 @@ def login(request: Request, user: UserLogin):
             "email": db_user['email'],
             "role_id": db_user['role_id'],
             "current_streak": streak,
+            "access_token": access_token,
+            "token_type": "Bearer",
         }
     except HTTPException:
         raise
