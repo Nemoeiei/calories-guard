@@ -2,9 +2,11 @@
 
 > **Source of truth**: Supabase project `zawlghlnzgftlxcoipuf`, PostgreSQL 17.6, schema `cleangoal`.
 > **Snapshot taken**: 2026-04-18 (41 tables, 8 enums, 25 non-PK indexes).
-> This document is the input to the v14 normalize/optimize migration — do **not** treat it as a target state.
+> This document is the **pre-v14** input to the normalize/optimize migration — do **not** treat it as a target state.
 >
 > **Revision 2** (2026-04-18): removed 9 phantom tables I had hallucinated (`articles`, `chatbot_interactions`, `community_posts`, `follows`, `likes`, `recommendations`, `user_detail_logs`, `user_preferences`, `food_reviews`); added 5 real tables that I had missed (`chat_messages`, `recipe_favorites`, `recipe_steps`, `recipe_tips`, `recipe_tools`). No rows or DDL were ever lost — this was a documentation error only.
+>
+> **Revision 3** (2026-04-19): v14 phases A–F have been applied (`v14_a_critical_fixes`, `v14_b_integrity`, `v14_c_deduplicate`, `v14_d_seed_units`, `v14_e_timestamptz`, `v14_f_drop_unused` in `cleangoal.schema_migrations`). Live schema is now **35 tables** (2 dropped in Phase C: `user_goals`, `user_activities`; 4 in Phase F: `progress`, `weekly_summaries`, `chat_messages`, `user_health_content_views`). All timestamp columns are `timestamptz`. For the post-v14 target state see **[ER_DIAGRAM.md](ER_DIAGRAM.md)**; for the system view see **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)**. The per-table descriptions below still apply to the surviving tables but the "Issues found" section is now largely resolved — see §7 of ER_DIAGRAM.md for the small remaining list.
 
 ---
 
