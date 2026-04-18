@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'login_register/screens/welcome_screen.dart';
 import 'services/notification_helper.dart';
 import 'services/api_client.dart';
@@ -26,12 +27,7 @@ void main() async {
     Supabase.instance.client.auth.signOut();
   };
 
-  // แสดง UI ทันที ไม่บล็อกด้วยการแจ้งเตือน (เลี่ยงค้างที่หน้าโลโก้บนบางเครื่อง)
-  runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
 
   // เริ่มต้นและตั้งเวลาแจ้งเตือนในพื้นหลัง
   NotificationHelper.init().then((_) async {
@@ -41,6 +37,23 @@ void main() async {
     await NotificationHelper.scheduleWaterReminders();
     await NotificationHelper.scheduleWeeklyWeightCheck();
   });
+
+  if (sentryDsn.isEmpty) {
+    runApp(const ProviderScope(child: MyApp()));
+  } else {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
+        options.tracesSampleRate = 0.1;
+        options.sendDefaultPii = false;
+        options.environment = const String.fromEnvironment(
+          'APP_ENV',
+          defaultValue: 'development',
+        );
+      },
+      appRunner: () => runApp(const ProviderScope(child: MyApp())),
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {

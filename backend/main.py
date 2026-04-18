@@ -22,6 +22,26 @@ from database import get_db_connection
 from psycopg2.extras import RealDictCursor
 from app.core.config import ALLOWED_ORIGINS, IMAGEDIR
 
+# ── Sentry (optional: only if SENTRY_DSN is set) ──────────────────────────────
+_SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
+if _SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+
+        sentry_sdk.init(
+            dsn=_SENTRY_DSN,
+            environment=os.getenv("APP_ENV", "development"),
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0.0")),
+            integrations=[StarletteIntegration(), FastApiIntegration()],
+            send_default_pii=False,
+        )
+    except ImportError:
+        # sentry-sdk not installed — skip silently
+        pass
+
 # ── App & rate limiter ────────────────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="Calories Guard API")

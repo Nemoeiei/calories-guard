@@ -115,9 +115,24 @@ Env vars:        VITE_API_BASE_URL=https://<railway-url>
 
 ## 6. Monitoring
 
-- **Sentry** (free 5k events/month): set `SENTRY_DSN` on Railway; add `sentry-sdk[fastapi]` and init in `main.py`.
+- **Sentry** (free 5k events/month):
+  - Backend: set `SENTRY_DSN` (and optional `SENTRY_TRACES_SAMPLE_RATE`, default `0.1`)
+    on Railway. `sentry-sdk[fastapi]` is already in `requirements.txt` and
+    `main.py` initialises it when `SENTRY_DSN` is non-empty.
+  - Flutter: pass `--dart-define=SENTRY_DSN=<your-dsn>` at build time.
+    `sentry_flutter` is already in `pubspec.yaml` and wired up in `main.dart`.
 - **UptimeRobot**: monitor `GET /health` every 5 min.
 - **Supabase dashboard**: query performance + auth logs.
+
+### Row-Level Security (defense in depth)
+
+Migration `enable_rls_user_data_tables` turns on RLS for all user-owned
+tables (`users`, `meals`, `water_logs`, `exercise_logs`, `weight_logs`, ...).
+The backend connects as the project `postgres` role which bypasses RLS, so
+API behavior is unchanged. The effect is that anybody who obtains the
+Supabase *anon* or *authenticated* key can no longer read these tables
+directly — queries return 0 rows because no policies are defined for those
+roles.
 
 ---
 
