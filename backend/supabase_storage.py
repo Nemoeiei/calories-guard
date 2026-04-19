@@ -11,8 +11,15 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
 
-SUPABASE_URL    = os.getenv("SUPABASE_PROJECT_URL", "")
-SUPABASE_KEY    = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_URL    = os.getenv("SUPABASE_PROJECT_URL", "") or os.getenv("SUPABASE_URL", "")
+# Prefer service-role key for backend uploads: it bypasses RLS, so the
+# food-images bucket can tighten its INSERT/UPDATE/DELETE policies and
+# still accept uploads from the backend. Fall back to the anon key only
+# for local dev convenience.
+SUPABASE_KEY    = (
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    or os.getenv("SUPABASE_ANON_KEY", "")
+)
 STORAGE_BUCKET  = os.getenv("SUPABASE_STORAGE_BUCKET", "food-images")
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
