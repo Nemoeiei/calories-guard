@@ -63,6 +63,11 @@ if _HAS_PSETTINGS:
 
         # AI (optional — coach falls back to canned responses if missing)
         gemini_api_key: str = ""
+        # Kill-switch: set AI_ENABLED=false in Railway to disable AI
+        # endpoints (chat + food auto-add) without a redeploy. Used when
+        # Gemini is rate-limiting, when we're over budget, or during
+        # incidents.
+        ai_enabled: bool = True
 
         # SMTP (optional — password-reset/verify email uses this)
         smtp_server: str = "smtp.gmail.com"
@@ -92,6 +97,7 @@ if _HAS_PSETTINGS:
     FROM_NAME = settings.from_name
     SENTRY_DSN = settings.sentry_dsn
     APP_ENV = settings.app_env
+    AI_ENABLED = settings.ai_enabled
 
 else:
     # ── Fallback path: plain os.getenv, matches prior behavior ──────────────
@@ -105,6 +111,7 @@ else:
     FROM_NAME = os.getenv("FROM_NAME", "Calories Guard")
     SENTRY_DSN = os.getenv("SENTRY_DSN", "")
     APP_ENV = os.getenv("APP_ENV", "development")
+    AI_ENABLED = os.getenv("AI_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
     settings = None  # sentinel; callers should use the legacy constants
 
 # --- Image upload (constants — not env-driven) ----------------------------

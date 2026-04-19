@@ -16,9 +16,24 @@ from slowapi.util import get_remote_address
 from chatbot_agent import CoachingAgent
 from ai_models.multi_agent_system import NutritionMultiAgent, NutritionAnalysisAgent
 from app.models.schemas import ChatMessage, MealEstimateRequest
+from app.core.config import AI_ENABLED
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
+
+
+def _require_ai_enabled() -> None:
+    """Raise 503 if operators have flipped the AI kill switch.
+
+    Config flag AI_ENABLED is read at startup; toggling it requires a
+    Railway restart (env-var propagation). This is intentional: we want
+    a clear, audit-logged change rather than silent per-request drift.
+    """
+    if not AI_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="AI temporarily unavailable",
+        )
 
 coach_agent = CoachingAgent()
 _multi_agent = NutritionMultiAgent()
@@ -52,6 +67,7 @@ def _run_with_timeout(fn, *args, **kwargs):
 @limiter.limit("10/hour")
 def chat_with_coach(request: Request, payload: ChatMessage):
     """พูดคุยกับ AI Coach ที่วิเคราะห์ประวัติการกินของคุณ"""
+    _require_ai_enabled()
     msg = _sanitize_message(payload.message)
     if not msg:
         raise HTTPException(status_code=400, detail="ข้อความว่างเปล่า")
@@ -80,6 +96,7 @@ def estimate_meal_from_text(request: Request, payload: MealEstimateRequest):
 
     The client typically follows this with POST /meals/{user_id} to persist.
     """
+    _require_ai_enabled()
     msg = _sanitize_message(payload.message)
     if not msg:
         raise HTTPException(status_code=400, detail="ข้อความว่างเปล่า")
@@ -108,6 +125,7 @@ def chat_multi_agent(request: Request, payload: ChatMessage):
     3-Agent AI pipeline:
       Agent1 (DataOrchestrator) -> Agent2 (NutritionAnalysis) -> Agent3 (ResponseComposer/Gemini)
     """
+    _require_ai_enabled()
     msg = _sanitize_message(payload.message)
     if not msg:
         raise HTTPException(status_code=400, detail="ข้อความว่างเปล่า")
