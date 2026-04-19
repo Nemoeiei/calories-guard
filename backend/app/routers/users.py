@@ -1,6 +1,8 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+import json
 
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import Response
 from psycopg2.extras import RealDictCursor
 
 from database import get_db_connection
@@ -13,6 +15,36 @@ from app.services.nutrition_service import (
 )
 
 router = APIRouter()
+
+
+def _json_default(o):
+    """JSON encoder fallback for rows coming out of psycopg2 RealDictCursor."""
+    if isinstance(o, (date, datetime)):
+        return o.isoformat()
+    # psycopg2 Decimal / memoryview etc. — stringify as last resort
+    try:
+        return float(o)
+    except (TypeError, ValueError):
+        return str(o)
+
+
+# Tables owned by a user_id whose rows must ship with the PDPA export.
+# Order matters only for readability; the cleanup job relies on ON DELETE
+# CASCADE (see v15_e migration rationale) for the eventual hard-delete.
+_EXPORT_TABLES = [
+    ("meals", "user_id"),
+    ("daily_summaries", "user_id"),
+    ("detail_items", "meal_id"),  # indirect; filtered via meals join below
+    ("weight_logs", "user_id"),
+    ("water_logs", "user_id"),
+    ("exercise_logs", "user_id"),
+    ("notifications", "user_id"),
+    ("user_allergy_preferences", "user_id"),
+    ("user_favorites", "user_id"),
+    ("user_meal_plans", "user_id"),
+    ("temp_food", "user_id"),
+    ("food_requests", "user_id"),
+]
 
 
 @router.put("/users/{user_id}")
@@ -136,15 +168,91 @@ def get_user_profile(user_id: int, current_user: dict = Depends(get_current_user
 
 @router.delete("/users/{user_id}")
 def delete_user(user_id: int, current_user: dict = Depends(get_current_user)):
+    """PDPA soft-delete. Sets users.deleted_at = now().
+
+    The row stays for 30 days for support/audit + to survive accidental
+    taps. backend/scripts/cleanup.py hard-deletes rows whose `deleted_at`
+    is older than that, and FK `ON DELETE CASCADE` cleans the children.
+
+    Follow-up on the token side: the client MUST call
+    `supabase.auth.signOut()` after a successful 204.
+    """
     check_ownership(current_user, user_id)
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+        cur.execute(
+            "UPDATE users SET deleted_at = NOW() "
+            "WHERE user_id = %s AND deleted_at IS NULL",
+            (user_id,),
+        )
+        if cur.rowcount == 0:
+            # Either no such user, or already tombstoned. Either way we
+            # don't want to leak the distinction back to the caller.
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="User not found or already deleted")
         conn.commit()
-        return {"message": "User deleted successfully"}
+        return {"message": "Account scheduled for deletion", "retention_days": 30}
+    except HTTPException:
+        raise
     except Exception as e:
         conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.get("/users/{user_id}/export")
+def export_user_data(user_id: int, current_user: dict = Depends(get_current_user)):
+    """PDPA Art. 30 data export.
+
+    Returns a JSON attachment containing every row owned by this user
+    across the tables in `_EXPORT_TABLES`, plus the user profile itself.
+    Shape is table-keyed: `{"users": {...}, "meals": [...], ...}`.
+
+    Not paginated — Thai beta dataset per-user is small (< 10 MB even
+    after a year). If that stops being true, switch to streaming NDJSON.
+    """
+    check_ownership(current_user, user_id)
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        bundle: dict = {
+            "export_version": 1,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "user_id": user_id,
+            "users": dict(user_row),
+        }
+
+        for table, col in _EXPORT_TABLES:
+            if table == "detail_items":
+                # detail_items → meals → user_id
+                cur.execute(
+                    "SELECT d.* FROM detail_items d "
+                    "JOIN meals m ON m.meal_id = d.meal_id "
+                    "WHERE m.user_id = %s",
+                    (user_id,),
+                )
+            else:
+                cur.execute(f"SELECT * FROM {table} WHERE {col} = %s", (user_id,))
+            rows = cur.fetchall()
+            bundle[table] = [dict(r) for r in rows]
+
+        body = json.dumps(bundle, default=_json_default, ensure_ascii=False)
+        headers = {
+            "Content-Disposition": f'attachment; filename="calories_guard_export_{user_id}.json"',
+        }
+        return Response(content=body, media_type="application/json; charset=utf-8", headers=headers)
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:
