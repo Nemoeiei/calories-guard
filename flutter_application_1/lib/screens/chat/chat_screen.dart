@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_application_1/constants/constants.dart';
 import '../../providers/user_data_provider.dart';
+import '../../services/error_reporter.dart';
 
 // ─── Message Model ────────────────────────────────────────────────────────────
 class ChatMessage {
@@ -80,7 +81,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 accuracy: LocationAccuracy.medium,
                 timeLimit: Duration(seconds: 5)));
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('chat.get_location', e, st);
+    }
     return null;
   }
 

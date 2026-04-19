@@ -13,6 +13,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
 import '/providers/user_data_provider.dart'; // ปรับ Path ให้ตรงกับโครงสร้างของคุณ
+import '/services/error_reporter.dart';
 
 class ProgressScreen extends ConsumerStatefulWidget {
   const ProgressScreen({super.key});
@@ -106,7 +107,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           _weeklyData = json.decode(response.body);
         });
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('progress.fetch_weekly', e, st);
+    }
   }
 
   // ดึงข้อมูลปฏิทิน
@@ -140,7 +143,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               .toList();
         });
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('progress.fetch_calendar', e, st);
+    }
   }
 
   Future<void> _fetchWeightLogs() async {
@@ -156,7 +161,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
         });
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('progress.fetch_weight_logs', e, st);
+    }
   }
 
   Future<void> _fetchGoalProgress() async {
@@ -170,7 +177,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           _goalProgress = Map<String, dynamic>.from(json.decode(res.body));
         });
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('progress.fetch_goal', e, st);
+    }
   }
 
   // แสดงรายละเอียดเมื่อกดวันที่ในปฏิทิน
@@ -249,7 +258,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           }
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('progress.fetch_day_meal_items', e, st);
+    }
 
     if (!mounted) return;
 

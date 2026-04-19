@@ -7,6 +7,7 @@ import 'dart:convert';
 import '/screens/profile/subprofile_screen/progress_screen.dart';
 import '../../services/notification_helper.dart';
 import '../../services/lifecycle_service.dart';
+import '../../services/error_reporter.dart';
 import '/screens/macro/macro_detail_screen.dart';
 import '/screens/restaurant_map_screen.dart';
 import '/screens/bmi/bmi_detail_screen.dart';
@@ -76,7 +77,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         final data = json.decode(utf8.decode(response.bodyBytes));
         ref.read(userDataProvider.notifier).setUserFromApi(data);
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('home.fetch_user_profile', e, st);
+    }
 
     try {
       final res = await http
@@ -86,7 +89,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         final ids = (d['flag_ids'] as List).cast<int>();
         ref.read(userDataProvider.notifier).setAllergies(ids);
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('home.fetch_allergies', e, st);
+    }
   }
 
   Future<void> _fetchDailyData(DateTime forDate) async {
@@ -139,7 +144,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         items = data['items'] as List? ?? [];
         summary = (data['summary'] as Map<String, dynamic>?) ?? {};
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('home.fetch_meal_detail', e, st);
+    }
 
     if (!mounted) return;
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../constants/constants.dart';
 import '../providers/user_data_provider.dart';
+import '../services/error_reporter.dart';
 
 // ── Provider: unread count ────────────────────────────────────────────────────
 final unreadCountProvider = StateProvider<int>((ref) => 0);
@@ -68,7 +69,9 @@ class _NotificationBellState extends ConsumerState<NotificationBell> {
         ref.read(unreadCountProvider.notifier).state =
             (data['unread_count'] as int?) ?? 0;
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('notification_sheet.fetch_unread_count', e, st);
+    }
   }
 
   void _openSheet() async {
@@ -177,7 +180,9 @@ class _NotificationSheetState extends ConsumerState<NotificationSheet> {
         }
       });
       ref.read(unreadCountProvider.notifier).state = 0;
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('notification_sheet.mark_all_read', e, st);
+    }
   }
 
   // ── Icon per notification type ────────────────────────────────

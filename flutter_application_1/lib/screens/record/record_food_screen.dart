@@ -9,6 +9,7 @@ import '/providers/user_data_provider.dart';
 import '../../services/health_service.dart';
 import '../../services/notification_helper.dart';
 import '../../widget/ai_meal_estimate_sheet.dart';
+import '../../services/error_reporter.dart';
 
 // ─────────────────────────────────────────────
 //  Models
@@ -151,7 +152,9 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
         final ml = (data['amount_ml'] as num?)?.toInt() ?? 0;
         if (mounted) setState(() => _waterGlasses = (ml / 250).round().clamp(0, 20));
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('record.fetch_water_log', e, st);
+    }
   }
 
   Future<void> _saveWaterLog() async {
@@ -163,7 +166,9 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'amount_ml': _waterGlasses * 250}),
       );
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('record.save_water_log', e, st);
+    }
   }
 
   Future<void> _fetchDailyLog() async {
@@ -1228,7 +1233,9 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
         final data = jsonDecode(res.body) as List;
         if (mounted) setState(() => _units = data.cast<Map<String, dynamic>>());
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('record.load_units', e, st);
+    }
   }
 
 
