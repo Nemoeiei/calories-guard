@@ -1,0 +1,112 @@
+name: Deploy
+
+# Task #9. Staging auto-deploys on push to main after CI passes.
+# Prod is manual-only — workflow_dispatch with `confirm=yes` — so nothing
+# hits users without an explicit button press.
+#
+# Required secrets (add via GitHub → Settings → Secrets and variables → Actions):
+#   RAILWAY_STAGING_WEBHOOK   — Railway service deploy webhook URL (staging)
+#   RAILWAY_PROD_WEBHOOK      — same for prod
+#   STAGING_URL               — e.g. https://calories-guard-staging.up.railway.app
+#   PROD_URL                  — https://api.calories-guard.example
+#   PROD_DEPLOY_SLACK_URL     — incoming-webhook URL for #releases (optional)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm a PROD deploy'
+        required: true
+        default: 'no'
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false  # never cancel a deploy mid-flight
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Staging: auto on push-to-main
+  # ───────────────────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy → staging
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger Railway deploy (staging)
+        env:
+          WEBHOOK: ${{ secrets.RAILWAY_STAGING_WEBHOOK }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::error::RAILWAY_STAGING_WEBHOOK not set"; exit 1
+          fi
+          # Railway deploy webhooks are POST with empty body; 2xx == queued
+          curl --fail --silent --show-error -X POST "$WEBHOOK" -d '{}'
+
+      - name: Smoke-test /health (10× with backoff)
+        env:
+          URL: ${{ secrets.STAGING_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::warning::STAGING_URL not set; skipping smoke test"; exit 0
+          fi
+          # Railway build + deploy usually takes ~45s. Poll with backoff.
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep $((i * 5))
+            body=$(curl --silent --fail "$URL/health" || true)
+            echo "attempt $i: $body"
+            if echo "$body" | grep -q '"status":"ok"'; then
+              echo "::notice::staging healthy after ${i} attempts"; exit 0
+            fi
+          done
+          echo "::error::staging /health never returned ok"; exit 1
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Prod: manual, requires `confirm=yes`
+  # ───────────────────────────────────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy → production
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'yes'
+    runs-on: ubuntu-latest
+    environment: production  # forces a required-reviewer approval if configured
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger Railway deploy (prod)
+        env:
+          WEBHOOK: ${{ secrets.RAILWAY_PROD_WEBHOOK }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::error::RAILWAY_PROD_WEBHOOK not set"; exit 1
+          fi
+          curl --fail --silent --show-error -X POST "$WEBHOOK" -d '{}'
+
+      - name: Smoke-test prod /health
+        env:
+          URL: ${{ secrets.PROD_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::warning::PROD_URL not set; skipping smoke test"; exit 0
+          fi
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep $((i * 5))
+            body=$(curl --silent --fail "$URL/health" || true)
+            echo "attempt $i: $body"
+            if echo "$body" | grep -q '"status":"ok"'; then exit 0; fi
+          done
+          echo "::error::prod /health never returned ok"; exit 1
+
+      - name: Notify Slack
+        if: success() && secrets.PROD_DEPLOY_SLACK_URL != ''
+        env:
+          SLACK: ${{ secrets.PROD_DEPLOY_SLACK_URL }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          curl --silent --fail -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\":\":rocket: prod deployed \`$SHA\` by *$ACTOR*\"}" \
+            "$SLACK"
