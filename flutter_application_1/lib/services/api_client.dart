@@ -41,9 +41,35 @@ class ApiClient {
   /// Set this in your app (e.g., in main.dart) to navigate to login.
   void Function()? onUnauthorized;
 
+  /// Callback invoked when the server reports an API version whose major
+  /// segment differs from [AppConstants.kExpectedApiVersion]. App code
+  /// should show a non-dismissable "please update" modal.
+  void Function(String serverVersion)? onUpgradeRequired;
+
+  /// Latest X-Api-Version header observed. `null` until the first response.
+  String? lastServerApiVersion;
+
+  /// True once we've seen a server response whose major version doesn't
+  /// match [AppConstants.kExpectedApiVersion]. Remains true for the rest
+  /// of the session — once old, always old until the user updates.
+  bool isUpgradeRequired = false;
+
+  void _checkApiVersion(http.BaseResponse response) {
+    final serverVersion = response.headers['x-api-version'];
+    if (serverVersion == null || serverVersion.isEmpty) return;
+    lastServerApiVersion = serverVersion;
+    final serverMajor = serverVersion.split('.').first;
+    final clientMajor = AppConstants.kExpectedApiVersion.split('.').first;
+    if (serverMajor != clientMajor && !isUpgradeRequired) {
+      isUpgradeRequired = true;
+      onUpgradeRequired?.call(serverVersion);
+    }
+  }
+
   Future<http.Response> _handleResponse(Future<http.Response> request) async {
     try {
       final response = await request.timeout(_defaultTimeout);
+      _checkApiVersion(response);
       if (response.statusCode == 401) {
         onUnauthorized?.call();
       }
@@ -128,6 +154,8 @@ class ApiClient {
       filename: fileName,
     ));
 
-    return request.send().timeout(_defaultTimeout);
+    final streamed = await request.send().timeout(_defaultTimeout);
+    _checkApiVersion(streamed);
+    return streamed;
   }
 }

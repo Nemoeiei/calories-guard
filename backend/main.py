@@ -20,7 +20,7 @@ from slowapi.errors import RateLimitExceeded
 
 from database import get_db_connection
 from psycopg2.extras import RealDictCursor
-from app.core.config import ALLOWED_ORIGINS, IMAGEDIR
+from app.core.config import ALLOWED_ORIGINS, IMAGEDIR, API_VERSION
 
 # ── Sentry (optional: only if SENTRY_DSN is set) ──────────────────────────────
 _SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
@@ -55,8 +55,21 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept"],
+    # expose X-Api-Version so browser/Flutter clients can read it off every
+    # response (CORS strips non-safelist headers by default)
+    expose_headers=["X-Api-Version"],
     max_age=600,
 )
+
+
+# ── API version header ───────────────────────────────────────────────────────
+# Every response carries X-Api-Version so an old Flutter build can detect
+# a major bump and prompt the user to update. See docs/CHANGELOG_API.md.
+@app.middleware("http")
+async def add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Api-Version"] = API_VERSION
+    return response
 
 # ── Static files (uploaded images) ───────────────────────────────────────────
 if not os.path.exists(IMAGEDIR):

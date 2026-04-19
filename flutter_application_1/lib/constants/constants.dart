@@ -9,4 +9,9 @@ class AppConstants {
     'API_BASE_URL',
     defaultValue: 'http://10.0.2.2:8000',
   );
+
+  /// Must match the major segment ("YYYY") of backend `API_VERSION`.
+  /// Bump this in the same PR that upgrades the client to a breaking
+  /// server release. See docs/CHANGELOG_API.md for the contract.
+  static const String kExpectedApiVersion = '2026.04';
 }

@@ -118,3 +118,9 @@ else:
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
 IMAGEDIR = "static/images"
+
+# --- API version (bumped on breaking changes only) -------------------------
+# Format: "YYYY.MM" of the release the change shipped in. Clients compare
+# the major (year) segment; a year bump means clients MUST update.
+# See docs/CHANGELOG_API.md for the running list of what each version covers.
+API_VERSION = "2026.04"

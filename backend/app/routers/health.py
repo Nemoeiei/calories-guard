@@ -7,7 +7,7 @@ from slowapi.util import get_remote_address
 
 from database import get_db_connection
 from supabase_storage import upload_to_supabase
-from app.core.config import ALLOWED_MIME_TYPES, MAX_UPLOAD_SIZE
+from app.core.config import ALLOWED_MIME_TYPES, MAX_UPLOAD_SIZE, API_VERSION
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -20,8 +20,13 @@ def read_root():
 
 @router.get("/health")
 def health():
-    """Liveness probe for Render/Railway/Docker health checks."""
-    return {"status": "ok"}
+    """Liveness probe for Render/Railway/Docker health checks.
+
+    `api_version` is included so clients (Flutter / admin-web) can surface
+    an "update required" modal when the major segment no longer matches
+    `kExpectedApiVersion`. See docs/CHANGELOG_API.md.
+    """
+    return {"status": "ok", "api_version": API_VERSION}
 
 
 @router.post("/upload-image/")
