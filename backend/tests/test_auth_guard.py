@@ -11,6 +11,8 @@ PROTECTED_ENDPOINTS = [
     ("GET", "/users/1"),
     ("GET", "/users/1/lifecycle_check"),
     ("GET", "/users/1/weight_logs"),
+    ("GET", "/users/1/export"),
+    ("DELETE", "/users/1"),
     ("GET", "/water_logs/1"),
     ("GET", "/notifications/1"),
     ("GET", "/insights/1"),
