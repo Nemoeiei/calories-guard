@@ -17,6 +17,7 @@ from chatbot_agent import CoachingAgent
 from ai_models.multi_agent_system import NutritionMultiAgent, NutritionAnalysisAgent
 from app.models.schemas import ChatMessage, MealEstimateRequest
 from app.core.config import AI_ENABLED
+from app.core.observability import track, note_failure
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -71,15 +72,18 @@ def chat_with_coach(request: Request, payload: ChatMessage):
     msg = _sanitize_message(payload.message)
     if not msg:
         raise HTTPException(status_code=400, detail="ข้อความว่างเปล่า")
-    try:
-        response_text = _run_with_timeout(
-            coach_agent.generate_response, payload.user_id, msg
-        )
-        return {"response": response_text}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI Coach Error: {str(e)}")
+    with track("chat.coach", "POST /api/chat/coach",
+               user_id=payload.user_id, msg_len=len(msg)):
+        try:
+            response_text = _run_with_timeout(
+                coach_agent.generate_response, payload.user_id, msg
+            )
+            return {"response": response_text}
+        except HTTPException:
+            raise
+        except Exception as e:
+            note_failure("chat.coach", e, user_id=payload.user_id)
+            raise HTTPException(status_code=500, detail=f"AI Coach Error: {str(e)}")
 
 
 @router.post("/api/meals/estimate")
@@ -129,14 +133,17 @@ def chat_multi_agent(request: Request, payload: ChatMessage):
     msg = _sanitize_message(payload.message)
     if not msg:
         raise HTTPException(status_code=400, detail="ข้อความว่างเปล่า")
-    try:
-        response_text = _run_with_timeout(
-            _multi_agent.run,
-            payload.user_id, msg,
-            lat=payload.lat, lng=payload.lng,
-        )
-        return {"response": response_text, "agent": "multi_3"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Multi-Agent Error: {str(e)}")
+    with track("chat.multi", "POST /api/chat/multi",
+               user_id=payload.user_id, msg_len=len(msg)):
+        try:
+            response_text = _run_with_timeout(
+                _multi_agent.run,
+                payload.user_id, msg,
+                lat=payload.lat, lng=payload.lng,
+            )
+            return {"response": response_text, "agent": "multi_3"}
+        except HTTPException:
+            raise
+        except Exception as e:
+            note_failure("chat.multi", e, user_id=payload.user_id)
+            raise HTTPException(status_code=500, detail=f"Multi-Agent Error: {str(e)}")

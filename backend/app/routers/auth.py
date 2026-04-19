@@ -12,6 +12,7 @@ from jose import jwt
 
 from database import get_db_connection
 from app.core.security import get_password_hash, verify_password
+from app.core.observability import track
 
 
 _JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
@@ -177,6 +178,12 @@ def resend_verification_email(req: PasswordResetRequest):
 @router.post("/login")
 @limiter.limit("10/minute")
 def login(request: Request, user: UserLogin):
+    # SLO: login success rate is one of the three dashboard panels (#14)
+    with track("auth.login", "POST /login", email_domain=(user.email or "").split("@")[-1]):
+        return _login_impl(user)
+
+
+def _login_impl(user):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)

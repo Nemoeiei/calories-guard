@@ -7,6 +7,7 @@ from psycopg2.extras import RealDictCursor
 from database import get_db_connection
 from auth.dependencies import get_current_user
 from app.core.dependencies import check_ownership
+from app.core.observability import track, note_failure
 from app.models.schemas import DailyLogUpdate
 from app.services.nutrition_service import (
     _compute_target_calories, _meal_type_to_enum,
@@ -18,6 +19,13 @@ router = APIRouter()
 @router.post("/meals/{user_id}")
 def add_meal(user_id: int, log: DailyLogUpdate, current_user: dict = Depends(get_current_user)):
     check_ownership(current_user, user_id)
+    # SLO-critical path: #14 dashboard groups success/latency by this op
+    with track("meal.create", "POST /meals",
+               user_id=user_id, meal_type=log.meal_type, items=len(log.items)):
+        return _add_meal_impl(user_id, log)
+
+
+def _add_meal_impl(user_id: int, log: DailyLogUpdate):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -89,6 +97,7 @@ def add_meal(user_id: int, log: DailyLogUpdate, current_user: dict = Depends(get
         return {"message": "Meal recorded successfully"}
     except Exception as e:
         conn.rollback()
+        note_failure("meals.add_meal", e, user_id=user_id)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:
