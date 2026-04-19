@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'l10n/app_localizations.dart';
 import 'login_register/screens/welcome_screen.dart';
 import 'services/notification_helper.dart';
 import 'services/api_client.dart';
@@ -69,6 +71,23 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Inter',
       ),
+      // L10n: follow system locale, fall back to Thai if system is neither
+      // Thai nor English. See lib/l10n/app_localizations.dart for the hot-path
+      // catalogue (task #17).
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      localeResolutionCallback: (deviceLocale, supported) {
+        if (deviceLocale == null) return const Locale('th');
+        for (final l in supported) {
+          if (l.languageCode == deviceLocale.languageCode) return l;
+        }
+        return const Locale('th');
+      },
       home: const WelcomeScreen(),
     );
   }
