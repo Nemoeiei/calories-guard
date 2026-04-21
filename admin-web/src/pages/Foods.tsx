@@ -234,7 +234,7 @@ export default function Foods() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <th className="py-3 px-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10">รูป</th>
+                  <th className="py-3 px-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">รูป</th>
                   <th className="py-3 px-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">ชื่ออาหาร</th>
                   <th className="py-3 px-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">แคล</th>
                   <th className="py-3 px-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">โปรตีน</th>
@@ -249,9 +249,9 @@ export default function Foods() {
                     <td className="py-2.5 px-4">
                       {food.image_url ? (
                         <img src={normalizeImageUrl(food.image_url) ?? ''} alt={food.food_name}
-                          className="w-9 h-9 rounded-lg object-cover bg-gray-100" />
+                          className="w-14 h-14 min-w-[56px] rounded-xl object-cover bg-gray-100 shrink-0" />
                       ) : (
-                        <div className="w-9 h-9 rounded-lg bg-[#E8EFCF] flex items-center justify-center">
+                        <div className="w-14 h-14 min-w-[56px] rounded-xl bg-[#E8EFCF] flex items-center justify-center shrink-0">
                           <ImageOff size={14} className="text-[#628141]" />
                         </div>
                       )}

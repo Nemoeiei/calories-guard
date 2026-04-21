@@ -36,6 +36,9 @@ def get_db_connection():
     config = _build_config()
     try:
         conn = psycopg2.connect(**config)
+        with conn.cursor() as cur:
+            cur.execute("SET search_path TO cleangoal, public")
+        conn.commit()
         return conn
     except Exception as e:
         mode_label = "Supabase" if DB_MODE == "supabase" else "Local"

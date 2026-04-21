@@ -4,6 +4,7 @@ from typing import List, Optional, Dict
 
 from enum import Enum
 
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -723,32 +724,7 @@ def health():
 
 
 
-# --- API: Upload Image (Supabase Storage) ---
-
-from supabase_storage import upload_to_supabase
-
-@app.post("/upload-image/")
-async def upload_image(file: UploadFile = File(...), food_id: int = Form(None)):
-    """
-    อัปโหลดรูปภาพไปยัง Supabase Storage และคืน public URL
-    ถ้าส่ง food_id มาด้วย จะตั้งชื่อไฟล์เป็น '{food_id}_{originalname}.ext'
-    เพื่อให้ sync_food_images.py ค้นหาเจอได้อัตโนมัติ
-    """
-    try:
-        file_bytes = await file.read()
-        filename = file.filename or "image.jpg"
-        override = None
-        if food_id:
-            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
-            if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
-                ext = "jpg"
-            override = f"{food_id}_{filename.rsplit('.', 1)[0]}.{ext}"
-        public_url = upload_to_supabase(file_bytes, filename, filename_override=override)
-        return {"url": public_url}
-    except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload ล้มเหลว: {str(e)}")
+# --- API: Upload Image (Supabase Storage) --- moved to after approve endpoint
 
 
 
@@ -1115,7 +1091,7 @@ def admin_approve_temp_food(tf_id: int, req: TempFoodApprove):
             SELECT
                 food_name, calories, protein, carbs, fat,
                 COALESCE(%s, NULL),
-                COALESCE(%s, 'dish'),
+                COALESCE(%s, 'dish')::cleangoal.food_type,
                 COALESCE(%s, NULL),
                 COALESCE(%s, NULL), COALESCE(%s, NULL),
                 COALESCE(%s, NULL), COALESCE(%s, 0),
@@ -1146,10 +1122,53 @@ def admin_approve_temp_food(tf_id: int, req: TempFoodApprove):
         raise
     except Exception as e:
         conn.rollback()
+        logging.error(f"[approve error] {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:
             conn.close()
+
+
+@app.post("/upload-image/")
+async def upload_image(file: UploadFile = File(...), food_id: str = Form(None)):
+    import requests as _requests
+    from urllib.parse import quote
+    supabase_url = os.getenv("SUPABASE_PROJECT_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+    bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "food-images")
+    logging.error(f"[upload-image] url={'SET' if supabase_url else 'MISSING'} key={'SET' if supabase_key else 'MISSING'} bucket={bucket}")
+    if not supabase_url or not supabase_key:
+        raise HTTPException(status_code=500, detail="SUPABASE_PROJECT_URL / SUPABASE_SERVICE_KEY not configured")
+    try:
+        prefix = f"{food_id}_" if food_id else ""
+        filename = f"{prefix}{file.filename}"
+        fid = int(food_id) if food_id and food_id.isdigit() else 0
+        if 1 <= fid <= 100:
+            subfolder = "1-100"
+        elif 1249 <= fid <= 1349:
+            subfolder = "1249-1349"
+        else:
+            subfolder = ""
+        storage_path = f"{subfolder}/{filename}" if subfolder else filename
+        content = await file.read()
+        content_type = file.content_type or "application/octet-stream"
+        upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{quote(storage_path)}"
+        headers = {
+            "Authorization": f"Bearer {supabase_key}",
+            "Content-Type": content_type,
+            "x-upsert": "true",
+        }
+        res = _requests.post(upload_url, data=content, headers=headers)
+        logging.error(f"[upload-image] status={res.status_code} path={storage_path} resp={res.text[:200]}")
+        if res.status_code not in (200, 201):
+            raise HTTPException(status_code=500, detail=f"Storage upload failed: {res.text}")
+        url = f"{supabase_url}/storage/v1/object/public/{bucket}/{quote(storage_path)}"
+        return {"url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"[upload-image error] {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.delete("/admin/temp-foods/{tf_id}")
@@ -1613,7 +1632,7 @@ def verify_email(req: UserVerifyEmail):
 
         
 
-        if not code_record or code_record['expires_at'] < datetime.now():
+        if not code_record or code_record['expires_at'].replace(tzinfo=None) < datetime.now():
 
             raise HTTPException(status_code=400, detail="Invalid or expired verification code")
 
@@ -2337,7 +2356,7 @@ def password_reset_verify(req: PasswordResetVerify):
 
         row = cur.fetchone()
 
-        if not row or row['expires_at'] < datetime.now():
+        if not row or row['expires_at'].replace(tzinfo=None) < datetime.now():
 
             raise HTTPException(status_code=401, detail="รหัสไม่ถูกต้องหรือหมดอายุ")
 
@@ -2397,7 +2416,7 @@ def password_reset_confirm(req: PasswordResetConfirm):
 
         row = cur.fetchone()
 
-        if not row or row['expires_at'] < datetime.now():
+        if not row or row['expires_at'].replace(tzinfo=None) < datetime.now():
 
             raise HTTPException(status_code=401, detail="รหัสไม่ถูกต้องหรือหมดอายุ")
 
@@ -2573,13 +2592,15 @@ def add_meal(user_id: int, log: DailyLogUpdate):
 
         for item in log.items:
 
+            fid = item.food_id if (item.food_id and item.food_id != 0) else None
+
             cur.execute("""
 
                 INSERT INTO detail_items (meal_id, food_id, food_name, amount, unit_id, cal_per_unit, protein_per_unit, carbs_per_unit, fat_per_unit)
 
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 
-            """, (meal_id, item.food_id, item.food_name, item.amount, item.unit_id,
+            """, (meal_id, fid, item.food_name, item.amount, item.unit_id,
                   item.cal_per_unit, item.protein_per_unit, item.carbs_per_unit, item.fat_per_unit))
 
 
@@ -2642,6 +2663,8 @@ def add_meal(user_id: int, log: DailyLogUpdate):
     except Exception as e:
 
         conn.rollback()
+
+        logging.error(f"[meals error] {type(e).__name__}: {e}")
 
         raise HTTPException(status_code=500, detail=str(e))
 
