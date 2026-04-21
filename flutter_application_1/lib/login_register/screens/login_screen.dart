@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../providers/user_data_provider.dart';
 import '../../services/auth_service.dart';
@@ -28,7 +27,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   // ── State ─────────────────────────────────────────────────────
   bool _isLoading = false;
-  String? _socialLoading; // 'google' | 'facebook'
+  bool _isGoogleLoading = false;
   bool _obscurePass = true;
 
   // ── Animation ─────────────────────────────────────────────────
@@ -45,11 +44,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.initState();
     _animCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 700));
-    _fadeAnim =
-        CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
-    _slideAnim =
-        Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
-            .animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut));
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut));
     _animCtrl.forward();
   }
 
@@ -88,8 +85,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ]),
         backgroundColor: Colors.redAccent,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -100,14 +96,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    final result = await _authService.login(
-        _emailCtrl.text.trim(), _passCtrl.text);
+    final result =
+        await _authService.login(_emailCtrl.text.trim(), _passCtrl.text);
     setState(() => _isLoading = false);
 
     if (result['success']) {
       final data = result['data'];
       ref.read(userDataProvider.notifier).setUserId(data['user_id'] as int);
-      ref.read(userDataProvider.notifier)
+      ref
+          .read(userDataProvider.notifier)
           .setLoginInfo(_emailCtrl.text.trim(), _passCtrl.text);
       await Future.delayed(const Duration(milliseconds: 100));
       _navigateAfterLogin(data['role_id'] ?? 2);
@@ -138,11 +135,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   // ── Google Sign-In ────────────────────────────────────────────
   Future<void> _handleGoogleSignIn() async {
-    setState(() => _socialLoading = 'google');
+    setState(() => _isGoogleLoading = true);
     try {
       final googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
-        setState(() => _socialLoading = null);
+        setState(() => _isGoogleLoading = false);
         return; // user cancelled
       }
       final googleAuth = await googleUser.authentication;
@@ -163,35 +160,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     } catch (e) {
       _showError('Google Sign-In ล้มเหลว กรุณาลองใหม่');
     }
-    if (mounted) setState(() => _socialLoading = null);
-  }
-
-  // ── Facebook Sign-In ──────────────────────────────────────────
-  Future<void> _handleFacebookSignIn() async {
-    setState(() => _socialLoading = 'facebook');
-    try {
-      final loginResult = await FacebookAuth.instance.login();
-      if (loginResult.status != LoginStatus.success) {
-        setState(() => _socialLoading = null);
-        return; // user cancelled or error
-      }
-      final credential = FacebookAuthProvider.credential(
-        loginResult.accessToken!.tokenString,
-      );
-      final userCred =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-      final fbUser = userCred.user!;
-
-      await _syncSocialBackend(
-        email: fbUser.email ?? '',
-        name: fbUser.displayName ?? 'User',
-        uid: fbUser.uid,
-        provider: 'facebook',
-      );
-    } catch (e) {
-      _showError('Facebook Sign-In ล้มเหลว กรุณาลองใหม่');
-    }
-    if (mounted) setState(() => _socialLoading = null);
+    if (mounted) setState(() => _isGoogleLoading = false);
   }
 
   // ── Build ─────────────────────────────────────────────────────
@@ -303,8 +272,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) =>
-                                  const ForgotPasswordScreen())),
+                              builder: (_) => const ForgotPasswordScreen())),
                       style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 6)),
@@ -326,7 +294,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     width: double.infinity,
                     height: 54,
                     child: ElevatedButton(
-                      onPressed: (_isLoading || _socialLoading != null)
+                      onPressed: (_isLoading || _isGoogleLoading)
                           ? null
                           : _handleLogin,
                       style: ElevatedButton.styleFrom(
@@ -376,34 +344,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                   const SizedBox(height: 20),
 
-                  // ── Social buttons (row) ──────────────────────
-                  Row(children: [
-                    Expanded(
-                      child: _buildSocialButton(
-                        label: 'Google',
-                        icon: const FaIcon(FontAwesomeIcons.google,
-                            size: 18, color: Color(0xFFEA4335)),
-                        borderColor: const Color(0xFFEA4335).withOpacity(0.3),
-                        isLoading: _socialLoading == 'google',
-                        onTap: (_isLoading || _socialLoading != null)
-                            ? null
-                            : _handleGoogleSignIn,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: _buildSocialButton(
-                        label: 'Facebook',
-                        icon: const FaIcon(FontAwesomeIcons.facebookF,
-                            size: 18, color: Color(0xFF1877F2)),
-                        borderColor: const Color(0xFF1877F2).withOpacity(0.3),
-                        isLoading: _socialLoading == 'facebook',
-                        onTap: (_isLoading || _socialLoading != null)
-                            ? null
-                            : _handleFacebookSignIn,
-                      ),
-                    ),
-                  ]),
+                  // ── Google Sign-In Button (only) ──────────────
+                  _buildSocialButton(
+                    label: 'Google',
+                    icon: const FaIcon(FontAwesomeIcons.google,
+                        size: 18, color: Color(0xFFEA4335)),
+                    borderColor: const Color(0xFFEA4335).withOpacity(0.3),
+                    isLoading: _isGoogleLoading,
+                    onTap: (_isLoading || _isGoogleLoading)
+                        ? null
+                        : _handleGoogleSignIn,
+                  ),
 
                   const SizedBox(height: 28),
 
@@ -430,7 +381,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.person_add_outlined, size: 18),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(
                             'สร้างบัญชีใหม่',
                             style: TextStyle(
@@ -479,8 +430,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           padding: const EdgeInsets.only(left: 14, right: 10),
           child: Icon(icon, size: 20, color: Colors.grey.shade400),
         ),
-        prefixIconConstraints:
-            const BoxConstraints(minWidth: 0, minHeight: 0),
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         suffixIcon: suffix,
         filled: true,
         fillColor: Colors.white,
@@ -500,13 +450,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-              const BorderSide(color: Colors.redAccent, width: 1.2),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-              const BorderSide(color: Colors.redAccent, width: 1.5),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
       ),
     );
@@ -525,6 +473,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         height: 50,
+        width: double.infinity,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),

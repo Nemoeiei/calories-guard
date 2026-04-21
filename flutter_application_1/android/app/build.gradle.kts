@@ -28,9 +28,6 @@ android {
     }
 
     signingConfigs {
-        getByName("debug") {
-            // ใช้ค่า default
-        }
         create("release") {
             storeFile = file("${System.getenv("USERPROFILE")}\\.android\\debug.keystore")
             storePassword = "android"
@@ -42,8 +39,19 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
