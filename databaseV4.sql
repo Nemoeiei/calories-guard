@@ -2,7 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict JZGjW12U9yIRBfMzyLoAC32F7rWMC82dUEf7N3flP1kO0R0Yns7sywc1weZOHgF
 
 -- Dumped from database version 18.1
 -- Dumped by pg_dump version 18.1
@@ -3470,5 +3469,4 @@ ALTER TABLE ONLY cleangoal.weight_logs
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JZGjW12U9yIRBfMzyLoAC32F7rWMC82dUEf7N3flP1kO0R0Yns7sywc1weZOHgF
 

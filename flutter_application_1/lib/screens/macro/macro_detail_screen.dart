@@ -203,7 +203,7 @@ class _MacroDetailScreenState extends ConsumerState<MacroDetailScreen> {
                       Container(
                         width: double.infinity,
                         color: isOver
-                            ? const Color(0xFFD76A3C).withValues(alpha: 0.2)
+                            ? const Color(0xFFD76A3C).withOpacity(0.2)
                             : const Color(0xFFE8EFCF),
                         padding: const EdgeInsets.symmetric(
                             vertical: 20, horizontal: 20),

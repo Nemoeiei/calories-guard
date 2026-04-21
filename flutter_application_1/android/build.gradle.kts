@@ -5,6 +5,17 @@ allprojects {
     }
 }
 
+subprojects {
+    if (project.name != "app") {
+        project.extensions.extraProperties["flutter"] = mapOf(
+            "compileSdkVersion" to 36,
+            "minSdkVersion" to 26,
+            "targetSdkVersion" to 36,
+            "ndkVersion" to "27.0.12077973"
+        )
+    }
+}
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")

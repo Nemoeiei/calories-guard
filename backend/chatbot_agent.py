@@ -20,6 +20,8 @@ class CoachingAgent:
 
     def fetch_user_context(self, user_id: int):
         conn = get_db_connection()
+        if not conn:
+            return None
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             
