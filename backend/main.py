@@ -3807,48 +3807,72 @@ def lifecycle_check(user_id: int):
                 last_weight_date = last_weight_date.date()
             days_since_weight = (today - last_weight_date).days
         else:
-            days_since_weight = 9999  # ยังไม่เคยบันทึก
+            days_since_weight = 9999
         weight_overdue = days_since_weight >= 14
 
         # ── 2. วันเกิด / TDEE recalculation ────────
         is_birthday = False
         tdee_needs_update = False
-        if user["birth_date"]:
-            bday = user["birth_date"]
-            is_birthday = (bday.month == today.month and bday.day == today.day)
-            # birthday ผ่านแล้วปีนี้แต่ last_tdee_recalc ยังเป็นปีก่อน
-            birthday_this_year = date(today.year, bday.month, bday.day)
-            last_recalc = user["last_tdee_recalc_date"]
+        birth_date = user.get("birth_date")
+        if birth_date:
+            if hasattr(birth_date, 'date'):
+                birth_date = birth_date.date()
+            elif isinstance(birth_date, str):
+                birth_date = datetime.strptime(birth_date[:10], "%Y-%m-%d").date()
+            is_birthday = (birth_date.month == today.month and birth_date.day == today.day)
+            birthday_this_year = date(today.year, birth_date.month, birth_date.day)
+            last_recalc = user.get("last_tdee_recalc_date")
+            if last_recalc:
+                if hasattr(last_recalc, 'date'):
+                    last_recalc = last_recalc.date()
+                elif isinstance(last_recalc, str):
+                    last_recalc = datetime.strptime(last_recalc[:10], "%Y-%m-%d").date()
             if birthday_this_year <= today:
-                if last_recalc is None or last_recalc < birthday_this_year:
+                if last_recalc is None or (hasattr(last_recalc, 'year') and last_recalc.year < birthday_this_year.year):
                     tdee_needs_update = True
 
         # ── 3. Monthly summary (ทุก 30 วัน) ────────
         monthly_summary = False
         created = user.get("created_at")
         if created:
-            days_since_join = (today - created.date()).days if hasattr(created, 'date') else 0
+            if hasattr(created, 'date'):
+                created_date = created.date()
+            elif isinstance(created, str):
+                created_date = datetime.strptime(created[:10], "%Y-%m-%d").date()
+            else:
+                created_date = today
+            days_since_join = (today - created_date).days
             monthly_summary = (days_since_join > 0 and days_since_join % 30 == 0)
 
         # ── 4. Goal progress / on_track ─────────────
         goal_days_left = None
         on_track = None
-        if user["goal_target_date"] and user["goal_start_date"]:
-            gtd = user["goal_target_date"]
-            gsd = user["goal_start_date"]
-            if hasattr(gtd, 'date'): gtd = gtd.date()
-            if hasattr(gsd, 'date'): gsd = gsd.date()
+        goal_target_date = user.get("goal_target_date")
+        goal_start_date = user.get("goal_start_date")
+        current_weight = user.get("current_weight_kg")
+        target_weight = user.get("target_weight_kg")
+        
+        if goal_target_date and goal_start_date and current_weight and target_weight:
+            gtd = goal_target_date
+            gsd = goal_start_date
+            if hasattr(gtd, 'date'):
+                gtd = gtd.date()
+            elif isinstance(gtd, str):
+                gtd = datetime.strptime(gtd[:10], "%Y-%m-%d").date()
+            if hasattr(gsd, 'date'):
+                gsd = gsd.date()
+            elif isinstance(gsd, str):
+                gsd = datetime.strptime(gsd[:10], "%Y-%m-%d").date()
+            
             goal_days_left = (gtd - today).days
             total_days = (gtd - gsd).days
             days_elapsed = (today - gsd).days
-            if total_days > 0 and user["current_weight_kg"] and user["target_weight_kg"]:
-                start_w = float(user["current_weight_kg"])   # ใช้ current แทน start (no start_weight stored)
-                target_w = float(user["target_weight_kg"])
-                # Expected weight by now (linear interpolation)
+            if total_days > 0:
+                start_w = float(current_weight)
+                target_w = float(target_weight)
                 expected_loss_pct = days_elapsed / total_days
                 expected_weight = start_w + (target_w - start_w) * expected_loss_pct
-                # on_track ถ้าน้ำหนักปัจจุบัน ≤ expected (กรณีลด)
-                on_track = float(user["current_weight_kg"]) <= expected_weight + 0.5  # ±0.5 kg tolerance
+                on_track = float(current_weight) <= expected_weight + 0.5
 
         return {
             "user_id": user_id,
@@ -3861,10 +3885,21 @@ def lifecycle_check(user_id: int):
             "goal_days_left": goal_days_left,
             "on_track": on_track,
         }
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # log error และ return response แทน 500
+        print(f"[lifecycle_check] Error: {e}")
+        return {
+            "user_id": user_id,
+            "today": today.isoformat(),
+            "weight_overdue": False,
+            "days_since_weight": None,
+            "is_birthday": False,
+            "tdee_needs_update": False,
+            "monthly_summary": False,
+            "goal_days_left": None,
+            "on_track": None,
+            "error": str(e)
+        }
     finally:
         if conn: conn.close()
 
