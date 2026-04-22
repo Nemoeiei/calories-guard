@@ -1525,7 +1525,7 @@ def resend_verification_email(req: PasswordResetRequest):
     try:
         supabase_auth.auth.resend({
             "email": req.email,
-            "type": "signup",
+            "type": "email",
         })
         return {"message": "ส่งรหัสยืนยันใหม่ไปยังอีเมลแล้ว"}
     except Exception as e:
@@ -1689,10 +1689,13 @@ def social_login(body: SocialLoginRequest):
             conn.commit()
 
             return {
+                "message": "Login successful",
                 "user_id":    int(user['user_id']),
                 "email":      user['email'],
                 "username":   user.get('username') or body.name,
                 "role_id":    int(user.get('role_id') or 2),
+                "current_streak": int(streak),
+                "access_token": None,
                 "provider":   body.provider,
             }
 
@@ -1713,10 +1716,13 @@ def social_login(body: SocialLoginRequest):
             conn.commit()
 
             return {
+                "message": "Login successful",
                 "user_id":  int(new_id),
                 "email":    body.email,
                 "username": body.name,
                 "role_id":  2,
+                "current_streak": 1,
+                "access_token": None,
                 "provider": body.provider,
                 "is_new_user": True,
             }
