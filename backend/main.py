@@ -58,11 +58,11 @@ SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 
-SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+SMTP_USERNAME = os.getenv("SMTP_USERNAME") or os.getenv("SMTP_EMAIL", "")
 
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 
-FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
+FROM_EMAIL = os.getenv("FROM_EMAIL") or SMTP_USERNAME
 
 FROM_NAME = os.getenv("FROM_NAME", "Calories Guard")
 
@@ -210,6 +210,52 @@ def send_password_reset_email(email: str, username: str, code: str):
 
     send_email(email, subject, html)
 
+
+
+def _init_email_verification_table():
+
+    conn = get_db_connection()
+
+    if not conn:
+
+        return
+
+    try:
+
+        cur = conn.cursor()
+
+        cur.execute("""
+
+        CREATE TABLE IF NOT EXISTS email_verification_codes (
+
+            id BIGSERIAL PRIMARY KEY,
+
+            user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+
+            code VARCHAR(10) NOT NULL,
+
+            expires_at TIMESTAMP NOT NULL,
+
+            used BOOLEAN DEFAULT FALSE,
+
+            created_at TIMESTAMP DEFAULT NOW()
+
+        )
+
+        """)
+
+        conn.commit()
+
+    except Exception as e:
+
+        print('Could not create email verification table:', e)
+
+    finally:
+
+        conn.close()
+
+
+_init_email_verification_table()
 
 
 # --- CORS: allow list อ่านจาก env ALLOWED_ORIGINS (comma-separated) ---
@@ -1575,18 +1621,6 @@ def register(user: UserRegister):
         code = str(__import__('random').randint(100000, 999999))
 
         expires = datetime.now() + timedelta(minutes=15)
-
-        cur.execute("""
-
-            CREATE TABLE IF NOT EXISTS email_verification_codes (
-
-                id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL, code VARCHAR(10) NOT NULL,
-
-                expires_at TIMESTAMP NOT NULL, used BOOLEAN DEFAULT FALSE
-
-            )
-
-        """)
 
         cur.execute("INSERT INTO email_verification_codes (user_id, code, expires_at) VALUES (%s, %s, %s)",
 
