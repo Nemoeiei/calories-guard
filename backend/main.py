@@ -6,24 +6,18 @@ from enum import Enum
 
 import logging
 import os
+import secrets
 
 from dotenv import load_dotenv
 
 load_dotenv()
+from supabase import create_client
 
 import shutil
 
 from uuid import uuid4
 
-import smtplib
-
-from email.mime.text import MIMEText
-
-from email.mime.multipart import MIMEMultipart
-
-
-
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -43,6 +37,11 @@ from psycopg2.extras import RealDictCursor
 
 app = FastAPI()
 
+# --- Supabase Auth Client ---
+SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("SUPABASE_PROJECT_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_KEY else None
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     logging.error(f"Validation error: {exc.errors()}, body: {exc.body}")
@@ -52,211 +51,43 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
-# --- Email Config ---
-
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-
-SMTP_USERNAME = os.getenv("SMTP_USERNAME") or os.getenv("SMTP_EMAIL", "")
-
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-
-FROM_EMAIL = os.getenv("FROM_EMAIL") or SMTP_USERNAME
-
-FROM_NAME = os.getenv("FROM_NAME", "Calories Guard")
-SMTP_TIMEOUT = int(os.getenv("SMTP_TIMEOUT", "10"))
-
-
-
-def send_email(to_email: str, subject: str, html_body: str) -> bool:
-
-    """Send email via SMTP. Returns True if successful."""
-
-    if not SMTP_USERNAME or not SMTP_PASSWORD:
-
-        print(f"[Email] SMTP not configured. Would send to {to_email}: {subject}")
-
-        return False
-
-    try:
-
-        msg = MIMEMultipart("alternative")
-
-        msg["Subject"] = subject
-
-        msg["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
-
-        msg["To"] = to_email
-
-        msg.attach(MIMEText(html_body, "html"))
-
-        
-
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
-
-            server.starttls()
-
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-
-            server.sendmail(FROM_EMAIL, to_email, msg.as_string())
-
-        print(f"[Email] Sent to {to_email}: {subject}")
-
-        return True
-
-    except Exception as e:
-
-        print(f"[Email] Failed to send to {to_email}: {e}")
-
-        return False
-
-
-
-def send_welcome_email(email: str, username: str):
-
-    subject = "ยินดีต้อนรับสู่ Calories Guard!"
-
-    html = f"""
-
-    <html>
-
-    <body style="font-family: sans-serif; padding: 20px;">
-
-        <h2>สวัสดีครับ/ค่ะ {username}!</h2>
-
-        <p>ขอบคุณที่สมัครสมาชิก <strong>Calories Guard</strong></p>
-
-        <p>ตอนนี้คุณสามารถเริ่มติดตามการรับประทานอาหารและเป้าหมายสุขภาพของคุณได้แล้ว</p>
-
-        <p>หากมีคำถาม ติดต่อเราได้เสมอ</p>
-
-        <br>
-
-        <p>ด้วยความปรารถนาดี,<br>ทีมงาน Calories Guard</p>
-
-    </html>
-
-    """
-
-    send_email(email, subject, html)
-
-
-
-def send_verification_email(email: str, username: str, code: str):
-
-    subject = "ยืนยันอีเมลของคุณ - Calories Guard"
-
-    html = f"""
-
-    <html>
-
-    <body style="font-family: sans-serif; padding: 20px;">
-
-        <h2>สวัสดีครับ/ค่ะ {username}!</h2>
-
-        <p>กรุณายืนยันอีเมลของคุณเพื่อเริ่มใช้งาน</p>
-
-        <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-
-            <h3>รหัสยืนยันของคุณ: <strong>{code}</strong></h3>
-
-        </div>
-
-        <p>ขอบคุณที่ร่วมเป็นส่วนหนึ่งกับเรา</p>
-
-    </body>
-
-    </html>
-
-    """
-
-    send_email(email, subject, html)
-
-
-
-def send_password_reset_email(email: str, username: str, code: str):
-
-    subject = "รีเซ็ตรหัสผ่าน - Calories Guard"
-
-    html = f"""
-
-    <html>
-
-    <body style="font-family: sans-serif; padding: 20px;">
-
-        <h2>สวัสดีครับ/ค่ะ {username}</h2>
-
-        <p>คุณได้ร้องขอการรีเซ็ตรหัสผ่าน</p>
-
-        <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-
-            <h3>รหัสยืนยันของคุณ: <strong>{code}</strong></h3>
-
-        </div>
-
-        <p>รหัสนี้จะหมดอายุภายใน 15 นาที</p>
-
-        <p>หากคุณไม่ได้ร้องขอการรีเซ็ตรหัสผ่าน กรุณาเพิกเฉยต่ออีเมลนี้</p>
-
-        <br>
-
-        <p>ด้วยความปรารถนาดี,<br>ทีมงาน Calories Guard</p>
-
-    </body>
-
-    </html>
-
-    """
-
-    send_email(email, subject, html)
-
-
-
-def _init_email_verification_table():
-
-    conn = get_db_connection()
-
-    if not conn:
-
-        return
-
-    try:
-
-        cur = conn.cursor()
-
-        cur.execute("""
-
-        CREATE TABLE IF NOT EXISTS email_verification_codes (
-
-            id BIGSERIAL PRIMARY KEY,
-
-            user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-
-            code VARCHAR(10) NOT NULL,
-
-            expires_at TIMESTAMP NOT NULL,
-
-            used BOOLEAN DEFAULT FALSE,
-
-            created_at TIMESTAMP DEFAULT NOW()
-
+def _require_supabase():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured")
+
+
+def _ensure_local_user(email: str, username: str | None = None, is_verified: bool = False):
+    """Keep app-specific users row in sync using Supabase PostgREST."""
+    _require_supabase()
+    res = supabase.table("users").select("*").eq("email", email).limit(1).execute()
+    local_user = res.data[0] if res.data else None
+    if local_user:
+        if is_verified and not local_user.get("is_email_verified"):
+            upd = (
+                supabase.table("users")
+                .update({"is_email_verified": True})
+                .eq("user_id", local_user["user_id"])
+                .execute()
+            )
+            local_user = upd.data[0] if upd.data else local_user
+        return local_user
+
+    local_username = (username or email.split("@")[0]).strip() or "user"
+    fake_hash = secrets.token_hex(32)  # Password is managed by Supabase Auth.
+    ins = (
+        supabase.table("users")
+        .insert(
+            {
+                "email": email,
+                "password_hash": fake_hash,
+                "username": local_username,
+                "role_id": 2,
+                "is_email_verified": is_verified,
+            }
         )
-
-        """)
-
-        conn.commit()
-
-    except Exception as e:
-
-        print('Could not create email verification table:', e)
-
-    finally:
-
-        conn.close()
-
-
-_init_email_verification_table()
+        .execute()
+    )
+    return ins.data[0] if ins.data else None
 
 
 # --- CORS: allow list อ่านจาก env ALLOWED_ORIGINS (comma-separated) ---
@@ -565,14 +396,15 @@ class UserRegister(BaseModel):
     password: str
     username: str
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "email": "user@example.com",
                 "password": "password123",
                 "username": "user123"
             }
         }
+    }
 
 
 
@@ -633,29 +465,6 @@ class UserUpdate(BaseModel):
 class PasswordResetRequest(BaseModel):
 
     email: str
-
-
-
-class PasswordResetVerify(BaseModel):
-
-    email: str
-
-    code: str
-
-    birth_date: date
-
-
-
-class PasswordResetConfirm(BaseModel):
-
-    email: str
-
-    code: str
-
-    birth_date: date
-
-    new_password: str
-
 
 
 # ✅ Model สำหรับสร้างอาหาร (รองรับรูป)
@@ -1578,82 +1387,48 @@ def delete_food(food_id: int):
 
 @app.post("/register")
 
-def register(user: UserRegister, background_tasks: BackgroundTasks):
-    import logging
+def register(user: UserRegister):
     import re
+    _require_supabase()
     logging.info(f"Register request: email={user.email}, username={user.username}")
     email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     if not re.match(email_pattern, user.email):
         logging.warning(f"Invalid email format: {user.email}")
         raise HTTPException(status_code=400, detail="Invalid email format")
 
-    conn = get_db_connection()
-
     try:
 
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        result = supabase.auth.sign_up({
+            "email": user.email,
+            "password": user.password,
+            "options": {
+                "data": {
+                    "username": user.username,
+                    "role_id": 2,
+                }
+            },
+        })
 
-        cur.execute("SELECT * FROM users WHERE email = %s", (user.email,))
+        created_user = getattr(result, "user", None)
+        is_verified = bool(getattr(created_user, "email_confirmed_at", None))
+        local_user = _ensure_local_user(user.email, user.username, is_verified=is_verified)
+        if not local_user:
+            raise HTTPException(status_code=500, detail="Could not create local user profile")
 
-        if cur.fetchone():
-
-            raise HTTPException(status_code=400, detail="Email already exists")
-
-        
-
-        hashed_pw = get_password_hash(user.password)
-
-        cur.execute("""
-
-            INSERT INTO users (email, password_hash, username, role_id, is_email_verified)
-
-            VALUES (%s, %s, %s, 2, FALSE)
-
-            RETURNING user_id, email, username
-
-        """, (user.email, hashed_pw, user.username))
-
-        new_user = cur.fetchone()
-
-        
-
-        # Generate OTP Verification code
-
-        code = str(__import__('random').randint(100000, 999999))
-
-        expires = datetime.now() + timedelta(minutes=15)
-
-        cur.execute("INSERT INTO email_verification_codes (user_id, code, expires_at) VALUES (%s, %s, %s)",
-
-                    (new_user['user_id'], code, expires))
-
-
-
-        conn.commit()
-
-        
-
-        background_tasks.add_task(send_verification_email, new_user['email'], new_user['username'], code)
-
-        
-
-        return {"message": "User created. Please check email for verification code.", "user": new_user}
+        return {
+            "message": "User created. Please check email for verification code.",
+            "user": {
+                "user_id": local_user["user_id"],
+                "email": local_user["email"],
+                "username": local_user["username"],
+            },
+        }
 
     except HTTPException:
-
-        conn.rollback()
-
         raise
 
-    except Exception:
-
-        conn.rollback()
-
-        raise HTTPException(status_code=500, detail="Registration failed. Please try again later.")
-
-    finally:
-
-        if conn: conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 
@@ -1661,62 +1436,31 @@ def register(user: UserRegister, background_tasks: BackgroundTasks):
 
 @app.post("/verify-email")
 
-def verify_email(req: UserVerifyEmail, background_tasks: BackgroundTasks):
-
-    conn = get_db_connection()
+def verify_email(req: UserVerifyEmail):
+    _require_supabase()
 
     try:
 
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        result = supabase.auth.verify_otp({
+            "email": req.email,
+            "token": req.code,
+            "type": "signup",
+        })
+        verified_user = getattr(result, "user", None)
+        username = None
+        if verified_user and getattr(verified_user, "user_metadata", None):
+            username = verified_user.user_metadata.get("username")
+        local_user = _ensure_local_user(req.email, username=username, is_verified=True)
+        if not local_user:
+            raise HTTPException(status_code=500, detail="Could not sync local user profile")
 
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
-
-        user = cur.fetchone()
-
-        if not user:
-
-            raise HTTPException(status_code=404, detail="Email not found")
-
-            
-
-        cur.execute("SELECT * FROM email_verification_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY id DESC LIMIT 1", (user['user_id'], req.code))
-
-        code_record = cur.fetchone()
-
-        
-
-        if not code_record or code_record['expires_at'].replace(tzinfo=None) < datetime.now():
-
-            raise HTTPException(status_code=400, detail="Invalid or expired verification code")
-
-        
-
-        cur.execute("UPDATE users SET is_email_verified = TRUE WHERE user_id = %s", (user['user_id'],))
-
-        cur.execute("UPDATE email_verification_codes SET used = TRUE WHERE id = %s", (code_record['id'],))
-
-        conn.commit()
-
-        
-
-        background_tasks.add_task(send_welcome_email, user['email'], user['username'])
-
-        
-
-        return {"message": "Email verified successfully", "user_id": user['user_id']}
+        return {"message": "Email verified successfully", "user_id": local_user["user_id"]}
 
     except HTTPException:
         raise
 
     except Exception as e:
-
-        conn.rollback()
-
-        raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-
-        if conn: conn.close()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 
@@ -1724,70 +1468,21 @@ def verify_email(req: UserVerifyEmail, background_tasks: BackgroundTasks):
 
 @app.post("/resend-verification-email")
 
-def resend_verification_email(req: PasswordResetRequest, background_tasks: BackgroundTasks):
-
-    conn = get_db_connection()
+def resend_verification_email(req: PasswordResetRequest):
+    _require_supabase()
 
     try:
-
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
-
-        user = cur.fetchone()
-
-        if not user:
-
-            raise HTTPException(status_code=404, detail="ไม่พบอีเมลนี้ในระบบ")
-
-        if user['is_email_verified']:
-
-            raise HTTPException(status_code=400, detail="อีเมลนี้ได้รับการยืนยันแล้ว")
-
-        
-
-        # Invalidate old codes
-
-        cur.execute("UPDATE email_verification_codes SET used = TRUE WHERE user_id = %s", (user['user_id'],))
-
-        
-
-        # Generate new OTP code
-
-        import random
-
-        code = str(random.randint(100000, 999999))
-
-        expires = datetime.now() + timedelta(minutes=15)
-
-        
-
-        cur.execute("INSERT INTO email_verification_codes (user_id, code, expires_at) VALUES (%s, %s, %s)",
-
-                    (user['user_id'], code, expires))
-
-        conn.commit()
-
-        
-
-        background_tasks.add_task(send_verification_email, user['email'], user['username'], code)
-
-        
-
+        supabase.auth.resend({
+            "email": req.email,
+            "type": "signup",
+        })
         return {"message": "ส่งรหัสยืนยันใหม่ไปยังอีเมลแล้ว"}
-
-    except HTTPException:
-        raise
-
     except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-        conn.rollback()
-
-        raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-
-        if conn: conn.close()
+@app.post("/resend-verification")
+def resend_verification(req: PasswordResetRequest):
+    return resend_verification_email(req)
 
 
 
@@ -1796,25 +1491,29 @@ def resend_verification_email(req: PasswordResetRequest, background_tasks: Backg
 @app.post("/login")
 
 def login(user: UserLogin):
-
-    conn = get_db_connection()
+    _require_supabase()
 
     try:
-
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT * FROM users WHERE email = %s", (user.email,))
-
-        db_user = cur.fetchone()
-
-        
-
-        if not db_user or not verify_password(user.password, db_user['password_hash']):
-
+        auth_result = supabase.auth.sign_in_with_password({
+            "email": user.email,
+            "password": user.password,
+        })
+        auth_user = getattr(auth_result, "user", None)
+        auth_session = getattr(auth_result, "session", None)
+        if not auth_user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        if not db_user.get('is_email_verified'):
+        metadata = getattr(auth_user, "user_metadata", {}) or {}
+        username = metadata.get("username")
+        db_user = _ensure_local_user(
+            user.email,
+            username=username,
+            is_verified=bool(getattr(auth_user, "email_confirmed_at", None)),
+        )
+        if not db_user:
+            raise HTTPException(status_code=500, detail="Could not sync local user profile")
 
+        if not db_user.get('is_email_verified'):
             raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox for the verification code.")
 
 
@@ -1835,26 +1534,31 @@ def login(user: UserLogin):
             else:
                 streak += 1
 
-            cur.execute("""
-                UPDATE users
-                SET last_login_date = %s, total_login_days = %s, current_streak = %s
-                WHERE user_id = %s
-            """, (datetime.combine(today, datetime.min.time()), total_days, streak, db_user['user_id']))
+            supabase.table("users").update(
+                {
+                    "last_login_date": datetime.combine(today, datetime.min.time()).isoformat(),
+                    "total_login_days": total_days,
+                    "current_streak": streak,
+                }
+            ).eq("user_id", db_user["user_id"]).execute()
 
-            # ── Push streak milestone notifications ──────────────────────────────
-            streak_milestones = {1: "ยินดีต้อนรับ! เริ่มต้นดูแลสุขภาพกับ Calories Guard วันนี้เลย 🌿",
-                                 3: "ยอดเยี่ยม! คุณใช้แอปต่อเนื่อง 3 วันแล้ว ไปต่อได้เลย!",
-                                 7: "เจ๋งมาก! 7 วันติดต่อกัน! คุณมีวินัยสุดๆ!",
-                                 14: "สุดยอด! 2 สัปดาห์ติดต่อกันแล้ว นับถือมากครับ!",
-                                 30: "ระดับตำนาน! 30 วันไม่เคยพลาด คุณทำได้แล้ว!"}
+            streak_milestones = {
+                1: "ยินดีต้อนรับ! เริ่มต้นดูแลสุขภาพกับ Calories Guard วันนี้เลย 🌿",
+                3: "ยอดเยี่ยม! คุณใช้แอปต่อเนื่อง 3 วันแล้ว ไปต่อได้เลย!",
+                7: "เจ๋งมาก! 7 วันติดต่อกัน! คุณมีวินัยสุดๆ!",
+                14: "สุดยอด! 2 สัปดาห์ติดต่อกันแล้ว นับถือมากครับ!",
+                30: "ระดับตำนาน! 30 วันไม่เคยพลาด คุณทำได้แล้ว!",
+            }
             if streak in streak_milestones:
                 msg = streak_milestones[streak]
-                cur.execute("""
-                    INSERT INTO notifications (user_id, title, message, type)
-                    VALUES (%s, %s, %s, 'achievement')
-                    ON CONFLICT DO NOTHING
-                """, (db_user['user_id'], f"🔥 Streak {streak} วัน!", msg))
-        conn.commit()
+                supabase.table("notifications").insert(
+                    {
+                        "user_id": db_user["user_id"],
+                        "title": f"🔥 Streak {streak} วัน!",
+                        "message": msg,
+                        "type": "achievement",
+                    }
+                ).execute()
 
 
 
@@ -1872,6 +1576,8 @@ def login(user: UserLogin):
 
             "current_streak": streak,
 
+            "access_token": getattr(auth_session, "access_token", None),
+
         }
 
     except HTTPException:
@@ -1882,10 +1588,6 @@ def login(user: UserLogin):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Login failed. Please try again later.")
-
-    finally:
-
-        if conn: conn.close()
 
 
 
@@ -2107,57 +1809,6 @@ def update_user(user_id: int, user_update: UserUpdate):
 
 
 
-# --- Password reset helpers/endpoint ---
-
-
-
-def _init_password_reset_table():
-
-    conn = get_db_connection()
-
-    if not conn:
-
-        return
-
-    try:
-
-        cur = conn.cursor()
-
-        cur.execute("""
-
-        CREATE TABLE IF NOT EXISTS password_reset_codes (
-
-            id BIGSERIAL PRIMARY KEY,
-
-            user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-
-            code VARCHAR(10) NOT NULL,
-
-            expires_at TIMESTAMP NOT NULL,
-
-            used BOOLEAN DEFAULT FALSE,
-
-            created_at TIMESTAMP DEFAULT NOW()
-
-        )
-
-        """)
-
-        conn.commit()
-
-    except Exception as e:
-
-        print('Could not create password reset table:', e)
-
-    finally:
-
-        conn.close()
-
-
-
-_init_password_reset_table()
-
-
 def _init_missing_tables():
     """Create tables missing from original schema: recipe_reviews, user_favorites, water_logs.
     Also adds macro columns to detail_items if not present."""
@@ -2311,191 +1962,19 @@ def _init_missing_tables():
 _init_missing_tables()
 
 
-def _generate_code() -> str:
-
-    from random import randint
-
-    return f"{randint(100000, 999999)}"
-
-
-
 @app.post('/password-reset/request')
-
 def password_reset_request(req: PasswordResetRequest):
-
-    conn = get_db_connection()
-
+    _require_supabase()
     try:
-
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
-
-        user = cur.fetchone()
-
-        if not user:
-
-            raise HTTPException(status_code=404, detail="อีเมลไม่ถูกต้อง")
-
-
-
-        code = _generate_code()
-
-        expires = datetime.now() + timedelta(minutes=15)
-
-        cur.execute(
-
-            "INSERT INTO password_reset_codes (user_id, code, expires_at, used) VALUES (%s, %s, %s, %s)",
-
-            (user['user_id'], code, expires, False),
-
-        )
-
-        conn.commit()
-
-        send_password_reset_email(req.email, user['username'], code)
-
-        return {"message": "รหัสยืนยันถูกส่งไปยังอีเมลแล้ว"}
-
-    except HTTPException:
-
-        raise
-
+        supabase.auth.reset_password_for_email(req.email)
+        return {"message": "Password reset email sent"}
     except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-        raise HTTPException(status_code=500, detail=str(e))
 
-    finally:
-
-        if conn: conn.close()
-
-
-
-@app.post('/password-reset/verify')
-
-def password_reset_verify(req: PasswordResetVerify):
-
-    conn = get_db_connection()
-
-    try:
-
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
-
-        user = cur.fetchone()
-
-        if not user:
-
-            raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
-
-        if not user.get('birth_date'):
-
-            raise HTTPException(status_code=400, detail="กรุณากรอกข้อมูล วันเดือนปีเกิด ในโปรไฟล์")
-
-        if isinstance(user['birth_date'], datetime):
-
-            user_birth = user['birth_date'].date()
-
-        else:
-
-            user_birth = user['birth_date']
-
-        if user_birth != req.birth_date:
-
-            raise HTTPException(status_code=401, detail="วันเดือนปีเกิดไม่ตรงกับบัญชี")
-
-        cur.execute("SELECT * FROM password_reset_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY created_at DESC LIMIT 1", (user['user_id'], req.code))
-
-        row = cur.fetchone()
-
-        if not row or row['expires_at'].replace(tzinfo=None) < datetime.now():
-
-            raise HTTPException(status_code=401, detail="รหัสไม่ถูกต้องหรือหมดอายุ")
-
-        return {"message": "ยืนยันโค้ดสำเร็จ"}
-
-    except HTTPException:
-
-        raise
-
-    except Exception as e:
-
-        raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-
-        if conn: conn.close()
-
-
-
-@app.post('/password-reset/confirm')
-
-def password_reset_confirm(req: PasswordResetConfirm):
-
-    conn = get_db_connection()
-
-    try:
-
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
-
-        user = cur.fetchone()
-
-        if not user:
-
-            raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
-
-        if not user.get('birth_date'):
-
-            raise HTTPException(status_code=400, detail="กรุณากรอกข้อมูล วันเดือนปีเกิด ในโปรไฟล์")
-
-        if isinstance(user['birth_date'], datetime):
-
-            user_birth = user['birth_date'].date()
-
-        else:
-
-            user_birth = user['birth_date']
-
-        if user_birth != req.birth_date:
-
-            raise HTTPException(status_code=401, detail="วันเดือนปีเกิดไม่ตรงกับบัญชี")
-
-
-
-        cur.execute("SELECT * FROM password_reset_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY created_at DESC LIMIT 1", (user['user_id'], req.code))
-
-        row = cur.fetchone()
-
-        if not row or row['expires_at'].replace(tzinfo=None) < datetime.now():
-
-            raise HTTPException(status_code=401, detail="รหัสไม่ถูกต้องหรือหมดอายุ")
-
-
-
-        new_hash = get_password_hash(req.new_password)
-
-        cur.execute("UPDATE users SET password_hash = %s WHERE user_id = %s", (new_hash, user['user_id']))
-
-        cur.execute("UPDATE password_reset_codes SET used = TRUE WHERE id = %s", (row['id'],))
-
-        conn.commit()
-
-        return {"message": "รีเซ็ตรหัสผ่านสำเร็จ"}
-
-    except HTTPException:
-
-        raise
-
-    except Exception as e:
-
-        raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-
-        if conn: conn.close()
+@app.post("/forgot-password")
+def forgot_password(req: PasswordResetRequest):
+    return password_reset_request(req)
 
 
 
