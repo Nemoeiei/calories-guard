@@ -15,11 +15,11 @@ if (localPropertiesFile.exists()) {
 val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY") ?: ""
 
 android {
-    namespace = "com.example.flutter_application_1"
+    namespace = "com.caloriesguard.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.flutter_application_1"
+        applicationId = "com.caloriesguard.app"
         minSdk = 26
         targetSdk = 36
         versionCode = flutter.versionCode
@@ -72,4 +72,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    implementation("com.google.android.play:app-update:2.1.0")
+    implementation("com.google.android.play:feature-delivery:2.1.0")
 }

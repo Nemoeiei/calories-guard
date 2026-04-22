@@ -23,7 +23,9 @@ from email.mime.multipart import MIMEMultipart
 
 
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -41,6 +43,13 @@ from psycopg2.extras import RealDictCursor
 
 app = FastAPI()
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logging.error(f"Validation error: {exc.errors()}, body: {exc.body}")
+    return JSONResponse(
+        status_code=400,
+        content={"detail": exc.errors(), "body": exc.body}
+    )
 
 
 # --- Email Config ---
@@ -505,12 +514,18 @@ class ActivityLevel(str, Enum):
 # --- Pydantic Models ---
 
 class UserRegister(BaseModel):
-
     email: str
-
     password: str
-
     username: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "email": "user@example.com",
+                "password": "password123",
+                "username": "user123"
+            }
+        }
 
 
 
@@ -1517,9 +1532,12 @@ def delete_food(food_id: int):
 @app.post("/register")
 
 def register(user: UserRegister):
-
+    import logging
     import re
-    if not re.match(r'^[\w\.\-\+]+@[\w\-]+(\.[\w\-]+)*\.[a-zA-Z]{2,}$', user.email):
+    logging.info(f"Register request: email={user.email}, username={user.username}")
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, user.email):
+        logging.warning(f"Invalid email format: {user.email}")
         raise HTTPException(status_code=400, detail="Invalid email format")
 
     conn = get_db_connection()

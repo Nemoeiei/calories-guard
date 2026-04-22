@@ -1,0 +1,7 @@
+tunnel: 19f915b7-eba0-446e-ad07-76f553d713ba
+credentials-file: C:\Users\frame\.cloudflared\19f915b7-eba0-446e-ad07-76f553d713ba.json
+
+ingress:
+  - hostname: ai.caloriesguard.com
+    service: http://localhost:11434
+  - service: http_status:404
