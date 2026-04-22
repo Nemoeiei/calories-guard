@@ -23,7 +23,7 @@ from email.mime.multipart import MIMEMultipart
 
 
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -65,6 +65,7 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 FROM_EMAIL = os.getenv("FROM_EMAIL") or SMTP_USERNAME
 
 FROM_NAME = os.getenv("FROM_NAME", "Calories Guard")
+SMTP_TIMEOUT = int(os.getenv("SMTP_TIMEOUT", "10"))
 
 
 
@@ -92,7 +93,7 @@ def send_email(to_email: str, subject: str, html_body: str) -> bool:
 
         
 
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
 
             server.starttls()
 
@@ -1577,7 +1578,7 @@ def delete_food(food_id: int):
 
 @app.post("/register")
 
-def register(user: UserRegister):
+def register(user: UserRegister, background_tasks: BackgroundTasks):
     import logging
     import re
     logging.info(f"Register request: email={user.email}, username={user.username}")
@@ -1632,7 +1633,7 @@ def register(user: UserRegister):
 
         
 
-        send_verification_email(new_user['email'], new_user['username'], code)
+        background_tasks.add_task(send_verification_email, new_user['email'], new_user['username'], code)
 
         
 
@@ -1660,7 +1661,7 @@ def register(user: UserRegister):
 
 @app.post("/verify-email")
 
-def verify_email(req: UserVerifyEmail):
+def verify_email(req: UserVerifyEmail, background_tasks: BackgroundTasks):
 
     conn = get_db_connection()
 
@@ -1698,7 +1699,7 @@ def verify_email(req: UserVerifyEmail):
 
         
 
-        send_welcome_email(user['email'], user['username'])
+        background_tasks.add_task(send_welcome_email, user['email'], user['username'])
 
         
 
@@ -1723,7 +1724,7 @@ def verify_email(req: UserVerifyEmail):
 
 @app.post("/resend-verification-email")
 
-def resend_verification_email(req: PasswordResetRequest):
+def resend_verification_email(req: PasswordResetRequest, background_tasks: BackgroundTasks):
 
     conn = get_db_connection()
 
@@ -1769,7 +1770,7 @@ def resend_verification_email(req: PasswordResetRequest):
 
         
 
-        send_verification_email(user['email'], user['username'], code)
+        background_tasks.add_task(send_verification_email, user['email'], user['username'], code)
 
         
 
