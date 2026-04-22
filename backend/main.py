@@ -2031,6 +2031,12 @@ def _init_missing_tables():
             ON notifications(user_id, created_at DESC)
         """)
 
+        # users.last_tdee_recalc_date — older deployments may not have this yet
+        cur.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS last_tdee_recalc_date DATE
+        """)
+
         # food_allergy_flags — maps food → allergen flags (may not exist in older schemas)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS food_allergy_flags (
