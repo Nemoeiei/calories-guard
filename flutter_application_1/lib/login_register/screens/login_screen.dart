@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../providers/user_data_provider.dart';
 import '../../services/auth_service.dart';
@@ -113,52 +111,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  // ── Social Login helper (backend sync) ───────────────────────
-  Future<void> _syncSocialBackend({
-    required String email,
-    required String name,
-    required String uid,
-    required String provider,
-  }) async {
-    final result = await _authService.socialLogin(
-        email: email, name: name, uid: uid, provider: provider);
-    if (result['success']) {
-      final data = result['data'];
-      ref.read(userDataProvider.notifier).setUserId(data['user_id'] as int);
-      ref.read(userDataProvider.notifier).setLoginInfo(email, '');
-      await Future.delayed(const Duration(milliseconds: 100));
-      _navigateAfterLogin(data['role_id'] ?? 2);
-    } else {
-      _showError(result['message'] ?? 'ล็อกอินไม่สำเร็จ กรุณาลองใหม่');
-    }
-  }
-
   // ── Google Sign-In ────────────────────────────────────────────
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isGoogleLoading = true);
     try {
-      final googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) {
-        setState(() => _isGoogleLoading = false);
-        return; // user cancelled
+      final result = await _authService.signInWithGoogleViaSupabase();
+      if (result['success']) {
+        final data = result['data'];
+        ref.read(userDataProvider.notifier).setUserId(data['user_id'] as int);
+        ref
+            .read(userDataProvider.notifier)
+            .setLoginInfo(data['email'] as String? ?? '', '');
+        await Future.delayed(const Duration(milliseconds: 100));
+        _navigateAfterLogin(data['role_id'] ?? 2);
+      } else {
+        _showError(result['message'] ?? 'ล็อกอินด้วย Google ไม่สำเร็จ');
       }
-      final googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      final userCred =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-      final fbUser = userCred.user!;
-
-      await _syncSocialBackend(
-        email: fbUser.email ?? googleUser.email,
-        name: fbUser.displayName ?? googleUser.displayName ?? 'User',
-        uid: fbUser.uid,
-        provider: 'google',
-      );
     } catch (e) {
-      _showError('Google Sign-In ล้มเหลว กรุณาลองใหม่');
+      _showError('Google Sign-In ล้มเหลว: $e');
     }
     if (mounted) setState(() => _isGoogleLoading = false);
   }

@@ -622,6 +622,10 @@ class SocialLoginRequest(BaseModel):
     provider: str   # 'google' | 'facebook'
 
 
+class OAuthLoginRequest(BaseModel):
+    access_token: str
+
+
 
 # ==========================================
 
@@ -1523,12 +1527,14 @@ def resend_verification_email(req: PasswordResetRequest):
     _require_supabase()
 
     try:
+        logging.info("Resend verification email request: email=%s", req.email)
         supabase_auth.auth.resend({
             "email": req.email,
-            "type": "email",
+            "type": "signup",
         })
         return {"message": "ส่งรหัสยืนยันใหม่ไปยังอีเมลแล้ว"}
     except Exception as e:
+        logging.exception("Resend verification email failed for email=%s", req.email)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/resend-verification")
@@ -1641,6 +1647,94 @@ def login(user: UserLogin):
         raise HTTPException(status_code=500, detail="Login failed. Please try again later.")
 
 
+@app.post("/oauth-login")
+def oauth_login(body: OAuthLoginRequest):
+    _require_supabase()
+
+    try:
+        user_result = supabase_auth.auth.get_user(body.access_token)
+        auth_user = getattr(user_result, "user", None)
+        if not auth_user or not getattr(auth_user, "email", None):
+            raise HTTPException(status_code=401, detail="Invalid Supabase session")
+
+        metadata = getattr(auth_user, "user_metadata", {}) or {}
+        username = (
+            metadata.get("username")
+            or metadata.get("full_name")
+            or metadata.get("name")
+            or auth_user.email.split("@")[0]
+        )
+        provider = (
+            getattr(auth_user, "app_metadata", {}) or {}
+        ).get("provider") or "google"
+
+        db_user = _ensure_local_user(
+            auth_user.email,
+            username=username,
+            is_verified=bool(getattr(auth_user, "email_confirmed_at", None)) or provider == "google",
+        )
+        if not db_user:
+            raise HTTPException(status_code=500, detail="Could not sync local user profile")
+
+        today = date.today()
+        last_login = db_user.get('last_login_date')
+        if isinstance(last_login, datetime):
+            last_login = last_login.date()
+
+        total_days = int(db_user.get('total_login_days') or 0)
+        streak = int(db_user.get('current_streak') or 0)
+
+        if last_login != today:
+            total_days += 1
+            if last_login is None or (today - last_login).days > 1:
+                streak = 1
+            else:
+                streak += 1
+
+            _sb_table("users").update(
+                {
+                    "last_login_date": datetime.combine(today, datetime.min.time()).isoformat(),
+                    "total_login_days": total_days,
+                    "current_streak": streak,
+                }
+            ).eq("user_id", db_user["user_id"]).execute()
+
+            streak_milestones = {
+                1: "ยินดีต้อนรับ! เริ่มต้นดูแลสุขภาพกับ Calories Guard วันนี้เลย 🌿",
+                3: "ยอดเยี่ยม! คุณใช้แอปต่อเนื่อง 3 วันแล้ว ไปต่อได้เลย!",
+                7: "เจ๋งมาก! 7 วันติดต่อกัน! คุณมีวินัยสุดๆ!",
+                14: "สุดยอด! 2 สัปดาห์ติดต่อกันแล้ว นับถือมากครับ!",
+                30: "ระดับตำนาน! 30 วันไม่เคยพลาด คุณทำได้แล้ว!",
+            }
+            if streak in streak_milestones:
+                msg = streak_milestones[streak]
+                _sb_table("notifications").insert(
+                    {
+                        "user_id": db_user["user_id"],
+                        "title": f"🔥 Streak {streak} วัน!",
+                        "message": msg,
+                        "type": "achievement",
+                    }
+                ).execute()
+
+        return {
+            "message": "Login successful",
+            "user_id": db_user['user_id'],
+            "username": db_user['username'],
+            "email": db_user['email'],
+            "role_id": db_user['role_id'],
+            "current_streak": streak,
+            "access_token": body.access_token,
+            "provider": provider,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        detail = _extract_http_error_detail(e)
+        logging.exception("OAuth login failed: %s", detail)
+        raise HTTPException(status_code=400, detail=detail)
+
+
 
 # --- API 4b: Social Login (Google / Facebook) ---
 
@@ -1651,6 +1745,7 @@ def social_login(body: SocialLoginRequest):
     Looks up the user by email. If not found, creates a new verified account.
     Returns the same shape as /login so the Flutter app can handle both uniformly.
     """
+    logging.info("Social login request: provider=%s email=%s uid=%s", body.provider, body.email, body.uid)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1728,6 +1823,7 @@ def social_login(body: SocialLoginRequest):
             }
 
     except Exception as e:
+        logging.exception("Social login failed for provider=%s email=%s", body.provider, body.email)
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -2093,11 +2189,13 @@ def password_reset_request(req: PasswordResetOtpRequest):
         if birth_date != req.birth_date:
             raise HTTPException(status_code=400, detail="Birth date does not match")
 
+        logging.info("Password reset email request: email=%s", req.email)
         supabase_auth.auth.reset_password_for_email(req.email)
         return {"message": "Password reset code sent"}
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
+        logging.exception("Password reset request failed for email=%s", req.email)
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         conn.close()

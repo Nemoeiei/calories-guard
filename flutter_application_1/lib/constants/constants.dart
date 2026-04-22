@@ -9,4 +9,19 @@ class AppConstants {
     'API_BASE_URL',
     defaultValue: 'https://api.caloriesguard.com',
   );
+
+  static const String supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://zawlghlnzgftlxcoipuf.supabase.co',
+  );
+
+  static const String supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue: '',
+  );
+
+  static const String googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue: '',
+  );
 }

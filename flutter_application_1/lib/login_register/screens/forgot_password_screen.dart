@@ -61,10 +61,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Future<void> _resendCode() async {
     final email = _emailController.text.trim();
-    if (email.isEmpty) return;
+    final birth = _birthDateController.text.trim();
+    if (email.isEmpty || birth.isEmpty) return;
     
     setState(() => _isLoading = true);
-    final result = await _authService.requestPasswordReset(email);
+    final result = await _authService.requestPasswordReset(email, birth);
     setState(() => _isLoading = false);
     
     if (result['success']) {
@@ -77,12 +78,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Future<void> _sendResetCode() async {
     final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      _showMessage('กรุณากรอกอีเมล', isError: true);
+    final birth = _birthDateController.text.trim();
+    if (email.isEmpty || birth.isEmpty) {
+      _showMessage('กรุณากรอกอีเมลและวันเกิด', isError: true);
       return;
     }
     setState(() => _isLoading = true);
-    final result = await _authService.requestPasswordReset(email);
+    final result = await _authService.requestPasswordReset(email, birth);
     setState(() => _isLoading = false);
     if (result['success']) {
       _showMessage(result['message'] ?? 'ส่งโค้ดสำเร็จ');
@@ -90,25 +92,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       _startTimer();
     } else {
       _showMessage(result['message'] ?? 'ส่งโค้ดไม่สำเร็จ', isError: true);
-    }
-  }
-
-  Future<void> _verifyCode() async {
-    final email = _emailController.text.trim();
-    final code = _codeController.text.trim();
-    final birth = _birthDateController.text.trim();
-    if (email.isEmpty || code.isEmpty || birth.isEmpty) {
-      _showMessage('กรุณากรอกข้อมูลให้ครบ', isError: true);
-      return;
-    }
-    setState(() => _isLoading = true);
-    final result = await _authService.verifyResetCode(email, code, birth);
-    setState(() => _isLoading = false);
-    if (result['success']) {
-      _showMessage(result['message'] ?? 'ยืนยันโค้ดสำเร็จ');
-      setState(() => _step = 2);
-    } else {
-      _showMessage(result['message'] ?? 'ยืนยันโค้ดไม่สำเร็จ', isError: true);
     }
   }
 
@@ -173,6 +156,18 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     labelText: 'อีเมล', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 14),
+              TextField(
+                controller: _birthDateController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  _DateTextFormatter(),
+                ],
+                decoration: const InputDecoration(
+                    labelText: 'วันเกิด (YYYY-MM-DD)',
+                    border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 14),
               if (_step >= 1) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,20 +199,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 14),
                 TextField(
-                  controller: _birthDateController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    _DateTextFormatter(),
-                  ],
-                  decoration: const InputDecoration(
-                      labelText: 'วันเกิด (YYYY-MM-DD)',
-                      border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 14),
-              ],
-              if (_step == 2) ...[
-                TextField(
                   controller: _newPasswordController,
                   decoration: const InputDecoration(
                       labelText: 'รหัสผ่านใหม่', border: OutlineInputBorder()),
@@ -245,9 +226,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         ? null
                         : _step == 0
                             ? _sendResetCode
-                            : _step == 1
-                                ? _verifyCode
-                                : _resetPassword,
+                            : _resetPassword,
                     child: _isLoading
                         ? const SizedBox(
                             width: 20,
@@ -257,9 +236,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         : Text(
                             _step == 0
                                 ? 'ยืนยัน'
-                                : _step == 1
-                                    ? 'ยืนยันตัวตน'
-                                    : 'รีเซ็ตรหัสผ่าน',
+                                : 'รีเซ็ตรหัสผ่าน',
                             style: const TextStyle(fontSize: 16, color: Colors.white),
                           ),
                   ),
