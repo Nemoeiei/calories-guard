@@ -7,6 +7,7 @@ from enum import Enum
 import logging
 import os
 import secrets
+import json
 
 from dotenv import load_dotenv
 
@@ -67,6 +68,24 @@ def _require_supabase():
 def _sb_table(table_name: str):
     """Return schema-scoped table client (cleangoal by default)."""
     return supabase_admin.schema(SUPABASE_DB_SCHEMA).table(table_name)
+
+
+def _extract_http_error_detail(err: Exception) -> str:
+    """Best-effort extraction of HTTP/Supabase error payload."""
+    response = getattr(err, "response", None)
+    if response is None:
+        return str(err)
+    try:
+        data = response.json()
+        if isinstance(data, dict):
+            message = data.get("msg") or data.get("message") or data.get("error_description") or data.get("error")
+            if message:
+                return str(message)
+            return json.dumps(data, ensure_ascii=False)
+        return str(data)
+    except Exception:
+        text = getattr(response, "text", "")
+        return text or str(err)
 
 
 def _ensure_local_user(email: str, username: str | None = None, is_verified: bool = False):
@@ -1440,8 +1459,9 @@ def register(user: UserRegister):
         raise
 
     except Exception as e:
-        logging.exception("Register failed on Supabase sign_up")
-        raise HTTPException(status_code=400, detail=str(e))
+        detail = _extract_http_error_detail(e)
+        logging.exception("Register failed on Supabase sign_up: %s", detail)
+        raise HTTPException(status_code=400, detail=detail)
 
 
 
