@@ -1984,6 +1984,48 @@ def _init_missing_tables():
             )
         """)
 
+        # Ensure Supabase Auth trigger can insert new auth users into cleangoal.users.
+        # This prevents "Database error saving new user" when old trigger SQL points to wrong schema/table.
+        cur.execute("""
+            CREATE OR REPLACE FUNCTION public.handle_auth_user_created()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            SECURITY DEFINER
+            SET search_path = public, auth, extensions, cleangoal
+            AS $$
+            DECLARE
+                v_username text;
+            BEGIN
+                v_username := COALESCE(
+                    NULLIF(new.raw_user_meta_data->>'username', ''),
+                    split_part(new.email, '@', 1)
+                );
+
+                INSERT INTO cleangoal.users (email, password_hash, username, is_email_verified)
+                VALUES (
+                    new.email,
+                    COALESCE(new.encrypted_password, md5(new.id::text || COALESCE(new.email, ''))),
+                    v_username,
+                    (new.email_confirmed_at IS NOT NULL)
+                )
+                ON CONFLICT (email) DO UPDATE
+                SET
+                    username = COALESCE(cleangoal.users.username, EXCLUDED.username),
+                    is_email_verified = (cleangoal.users.is_email_verified OR EXCLUDED.is_email_verified);
+
+                RETURN new;
+            END;
+            $$;
+        """)
+        cur.execute("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users")
+        cur.execute("DROP TRIGGER IF EXISTS handle_new_user ON auth.users")
+        cur.execute("""
+            CREATE TRIGGER on_auth_user_created
+            AFTER INSERT ON auth.users
+            FOR EACH ROW
+            EXECUTE FUNCTION public.handle_auth_user_created()
+        """)
+
         conn.commit()
     except Exception as e:
         print(f"[Init] Error creating missing tables: {e}")
