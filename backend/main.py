@@ -499,6 +499,24 @@ class PasswordResetRequest(BaseModel):
     email: str
 
 
+class PasswordResetOtpRequest(BaseModel):
+
+    email: str
+
+    birth_date: date
+
+
+class PasswordResetConfirm(BaseModel):
+
+    email: str
+
+    birth_date: date
+
+    code: str
+
+    new_password: str
+
+
 # ✅ Model สำหรับสร้างอาหาร (รองรับรูป)
 
 class FoodCreate(BaseModel):
@@ -1477,7 +1495,7 @@ def verify_email(req: UserVerifyEmail):
         result = supabase_auth.auth.verify_otp({
             "email": req.email,
             "token": req.code,
-            "type": "signup",
+            "type": "email",
         })
         verified_user = getattr(result, "user", None)
         username = None
@@ -2038,18 +2056,107 @@ _init_missing_tables()
 
 
 @app.post('/password-reset/request')
-def password_reset_request(req: PasswordResetRequest):
+def password_reset_request(req: PasswordResetOtpRequest):
     _require_supabase()
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Database connection is not available")
+
     try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT user_id, email, birth_date, deleted_at
+            FROM users
+            WHERE email = %s
+              AND deleted_at IS NULL
+            LIMIT 1
+            """,
+            (req.email,),
+        )
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        birth_date = user.get("birth_date")
+        if hasattr(birth_date, "date"):
+            birth_date = birth_date.date()
+        elif isinstance(birth_date, str):
+            birth_date = datetime.strptime(birth_date[:10], "%Y-%m-%d").date()
+
+        if birth_date != req.birth_date:
+            raise HTTPException(status_code=400, detail="Birth date does not match")
+
         supabase_auth.auth.reset_password_for_email(req.email)
-        return {"message": "Password reset email sent"}
+        return {"message": "Password reset code sent"}
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
         raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
 
 
 @app.post("/forgot-password")
-def forgot_password(req: PasswordResetRequest):
+def forgot_password(req: PasswordResetOtpRequest):
     return password_reset_request(req)
+
+
+@app.post("/password-reset/confirm")
+def password_reset_confirm(req: PasswordResetConfirm):
+    _require_supabase()
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Database connection is not available")
+
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT user_id, email, birth_date, deleted_at
+            FROM users
+            WHERE email = %s
+              AND deleted_at IS NULL
+            LIMIT 1
+            """,
+            (req.email,),
+        )
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        birth_date = user.get("birth_date")
+        if hasattr(birth_date, "date"):
+            birth_date = birth_date.date()
+        elif isinstance(birth_date, str):
+            birth_date = datetime.strptime(birth_date[:10], "%Y-%m-%d").date()
+
+        if birth_date != req.birth_date:
+            raise HTTPException(status_code=400, detail="Birth date does not match")
+
+        verify_result = supabase_auth.auth.verify_otp(
+            {
+                "email": req.email,
+                "token": req.code,
+                "type": "recovery",
+            }
+        )
+        verified_user = getattr(verify_result, "user", None)
+        if not verified_user:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset code")
+
+        supabase_admin.auth.admin.update_user_by_id(
+            verified_user.id,
+            {"password": req.new_password},
+        )
+
+        return {"message": "Password reset successful"}
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
 
 
 
