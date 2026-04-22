@@ -40,7 +40,12 @@ app = FastAPI()
 # --- Supabase Auth Client ---
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("SUPABASE_PROJECT_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_KEY else None
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_DB_SCHEMA = os.getenv("SUPABASE_DB_SCHEMA", "cleangoal")
+
+# Use anon key for auth flows (signup/login/otp), service role for server-side data sync.
+supabase_auth = create_client(SUPABASE_URL, SUPABASE_ANON_KEY) if SUPABASE_URL and SUPABASE_ANON_KEY else None
+supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_KEY else None
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -52,19 +57,27 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 def _require_supabase():
-    if not supabase:
-        raise HTTPException(status_code=500, detail="SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured")
+    if not supabase_auth or not supabase_admin:
+        raise HTTPException(
+            status_code=500,
+            detail="SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY not configured",
+        )
+
+
+def _sb_table(table_name: str):
+    """Return schema-scoped table client (cleangoal by default)."""
+    return supabase_admin.schema(SUPABASE_DB_SCHEMA).table(table_name)
 
 
 def _ensure_local_user(email: str, username: str | None = None, is_verified: bool = False):
     """Keep app-specific users row in sync using Supabase PostgREST."""
     _require_supabase()
-    res = supabase.table("users").select("*").eq("email", email).limit(1).execute()
+    res = _sb_table("users").select("*").eq("email", email).limit(1).execute()
     local_user = res.data[0] if res.data else None
     if local_user:
         if is_verified and not local_user.get("is_email_verified"):
             upd = (
-                supabase.table("users")
+                _sb_table("users")
                 .update({"is_email_verified": True})
                 .eq("user_id", local_user["user_id"])
                 .execute()
@@ -75,7 +88,7 @@ def _ensure_local_user(email: str, username: str | None = None, is_verified: boo
     local_username = (username or email.split("@")[0]).strip() or "user"
     fake_hash = secrets.token_hex(32)  # Password is managed by Supabase Auth.
     ins = (
-        supabase.table("users")
+        _sb_table("users")
         .insert(
             {
                 "email": email,
@@ -1398,13 +1411,12 @@ def register(user: UserRegister):
 
     try:
 
-        result = supabase.auth.sign_up({
+        result = supabase_auth.auth.sign_up({
             "email": user.email,
             "password": user.password,
             "options": {
                 "data": {
                     "username": user.username,
-                    "role_id": 2,
                 }
             },
         })
@@ -1428,6 +1440,7 @@ def register(user: UserRegister):
         raise
 
     except Exception as e:
+        logging.exception("Register failed on Supabase sign_up")
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -1441,7 +1454,7 @@ def verify_email(req: UserVerifyEmail):
 
     try:
 
-        result = supabase.auth.verify_otp({
+        result = supabase_auth.auth.verify_otp({
             "email": req.email,
             "token": req.code,
             "type": "signup",
@@ -1472,7 +1485,7 @@ def resend_verification_email(req: PasswordResetRequest):
     _require_supabase()
 
     try:
-        supabase.auth.resend({
+        supabase_auth.auth.resend({
             "email": req.email,
             "type": "signup",
         })
@@ -1494,7 +1507,7 @@ def login(user: UserLogin):
     _require_supabase()
 
     try:
-        auth_result = supabase.auth.sign_in_with_password({
+        auth_result = supabase_auth.auth.sign_in_with_password({
             "email": user.email,
             "password": user.password,
         })
@@ -1534,7 +1547,7 @@ def login(user: UserLogin):
             else:
                 streak += 1
 
-            supabase.table("users").update(
+            _sb_table("users").update(
                 {
                     "last_login_date": datetime.combine(today, datetime.min.time()).isoformat(),
                     "total_login_days": total_days,
@@ -1551,7 +1564,7 @@ def login(user: UserLogin):
             }
             if streak in streak_milestones:
                 msg = streak_milestones[streak]
-                supabase.table("notifications").insert(
+                _sb_table("notifications").insert(
                     {
                         "user_id": db_user["user_id"],
                         "title": f"🔥 Streak {streak} วัน!",
@@ -1966,7 +1979,7 @@ _init_missing_tables()
 def password_reset_request(req: PasswordResetRequest):
     _require_supabase()
     try:
-        supabase.auth.reset_password_for_email(req.email)
+        supabase_auth.auth.reset_password_for_email(req.email)
         return {"message": "Password reset email sent"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
