@@ -1307,47 +1307,93 @@ def get_recommended_food():
 # --- API: Get Recipe by Food ID ---
 
 @app.get("/recipes/{food_id}")
-
 def get_recipe(food_id: int):
-
-    """ดึงข้อมูลวิธีการทำอาหารจากตาราง recipes"""
-
+    """ดึงข้อมูลวิธีการทำอาหารพร้อม ingredients, steps, tools, tips, reviews"""
     conn = get_db_connection()
-
     try:
-
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
+        # 1. Main recipe row
         cur.execute("""
-
-            SELECT r.*, f.food_name, f.calories, f.protein, f.carbs, f.fat, f.image_url as food_image_url
-
+            SELECT r.*,
+                   f.food_name, f.calories, f.protein, f.carbs, f.fat,
+                   f.image_url AS food_image_url,
+                   COALESCE((
+                       SELECT ROUND(AVG(rv.rating)::numeric, 1)
+                       FROM recipe_reviews rv WHERE rv.recipe_id = r.recipe_id
+                   ), 0) AS avg_rating,
+                   COALESCE((
+                       SELECT COUNT(*) FROM recipe_reviews rv WHERE rv.recipe_id = r.recipe_id
+                   ), 0) AS review_count,
+                   COALESCE((
+                       SELECT COUNT(*) FROM recipe_favorites rf WHERE rf.recipe_id = r.recipe_id
+                   ), 0) AS favorite_count
             FROM recipes r
-
             JOIN foods f ON r.food_id = f.food_id
-
-            WHERE r.food_id = %s
-
+            WHERE r.food_id = %s AND r.deleted_at IS NULL
         """, (food_id,))
-
         recipe = cur.fetchone()
-
         if not recipe:
-
             raise HTTPException(status_code=404, detail="Recipe not found")
 
-        return recipe
+        recipe_id = recipe["recipe_id"]
+        result = dict(recipe)
+
+        # 2. Ingredients
+        cur.execute("""
+            SELECT ingredient_name, quantity, unit, is_optional, note
+            FROM recipe_ingredients
+            WHERE recipe_id = %s ORDER BY sort_order, ing_id
+        """, (recipe_id,))
+        result["ingredients"] = [dict(r) for r in cur.fetchall()]
+
+        # 3. Steps
+        cur.execute("""
+            SELECT step_number, title, instruction, time_minutes, image_url, tips
+            FROM recipe_steps
+            WHERE recipe_id = %s ORDER BY step_number
+        """, (recipe_id,))
+        result["steps"] = [dict(r) for r in cur.fetchall()]
+
+        # 4. Tools
+        cur.execute("""
+            SELECT tool_name, tool_emoji
+            FROM recipe_tools
+            WHERE recipe_id = %s ORDER BY sort_order, tool_id
+        """, (recipe_id,))
+        result["tools"] = [dict(r) for r in cur.fetchall()]
+
+        # 5. Tips
+        cur.execute("""
+            SELECT tip_text
+            FROM recipe_tips
+            WHERE recipe_id = %s ORDER BY sort_order, tip_id
+        """, (recipe_id,))
+        result["tips"] = [dict(r) for r in cur.fetchall()]
+
+        # 6. Reviews
+        cur.execute("""
+            SELECT rr.review_id, rr.user_id, u.username,
+                   rr.rating, rr.comment,
+                   rr.created_at
+            FROM recipe_reviews rr
+            JOIN users u ON u.user_id = rr.user_id
+            WHERE rr.recipe_id = %s
+            ORDER BY rr.created_at DESC
+        """, (recipe_id,))
+        reviews = cur.fetchall()
+        result["reviews"] = [
+            {**dict(r), "created_at": r["created_at"].isoformat() if r["created_at"] else None}
+            for r in reviews
+        ]
+
+        return result
 
     except HTTPException:
-
         raise
-
     except Exception as e:
-
         raise HTTPException(status_code=500, detail=str(e))
-
     finally:
-
         if conn: conn.close()
 
 
@@ -3426,9 +3472,14 @@ def get_favorite_status(food_id: int, user_id: int):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT recipe_id FROM recipes WHERE food_id = %s", (food_id,))
+        row = cur.fetchone()
+        if not row:
+            return {"is_favorite": False}
+        recipe_id = row["recipe_id"]
         cur.execute(
-            "SELECT 1 FROM user_favorites WHERE user_id = %s AND food_id = %s",
-            (user_id, food_id),
+            "SELECT 1 FROM recipe_favorites WHERE user_id = %s AND recipe_id = %s",
+            (user_id, recipe_id),
         )
         return {"is_favorite": cur.fetchone() is not None}
     except Exception as e:
@@ -3443,25 +3494,32 @@ def toggle_favorite(food_id: int, user_id: int):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT recipe_id FROM recipes WHERE food_id = %s", (food_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Recipe not found")
+        recipe_id = row["recipe_id"]
         cur.execute(
-            "SELECT 1 FROM user_favorites WHERE user_id = %s AND food_id = %s",
-            (user_id, food_id),
+            "SELECT 1 FROM recipe_favorites WHERE user_id = %s AND recipe_id = %s",
+            (user_id, recipe_id),
         )
         exists = cur.fetchone() is not None
         if exists:
             cur.execute(
-                "DELETE FROM user_favorites WHERE user_id = %s AND food_id = %s",
-                (user_id, food_id),
+                "DELETE FROM recipe_favorites WHERE user_id = %s AND recipe_id = %s",
+                (user_id, recipe_id),
             )
             is_favorite = False
         else:
             cur.execute(
-                "INSERT INTO user_favorites (user_id, food_id) VALUES (%s, %s)",
-                (user_id, food_id),
+                "INSERT INTO recipe_favorites (user_id, recipe_id) VALUES (%s, %s)",
+                (user_id, recipe_id),
             )
             is_favorite = True
         conn.commit()
         return {"is_favorite": is_favorite}
+    except HTTPException:
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -3477,11 +3535,12 @@ def get_user_favorites(user_id: int):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("""
             SELECT f.food_id, f.food_name, f.calories, f.protein, f.carbs, f.fat,
-                   f.image_url, uf.created_at AS favorited_at
-            FROM user_favorites uf
-            JOIN foods f ON f.food_id = uf.food_id
-            WHERE uf.user_id = %s
-            ORDER BY uf.created_at DESC
+                   f.image_url, rf.created_at AS favorited_at
+            FROM recipe_favorites rf
+            JOIN recipes r ON r.recipe_id = rf.recipe_id
+            JOIN foods f ON f.food_id = r.food_id
+            WHERE rf.user_id = %s
+            ORDER BY rf.created_at DESC
         """, (user_id,))
         return cur.fetchall()
     except Exception as e:
@@ -3496,63 +3555,32 @@ def get_user_favorites(user_id: int):
 
 @app.get("/recipes/{food_id}/reviews")
 def get_recipe_reviews(food_id: int):
-    """Return all reviews for a recipe with aggregated rating stats."""
+    """Return all reviews for a recipe."""
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT recipe_id FROM recipes WHERE food_id = %s", (food_id,))
+        row = cur.fetchone()
+        if not row:
+            return {"reviews": [], "review_count": 0, "avg_rating": None}
+        recipe_id = row["recipe_id"]
         cur.execute("""
-            WITH review_stats AS (
-                SELECT
-                    food_id,
-                    COUNT(*)                        AS review_count,
-                    ROUND(AVG(rating)::numeric, 1)  AS avg_rating,
-                    COUNT(*) FILTER (WHERE rating = 5) AS five_star,
-                    COUNT(*) FILTER (WHERE rating = 4) AS four_star,
-                    COUNT(*) FILTER (WHERE rating = 3) AS three_star,
-                    COUNT(*) FILTER (WHERE rating = 2) AS two_star,
-                    COUNT(*) FILTER (WHERE rating = 1) AS one_star
-                FROM recipe_reviews
-                WHERE food_id = %s
-                GROUP BY food_id
-            )
-            SELECT
-                rr.review_id,
-                rr.user_id,
-                u.username,
-                rr.rating,
-                rr.comment,
-                rr.created_at,
-                rs.review_count,
-                rs.avg_rating,
-                rs.five_star,
-                rs.four_star,
-                rs.three_star,
-                rs.two_star,
-                rs.one_star
+            SELECT rr.review_id, rr.user_id, u.username,
+                   rr.rating, rr.comment, rr.created_at
             FROM recipe_reviews rr
             JOIN users u ON u.user_id = rr.user_id
-            LEFT JOIN review_stats rs ON rs.food_id = rr.food_id
-            WHERE rr.food_id = %s
+            WHERE rr.recipe_id = %s
             ORDER BY rr.created_at DESC
-        """, (food_id, food_id))
+        """, (recipe_id,))
         rows = cur.fetchall()
-        if not rows:
-            return {"reviews": [], "review_count": 0, "avg_rating": None,
-                    "rating_distribution": {}}
-        stats = rows[0]
+        avg = round(sum(r["rating"] for r in rows) / len(rows), 1) if rows else None
         return {
             "reviews": [
-                {"review_id": r["review_id"], "user_id": r["user_id"],
-                 "username": r["username"], "rating": r["rating"],
-                 "comment": r["comment"], "created_at": r["created_at"].isoformat() if r["created_at"] else None}
+                {**dict(r), "created_at": r["created_at"].isoformat() if r["created_at"] else None}
                 for r in rows
             ],
-            "review_count": stats["review_count"],
-            "avg_rating": float(stats["avg_rating"]) if stats["avg_rating"] else None,
-            "rating_distribution": {
-                "5": stats["five_star"], "4": stats["four_star"],
-                "3": stats["three_star"], "2": stats["two_star"], "1": stats["one_star"]
-            },
+            "review_count": len(rows),
+            "avg_rating": avg,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -3568,15 +3596,20 @@ def upsert_recipe_review(food_id: int, review: RecipeReview):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT recipe_id FROM recipes WHERE food_id = %s", (food_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Recipe not found")
+        recipe_id = row["recipe_id"]
         cur.execute("""
-            INSERT INTO recipe_reviews (food_id, user_id, rating, comment)
+            INSERT INTO recipe_reviews (recipe_id, user_id, rating, comment)
             VALUES (%s, %s, %s, %s)
-            ON CONFLICT (food_id, user_id)
+            ON CONFLICT (recipe_id, user_id)
             DO UPDATE SET rating = EXCLUDED.rating,
                           comment = EXCLUDED.comment,
                           created_at = NOW()
             RETURNING review_id
-        """, (food_id, review.user_id, review.rating, review.comment))
+        """, (recipe_id, review.user_id, review.rating, review.comment))
         review_id = cur.fetchone()["review_id"]
         conn.commit()
         return {"message": "Review saved", "review_id": review_id}
