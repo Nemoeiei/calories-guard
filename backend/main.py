@@ -3587,54 +3587,47 @@ def upsert_recipe_review(food_id: int, review: RecipeReview):
 @app.get("/water_logs/{user_id}")
 def get_water_log(user_id: int, date_record: Optional[str] = None):
     """Return today's (or specified date's) water intake in ml."""
+    _require_supabase()
     target_date = date.fromisoformat(date_record) if date_record else date.today()
-    conn = get_db_connection()
     try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT amount_ml, date_record
-            FROM water_logs
-            WHERE user_id = %s AND date_record = %s
-        """, (user_id, target_date))
-        row = cur.fetchone()
+        res = (_sb_table("water_logs")
+               .select("amount_ml,date_record")
+               .eq("user_id", user_id)
+               .eq("date_record", target_date.isoformat())
+               .maybe_single()
+               .execute())
+        row = res.data
         return {
             "date_record": target_date.isoformat(),
             "amount_ml": int(row["amount_ml"]) if row else 0,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if conn: conn.close()
 
 
 @app.post("/water_logs/{user_id}")
 def upsert_water_log(user_id: int, entry: WaterLogUpdate):
     """Set (upsert) the total water intake for today."""
+    _require_supabase()
     if entry.amount_ml < 0:
         raise HTTPException(status_code=400, detail="amount_ml must be >= 0")
-    conn = get_db_connection()
     try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
         glasses = max(0, round(entry.amount_ml / 250))
-        cur.execute("""
-            INSERT INTO water_logs (user_id, date_record, amount_ml, glasses)
-            VALUES (%s, CURRENT_DATE, %s, %s)
-            ON CONFLICT (user_id, date_record)
-            DO UPDATE SET amount_ml = EXCLUDED.amount_ml,
-                          glasses   = EXCLUDED.glasses,
-                          updated_at = NOW()
-            RETURNING amount_ml
-        """, (user_id, entry.amount_ml, glasses))
-        saved = cur.fetchone()["amount_ml"]
-        conn.commit()
-        return {"date_record": date.today().isoformat(), "amount_ml": saved}
+        today = date.today().isoformat()
+        res = (_sb_table("water_logs")
+               .upsert({
+                   "user_id": user_id,
+                   "date_record": today,
+                   "amount_ml": entry.amount_ml,
+                   "glasses": glasses,
+               }, on_conflict="user_id,date_record")
+               .execute())
+        saved = res.data[0]["amount_ml"] if res.data else entry.amount_ml
+        return {"date_record": today, "amount_ml": saved}
     except HTTPException:
         raise
     except Exception as e:
-        conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if conn: conn.close()
 
 
 # =============================================================================
