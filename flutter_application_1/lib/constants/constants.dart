@@ -1,10 +1,10 @@
 class AppConstants {
   // อ่านจาก --dart-define=API_BASE_URL=https://... ตอน build
-  // Default เป็น Android emulator loopback สำหรับ dev
+  // Default ชี้ production — dev สามารถ override ได้ด้วย --dart-define
   //
   // ตัวอย่าง release build:
   //   flutter build apk --release \
-  //     --dart-define=API_BASE_URL=https://api.calories-guard.example
+  //     --dart-define=API_BASE_URL=https://api.caloriesguard.com
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'https://api.caloriesguard.com',
