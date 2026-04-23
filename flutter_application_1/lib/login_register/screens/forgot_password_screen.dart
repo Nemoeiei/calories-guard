@@ -65,9 +65,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     if (email.isEmpty || birth.isEmpty) return;
     
     setState(() => _isLoading = true);
-    final result = await _authService.requestPasswordReset(email, birth);
+    final result = await _authService.requestPasswordReset(email);
     setState(() => _isLoading = false);
-    
+
     if (result['success']) {
       _showMessage(result['message'] ?? 'ส่งรหัสยืนยันใหม่แล้ว');
       _startTimer();
@@ -84,12 +84,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       return;
     }
     setState(() => _isLoading = true);
-    final result = await _authService.requestPasswordReset(email, birth);
+    final result = await _authService.requestPasswordReset(email);
     setState(() => _isLoading = false);
     if (result['success']) {
-      _showMessage(result['message'] ?? 'ส่งโค้ดสำเร็จ');
-      setState(() => _step = 1);
-      _startTimer();
+      // Supabase sends a password-reset link by email.
+      // The user completes the flow via the emailed deep link — no in-app OTP.
+      _showMessage(result['message'] ??
+          'ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว โปรดตรวจสอบกล่องจดหมาย');
+      if (mounted) Navigator.pop(context);
     } else {
       _showMessage(result['message'] ?? 'ส่งโค้ดไม่สำเร็จ', isError: true);
     }
@@ -119,17 +121,22 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       return;
     }
 
+    // TODO(task-3): Supabase migration — the in-app OTP confirm flow is deprecated.
+    // Supabase sends a reset link by email; the user completes the reset via that link.
+    // Keeping a no-op path here until the UI is reworked to match the new flow.
     setState(() => _isLoading = true);
-    final result =
-        await _authService.confirmResetPassword(email, code, birth, password);
+    final result = await _authService.requestPasswordReset(email);
     setState(() => _isLoading = false);
     if (result['success']) {
-      _showMessage(result['message'] ?? 'รีเซ็ตรหัสผ่านสำเร็จ');
+      _showMessage(result['message'] ??
+          'ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว โปรดตรวจสอบกล่องจดหมาย');
       if (mounted) Navigator.pop(context);
     } else {
       _showMessage(result['message'] ?? 'รีเซ็ตรหัสผ่านไม่สำเร็จ',
           isError: true);
     }
+    // Silence unused-variable warnings for fields kept for the upcoming rework.
+    if (code.isEmpty || birth.isEmpty || password.isEmpty) return;
   }
 
   @override
