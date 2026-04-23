@@ -1,6 +1,13 @@
 # Environment / secrets
 .env
 *.env.local
+*.env.secret
+docker/.env
+docker/.env.secret
+
+# Cloudflare Tunnel credentials — NEVER commit (gives full access to the tunnel)
+.cloudflared/
+*.pem
 
 # Flutter secrets (contains real API keys — never commit)
 flutter_application_1/lib/config/secrets.dart
@@ -41,6 +48,29 @@ backend/output_mermaid.txt
 # Android Gradle build cache
 flutter_application_1/android/.gradle/
 flutter_application_1/android/app/build/
+flutter_application_1/android/.kotlin/
+flutter_application_1/android/app/src/main/kotlin/com/example/
 
 # Flutter generated / lock files (optional — remove if your team checks these in)
 flutter_application_1/.flutter-plugins-dependencies
+
+# Release keystore — NEVER commit
+flutter_application_1/android/key.properties
+flutter_application_1/android/app/*.jks
+flutter_application_1/android/app/*.keystore
+
+# Third-party infra clones (cloned externally, not part of this repo)
+# docker/ is a clone of https://github.com/kesor/ollama-proxy
+docker/
+
+# Scratch/debug scripts not meant for production
+backend/check_all_public_tables.py
+backend/check_public_tables.py
+backend/status_admin.py
+backend/verify_out.txt
+backend/verify_system.py
+backend/test_ai_prompt
+project_structure.txt
+
+# Local HTML/architecture drafts
+CaloriesGuard/
