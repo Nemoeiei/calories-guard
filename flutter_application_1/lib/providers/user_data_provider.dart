@@ -429,6 +429,10 @@ class UserDataNotifier extends StateNotifier<UserData> {
   void setAvatarUrl(String? url) {
     state = state.copyWith(avatarUrl: url);
   }
+
+  void reset() {
+    state = UserData();
+  }
 }
 
 final userDataProvider =

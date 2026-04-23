@@ -438,10 +438,13 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
               icon: Icons.swap_horiz_rounded,
               iconColor: Colors.grey.shade500,
               title: 'เปลี่ยนบัญชี',
-              onTap: () => Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                  (route) => false),
+              onTap: () {
+                ref.read(userDataProvider.notifier).reset();
+                Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                    (route) => false);
+              },
             ),
             _buildTile(
               icon: Icons.delete_outline_rounded,
@@ -462,10 +465,13 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
               width: double.infinity,
               height: 54,
               child: ElevatedButton.icon(
-                onPressed: () => Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                    (route) => false),
+                onPressed: () {
+                  ref.read(userDataProvider.notifier).reset();
+                  Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                      (route) => false);
+                },
                 icon: const Icon(Icons.logout_rounded),
                 label: const Text('ออกจากระบบ',
                     style:

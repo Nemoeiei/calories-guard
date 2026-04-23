@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-// ✅ อย่าลืม Import หน้า Login ให้ถูกต้องตาม Path ของคุณ
-import '/login_register/screens/login_screen.dart'; 
-import 'admin_request_screen.dart'; // Import หน้าดูคำขอ
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '/login_register/screens/welcome_screen.dart';
+import '/providers/user_data_provider.dart';
+import 'admin_request_screen.dart';
 import 'admin_food_list_screen.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: const Color(0xFFE8EFCF), // พื้นหลังสีเขียวอ่อน
       body: SafeArea(
@@ -48,11 +49,13 @@ class AdminDashboardScreen extends StatelessWidget {
                     ],
                     // ใส่รูปโปรไฟล์ Admin (ถ้ามี)
                     image: const DecorationImage(
-                      image: NetworkImage('https://via.placeholder.com/110'), 
+                      image: NetworkImage('https://via.placeholder.com/110'),
                       fit: BoxFit.cover,
                     ),
                   ),
-                  child: const Icon(Icons.person, size: 60, color: Colors.white), // ใส่ไอคอนเผื่อไว้ถ้ารูปไม่โหลด
+                  child: const Icon(Icons.person,
+                      size: 60,
+                      color: Colors.white), // ใส่ไอคอนเผื่อไว้ถ้ารูปไม่โหลด
                 ),
 
                 const SizedBox(height: 50),
@@ -80,7 +83,8 @@ class AdminDashboardScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF4C6414), width: 1),
+                    border:
+                        Border.all(color: const Color(0xFF4C6414), width: 1),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.05),
@@ -94,18 +98,26 @@ class AdminDashboardScreen extends StatelessWidget {
                       // เมนู 1: เพิ่ม/ลดข้อมูล
                       _buildMenuItem(
                         icon: Icons.edit_note,
-                        title: 'เพิ่ม/ลดข้อมูล', // หรือเปลี่ยนชื่อเป็น "จัดการเมนูอาหาร"
+                        title:
+                            'เพิ่ม/ลดข้อมูล', // หรือเปลี่ยนชื่อเป็น "จัดการเมนูอาหาร"
                         onTap: () {
                           // ✅ 2. ใส่ Navigator ตรงนี้ครับ
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const AdminFoodListScreen()),
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    const AdminFoodListScreen()),
                           );
                         },
                       ),
-                      
+
                       // เส้นคั่น
-                      const Divider(color: Color(0xFF628141), height: 1, thickness: 1, indent: 15, endIndent: 15),
+                      const Divider(
+                          color: Color(0xFF628141),
+                          height: 1,
+                          thickness: 1,
+                          indent: 15,
+                          endIndent: 15),
 
                       // เมนู 2: ดูคำขอเพิ่มเมนู
                       _buildMenuItem(
@@ -115,7 +127,9 @@ class AdminDashboardScreen extends StatelessWidget {
                           // ไปหน้า AdminRequestScreen
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const AdminRequestScreen()),
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    const AdminRequestScreen()),
                           );
                         },
                       ),
@@ -140,11 +154,11 @@ class AdminDashboardScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     onPressed: () {
-                      // ออกจากระบบแล้วกลับไปหน้า Login และล้าง stack ทั้งหมด
+                      ref.read(userDataProvider.notifier).reset();
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => const LoginScreen()),
+                            builder: (context) => const WelcomeScreen()),
                         (route) => false,
                       );
                     },
@@ -167,7 +181,10 @@ class AdminDashboardScreen extends StatelessWidget {
   }
 
   // Widget ย่อยสำหรับสร้างรายการเมนู
-  Widget _buildMenuItem({required IconData icon, required String title, required VoidCallback onTap}) {
+  Widget _buildMenuItem(
+      {required IconData icon,
+      required String title,
+      required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
@@ -188,7 +205,8 @@ class AdminDashboardScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black54),
+            const Icon(Icons.arrow_forward_ios,
+                size: 16, color: Colors.black54),
           ],
         ),
       ),
