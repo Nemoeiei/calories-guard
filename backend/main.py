@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from supabase import create_client
+from supabase_auth.errors import AuthApiError
 
 import shutil
 
@@ -1451,6 +1452,9 @@ def register(user: UserRegister):
         raise HTTPException(status_code=400, detail="Invalid email format")
 
     try:
+        existing = _sb_table("users").select("user_id").eq("email", user.email).limit(1).execute()
+        if existing.data:
+            raise HTTPException(status_code=409, detail="อีเมลนี้ถูกใช้งานแล้ว")
 
         result = supabase_auth.auth.sign_up({
             "email": user.email,
@@ -1578,7 +1582,12 @@ def login(user: UserLogin):
         # Update last_login_date, total_login_days, current_streak
         today = date.today()
         last_login = db_user.get('last_login_date')
-        if isinstance(last_login, datetime):
+        if isinstance(last_login, str):
+            try:
+                last_login = datetime.fromisoformat(last_login).date()
+            except ValueError:
+                last_login = None
+        elif isinstance(last_login, datetime):
             last_login = last_login.date()
 
         total_days = int(db_user.get('total_login_days') or 0)
@@ -1640,6 +1649,9 @@ def login(user: UserLogin):
     except HTTPException:
 
         raise
+
+    except AuthApiError as e:
+        raise HTTPException(status_code=401, detail="อีเมลหรือรหัสผ่านไม่ถูกต้อง")
 
     except Exception:
         import traceback
@@ -2166,31 +2178,18 @@ _init_missing_tables()
 @app.post('/password-reset/request')
 def password_reset_request(req: PasswordResetOtpRequest):
     _require_supabase()
-    conn = get_db_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="Database connection is not available")
 
     try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT user_id, email, birth_date, deleted_at
-            FROM users
-            WHERE email = %s
-              AND deleted_at IS NULL
-            LIMIT 1
-            """,
-            (req.email,),
-        )
-        user = cur.fetchone()
-        if not user:
+        res = _sb_table("users").select("user_id,email,birth_date,deleted_at").eq("email", req.email).limit(1).execute()
+        user = res.data[0] if res.data else None
+        if not user or user.get("deleted_at") is not None:
             raise HTTPException(status_code=404, detail="User not found")
 
         birth_date = user.get("birth_date")
-        if hasattr(birth_date, "date"):
-            birth_date = birth_date.date()
-        elif isinstance(birth_date, str):
+        if isinstance(birth_date, str):
             birth_date = datetime.strptime(birth_date[:10], "%Y-%m-%d").date()
+        elif hasattr(birth_date, "date"):
+            birth_date = birth_date.date()
 
         if birth_date != req.birth_date:
             raise HTTPException(status_code=400, detail="Birth date does not match")
@@ -2198,13 +2197,11 @@ def password_reset_request(req: PasswordResetOtpRequest):
         logging.info("Password reset email request: email=%s", req.email)
         supabase_auth.auth.reset_password_for_email(req.email)
         return {"message": "Password reset code sent"}
+    except HTTPException:
+        raise
     except Exception as e:
-        if isinstance(e, HTTPException):
-            raise
         logging.exception("Password reset request failed for email=%s", req.email)
         raise HTTPException(status_code=400, detail=str(e))
-    finally:
-        conn.close()
 
 
 @app.post("/forgot-password")
@@ -2215,31 +2212,18 @@ def forgot_password(req: PasswordResetOtpRequest):
 @app.post("/password-reset/confirm")
 def password_reset_confirm(req: PasswordResetConfirm):
     _require_supabase()
-    conn = get_db_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="Database connection is not available")
 
     try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT user_id, email, birth_date, deleted_at
-            FROM users
-            WHERE email = %s
-              AND deleted_at IS NULL
-            LIMIT 1
-            """,
-            (req.email,),
-        )
-        user = cur.fetchone()
-        if not user:
+        res = _sb_table("users").select("user_id,email,birth_date,deleted_at").eq("email", req.email).limit(1).execute()
+        user = res.data[0] if res.data else None
+        if not user or user.get("deleted_at") is not None:
             raise HTTPException(status_code=404, detail="User not found")
 
         birth_date = user.get("birth_date")
-        if hasattr(birth_date, "date"):
-            birth_date = birth_date.date()
-        elif isinstance(birth_date, str):
+        if isinstance(birth_date, str):
             birth_date = datetime.strptime(birth_date[:10], "%Y-%m-%d").date()
+        elif hasattr(birth_date, "date"):
+            birth_date = birth_date.date()
 
         if birth_date != req.birth_date:
             raise HTTPException(status_code=400, detail="Birth date does not match")
@@ -2261,12 +2245,10 @@ def password_reset_confirm(req: PasswordResetConfirm):
         )
 
         return {"message": "Password reset successful"}
+    except HTTPException:
+        raise
     except Exception as e:
-        if isinstance(e, HTTPException):
-            raise
         raise HTTPException(status_code=400, detail=str(e))
-    finally:
-        conn.close()
 
 
 
