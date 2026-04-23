@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_application_1/constants/constants.dart';
 import '/providers/user_data_provider.dart';
 
@@ -30,17 +29,32 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       final userId = ref.read(userDataProvider).userId;
       final bytes = await picked.readAsBytes();
       final ext = picked.name.split('.').last.toLowerCase();
-      final path = 'avatars/$userId.$ext';
+      final url = Uri.parse('${AppConstants.baseUrl}/users/$userId/avatar');
 
-      await Supabase.instance.client.storage.from('avatars').uploadBinary(
-          path, bytes,
-          fileOptions: FileOptions(upsert: true, contentType: 'image/$ext'));
+      final request = http.MultipartRequest('POST', url)
+        ..files.add(http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: 'avatar.$ext',
+        ));
 
-      final publicUrl =
-          Supabase.instance.client.storage.from('avatars').getPublicUrl(path);
+      final streamed = await request.send();
+      final body = await streamed.stream.bytesToString();
 
-      await _updateUserData({'avatar_url': publicUrl});
-      ref.read(userDataProvider.notifier).setAvatarUrl(publicUrl);
+      if (streamed.statusCode == 200) {
+        final data = jsonDecode(body);
+        final publicUrl = data['avatar_url'] as String;
+        ref.read(userDataProvider.notifier).setAvatarUrl(publicUrl);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('อัปโหลดรูปสำเร็จ ✅'),
+                backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        throw Exception(body);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

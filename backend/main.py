@@ -2297,6 +2297,32 @@ def password_reset_confirm(req: PasswordResetConfirm):
 
 
 
+# --- API: Upload Avatar ---
+
+@app.post("/users/{user_id}/avatar")
+async def upload_avatar(user_id: int, file: UploadFile = File(...)):
+    _require_supabase()
+    try:
+        contents = await file.read()
+        ext = (file.filename or "jpg").rsplit(".", 1)[-1].lower()
+        path = f"avatars/{user_id}.{ext}"
+
+        supabase_admin.storage.from_("avatars").upload(
+            path=path,
+            file=contents,
+            file_options={"content-type": file.content_type or f"image/{ext}", "upsert": "true"},
+        )
+
+        public_url = supabase_admin.storage.from_("avatars").get_public_url(path)
+
+        _sb_table("users").update({"avatar_url": public_url}).eq("user_id", user_id).execute()
+
+        return {"avatar_url": public_url}
+    except Exception as e:
+        logging.exception("Avatar upload failed for user_id=%s", user_id)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # --- API 6: Get User Profile (null-safe, target_calories from DB or computed) ---
 
 @app.get("/users/{user_id}")
