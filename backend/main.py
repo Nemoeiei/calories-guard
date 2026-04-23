@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 
 from typing import List, Optional, Dict
-
+from supabase_storage import upload_to_supabase
 from enum import Enum
 
 import logging
@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from supabase import create_client
+from supabase_auth.errors import AuthApiError
 
 import shutil
 
@@ -188,6 +189,17 @@ def _age_from_birth(birth_date: Optional[date]) -> int:
     if not birth_date:
 
         return 20
+    
+    # Handle string dates
+    if isinstance(birth_date, str):
+        try:
+            birth_date = datetime.strptime(birth_date[:10], "%Y-%m-%d").date()
+        except (ValueError, AttributeError):
+            return 20
+    
+    # Handle datetime objects
+    if isinstance(birth_date, datetime):
+        birth_date = birth_date.date()
 
     today = date.today()
 
@@ -289,12 +301,14 @@ def _compute_target_calories(user: dict) -> int:
 
     goal_end = user.get('goal_target_date')
 
-    if isinstance(goal_start, str):
-
+    if isinstance(goal_start, datetime):
+        goal_start = goal_start.date()
+    elif isinstance(goal_start, str):
         goal_start = datetime.strptime(goal_start[:10], "%Y-%m-%d").date() if goal_start else None
 
-    if isinstance(goal_end, str):
-
+    if isinstance(goal_end, datetime):
+        goal_end = goal_end.date()
+    elif isinstance(goal_end, str):
         goal_end = datetime.strptime(goal_end[:10], "%Y-%m-%d").date() if goal_end else None
 
     num_weeks = 12.0
@@ -1551,6 +1565,7 @@ def login(user: UserLogin):
     _require_supabase()
 
     try:
+        logging.info(f"[login] Attempt for email: {user.email}")
         auth_result = supabase_auth.auth.sign_in_with_password({
             "email": user.email,
             "password": user.password,
@@ -1558,7 +1573,10 @@ def login(user: UserLogin):
         auth_user = getattr(auth_result, "user", None)
         auth_session = getattr(auth_result, "session", None)
         if not auth_user:
+            logging.warning(f"[login] No auth_user returned for {user.email}")
             raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        logging.info(f"[login] Auth successful for {user.email}, user_id={auth_user.id}")
 
         metadata = getattr(auth_user, "user_metadata", {}) or {}
         username = metadata.get("username")
@@ -1568,9 +1586,12 @@ def login(user: UserLogin):
             is_verified=bool(getattr(auth_user, "email_confirmed_at", None)),
         )
         if not db_user:
+            logging.error(f"[login] Failed to sync local user for {user.email}")
             raise HTTPException(status_code=500, detail="Could not sync local user profile")
 
+        logging.info(f"[login] DB user synced: user_id={db_user['user_id']}, email_verified={db_user.get('is_email_verified')}")
         if not db_user.get('is_email_verified'):
+            logging.warning(f"[login] Email not verified for {user.email}")
             raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox for the verification code.")
 
 
@@ -1580,6 +1601,11 @@ def login(user: UserLogin):
         last_login = db_user.get('last_login_date')
         if isinstance(last_login, datetime):
             last_login = last_login.date()
+        elif isinstance(last_login, str):
+            try:
+                last_login = datetime.fromisoformat(last_login.split('T')[0]).date() if last_login else None
+            except (ValueError, AttributeError):
+                last_login = None
 
         total_days = int(db_user.get('total_login_days') or 0)
         streak = int(db_user.get('current_streak') or 0)
@@ -1591,6 +1617,7 @@ def login(user: UserLogin):
             else:
                 streak += 1
 
+            logging.info(f"[login] Updating streak: streak={streak}, total_days={total_days}, last_login={last_login}")
             _sb_table("users").update(
                 {
                     "last_login_date": datetime.combine(today, datetime.min.time()).isoformat(),
@@ -1619,6 +1646,7 @@ def login(user: UserLogin):
 
 
 
+        logging.info(f"[login] ✅ Login successful for {user.email}")
         return {
 
             "message": "Login successful",
@@ -1641,9 +1669,12 @@ def login(user: UserLogin):
 
         raise
 
-    except Exception:
-        import traceback
-        traceback.print_exc()
+    except AuthApiError as e:
+        logging.warning(f"[login] AuthApiError for {user.email}: {str(e)}")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    except Exception as e:
+        logging.exception(f"[login] Unexpected error for {user.email}: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail="Login failed. Please try again later.")
 
 
@@ -1680,6 +1711,11 @@ def oauth_login(body: OAuthLoginRequest):
         last_login = db_user.get('last_login_date')
         if isinstance(last_login, datetime):
             last_login = last_login.date()
+        elif isinstance(last_login, str):
+            try:
+                last_login = datetime.fromisoformat(last_login.split('T')[0]).date() if last_login else None
+            except (ValueError, AttributeError):
+                last_login = None
 
         total_days = int(db_user.get('total_login_days') or 0)
         streak = int(db_user.get('current_streak') or 0)
@@ -1762,8 +1798,15 @@ def social_login(body: SocialLoginRequest):
             from datetime import date
             today = date.today()
             last_login = user.get('last_login_date')
-            if last_login and hasattr(last_login, 'date'):
+            
+            # Convert to date object if needed
+            if isinstance(last_login, datetime):
                 last_login = last_login.date()
+            elif isinstance(last_login, str):
+                try:
+                    last_login = datetime.fromisoformat(last_login.split('T')[0]).date() if last_login else None
+                except (ValueError, AttributeError):
+                    last_login = None
 
             total_days = int(user.get('total_login_days') or 0) + 1
             streak = int(user.get('current_streak') or 0)
