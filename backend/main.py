@@ -3625,6 +3625,8 @@ def upsert_recipe_review(food_id: int, review: RecipeReview):
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        print("REVIEW ERROR:", traceback.format_exc())
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
