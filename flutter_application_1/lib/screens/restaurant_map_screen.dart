@@ -224,17 +224,35 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
     }
   }
 
-  Widget _buildSafeImage(String url, {required double width, required double height, double iconSize = 24}) {
+  Widget _buildSafeImage(String url,
+      {required double width, required double height, double iconSize = 24}) {
     return FutureBuilder<http.Response>(
       future: http.get(Uri.parse(url)),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(width: width, height: height, color: _greenL, child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: _green, strokeWidth: 2))));
+          return Container(
+              width: width,
+              height: height,
+              color: _greenL,
+              child: const Center(
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          color: _green, strokeWidth: 2))));
         }
-        if (snapshot.hasData && snapshot.data!.statusCode == 200 && snapshot.data!.headers['content-type']?.startsWith('image') == true) {
-           return Image.memory(snapshot.data!.bodyBytes, width: width, height: height, fit: BoxFit.cover);
+        if (snapshot.hasData &&
+            snapshot.data!.statusCode == 200 &&
+            snapshot.data!.headers['content-type']?.startsWith('image') ==
+                true) {
+          return Image.memory(snapshot.data!.bodyBytes,
+              width: width, height: height, fit: BoxFit.cover);
         }
-        return Container(width: width, height: height, color: _greenL, child: Icon(Icons.restaurant, color: _green, size: iconSize));
+        return Container(
+            width: width,
+            height: height,
+            color: _greenL,
+            child: Icon(Icons.restaurant, color: _green, size: iconSize));
       },
     );
   }
@@ -668,7 +686,8 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
                     if (photoUrl.isNotEmpty)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: _buildSafeImage(photoUrl, width: double.infinity, height: 200, iconSize: 64),
+                        child: _buildSafeImage(photoUrl,
+                            width: double.infinity, height: 200, iconSize: 64),
                       ),
                     const SizedBox(height: 16),
                     Row(

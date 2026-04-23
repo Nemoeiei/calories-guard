@@ -43,7 +43,8 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -61,7 +62,8 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('ยกเลิก', style: TextStyle(color: Colors.grey))),
+              child:
+                  const Text('ยกเลิก', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
@@ -175,8 +177,8 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
           const SizedBox(width: 14),
           Expanded(
             child: Text(label,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w500)),
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
           ),
           if (selected)
             const Icon(Icons.check_circle_rounded, color: _green, size: 22)
@@ -280,8 +282,8 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
           const SizedBox(width: 14),
           Expanded(
             child: Text(label,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w500)),
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
           ),
           if (selected)
             Icon(Icons.check_circle_rounded, color: color, size: 22)
@@ -390,8 +392,8 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
               icon: Icons.lightbulb_outline_rounded,
               iconColor: Colors.grey.shade500,
               title: 'เสนอฟีเจอร์ใหม่',
-              onTap: () => _showInfoDialog('ติดต่อเรา',
-                  'ส่งข้อเสนอแนะได้ที่ support@caloriesguard.com'),
+              onTap: () => _showInfoDialog(
+                  'ติดต่อเรา', 'ส่งข้อเสนอแนะได้ที่ support@caloriesguard.com'),
             ),
             _buildTile(
               icon: Icons.help_outline_rounded,
@@ -421,8 +423,8 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
               iconColor: Colors.grey.shade500,
               title: 'เกี่ยวกับ',
               isLast: true,
-              onTap: () => _showInfoDialog(
-                  'เกี่ยวกับแอป', 'Calories Guard v1.0.0'),
+              onTap: () =>
+                  _showInfoDialog('เกี่ยวกับแอป', 'Calories Guard v1.0.0'),
             ),
           ]),
 
@@ -466,7 +468,8 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
                     (route) => false),
                 icon: const Icon(Icons.logout_rounded),
                 label: const Text('ออกจากระบบ',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE74C3C),
                   foregroundColor: Colors.white,
@@ -526,8 +529,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
   }) {
     return Column(children: [
       ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
           width: 38,
           height: 38,
@@ -547,10 +549,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
       ),
       if (!isLast)
         Divider(
-            height: 1,
-            indent: 70,
-            endIndent: 20,
-            color: Colors.grey.shade100),
+            height: 1, indent: 70, endIndent: 20, color: Colors.grey.shade100),
     ]);
   }
 
@@ -564,8 +563,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
   }) {
     return Column(children: [
       ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
           width: 38,
           height: 38,
@@ -593,18 +591,14 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
       ),
       if (!isLast)
         Divider(
-            height: 1,
-            indent: 70,
-            endIndent: 20,
-            color: Colors.grey.shade100),
+            height: 1, indent: 70, endIndent: 20, color: Colors.grey.shade100),
     ]);
   }
 
   Widget _buildNotificationTile() {
     return Column(children: [
       ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
           width: 38,
           height: 38,
@@ -626,10 +620,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
         ),
       ),
       Divider(
-          height: 1,
-          indent: 70,
-          endIndent: 20,
-          color: Colors.grey.shade100),
+          height: 1, indent: 70, endIndent: 20, color: Colors.grey.shade100),
     ]);
   }
 }

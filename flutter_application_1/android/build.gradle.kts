@@ -14,8 +14,9 @@ allprojects {
         google()
         mavenCentral()
     }
+    layout.buildDirectory.set(rootProject.rootDir.parentFile.resolve("build/${project.name}"))
 }
 
 tasks.register<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
+    delete(rootProject.rootDir.parentFile.resolve("build"))
 }

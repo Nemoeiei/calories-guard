@@ -39,7 +39,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     });
   }
 
-
   void _syncViewDateFromProvider() {
     final fromProvider = ref.read(homeViewDateProvider);
     if (fromProvider != null) {
@@ -52,7 +51,11 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   // ─── Data Fetching ────────────────────────────────────────────────────────
 
   Future<void> _fetchAllData() async {
-    if (mounted) setState(() { _isLoading = true; _hasError = false; });
+    if (mounted)
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+      });
     try {
       await _fetchUserData();
       await _fetchDailyData(_viewDate);
@@ -130,7 +133,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     List<dynamic> items = [];
     Map<String, dynamic> summary = {};
     try {
-      final url = '${AppConstants.baseUrl}/meals/$userId/detail?date_record=$dateStr&meal_type=$mealType';
+      final url =
+          '${AppConstants.baseUrl}/meals/$userId/detail?date_record=$dateStr&meal_type=$mealType';
       debugPrint('🔍 Fetching meal detail: $url');
       final res = await http.get(Uri.parse(url));
       debugPrint('📦 Response ${res.statusCode}: ${res.body}');
@@ -161,7 +165,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
             child: Column(children: [
               // Handle
               Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2)),
@@ -169,7 +174,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               const SizedBox(height: 14),
               Row(children: [
                 Container(
-                  width: 38, height: 38,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                       color: _greenLight,
                       borderRadius: BorderRadius.circular(10)),
@@ -177,23 +183,24 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(mealLabel,
-                        style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87)),
-                    if (summary['total_cal'] != null)
-                      Text(
-                        'รวม ${(summary['total_cal'] as num).toStringAsFixed(0)} kcal  '
-                        '· P ${(summary['total_protein'] as num).toStringAsFixed(0)}g  '
-                        '· C ${(summary['total_carbs'] as num).toStringAsFixed(0)}g  '
-                        '· F ${(summary['total_fat'] as num).toStringAsFixed(0)}g',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600),
-                      ),
-                  ]),
+                        Text(mealLabel,
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87)),
+                        if (summary['total_cal'] != null)
+                          Text(
+                            'รวม ${(summary['total_cal'] as num).toStringAsFixed(0)} kcal  '
+                            '· P ${(summary['total_protein'] as num).toStringAsFixed(0)}g  '
+                            '· C ${(summary['total_carbs'] as num).toStringAsFixed(0)}g  '
+                            '· F ${(summary['total_fat'] as num).toStringAsFixed(0)}g',
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey.shade600),
+                          ),
+                      ]),
                 ),
               ]),
               const SizedBox(height: 12),
@@ -223,10 +230,18 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (_, i) {
                       final item = items[i] as Map<String, dynamic>;
-                      final cal = (item['total_cal'] as num?)?.toStringAsFixed(0) ?? '-';
-                      final protein = (item['total_protein'] as num?)?.toStringAsFixed(1) ?? '0';
-                      final carbs = (item['total_carbs'] as num?)?.toStringAsFixed(1) ?? '0';
-                      final fat = (item['total_fat'] as num?)?.toStringAsFixed(1) ?? '0';
+                      final cal =
+                          (item['total_cal'] as num?)?.toStringAsFixed(0) ??
+                              '-';
+                      final protein =
+                          (item['total_protein'] as num?)?.toStringAsFixed(1) ??
+                              '0';
+                      final carbs =
+                          (item['total_carbs'] as num?)?.toStringAsFixed(1) ??
+                              '0';
+                      final fat =
+                          (item['total_fat'] as num?)?.toStringAsFixed(1) ??
+                              '0';
                       final imageUrl = item['image_url'] as String? ?? '';
                       final foodName = item['food_name'] as String? ?? '';
                       final amount = item['amount'];
@@ -243,7 +258,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                             borderRadius: BorderRadius.circular(12),
                             child: imageUrl.isNotEmpty
                                 ? Image.network(imageUrl,
-                                    width: 60, height: 60,
+                                    width: 60,
+                                    height: 60,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) =>
                                         _foodPlaceholder())
@@ -255,26 +271,29 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                              Text(foodName,
-                                  style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87)),
-                              const SizedBox(height: 2),
-                              Text('${amount ?? 1} หน่วย',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade500)),
-                              const SizedBox(height: 6),
-                              // Macro chips
-                              Row(children: [
-                                _macroChip('P', protein, const Color(0xFF628141)),
-                                const SizedBox(width: 4),
-                                _macroChip('C', carbs, const Color(0xFF3D5A27)),
-                                const SizedBox(width: 4),
-                                _macroChip('F', fat, const Color(0xFF4A7A20)),
-                              ]),
-                            ]),
+                                  Text(foodName,
+                                      style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87)),
+                                  const SizedBox(height: 2),
+                                  Text('${amount ?? 1} หน่วย',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade500)),
+                                  const SizedBox(height: 6),
+                                  // Macro chips
+                                  Row(children: [
+                                    _macroChip(
+                                        'P', protein, const Color(0xFF628141)),
+                                    const SizedBox(width: 4),
+                                    _macroChip(
+                                        'C', carbs, const Color(0xFF3D5A27)),
+                                    const SizedBox(width: 4),
+                                    _macroChip(
+                                        'F', fat, const Color(0xFF4A7A20)),
+                                  ]),
+                                ]),
                           ),
                           // Calorie badge
                           Container(
@@ -351,10 +370,10 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   }
 
   Widget _foodPlaceholder() => Container(
-      width: 60, height: 60,
+      width: 60,
+      height: 60,
       decoration: BoxDecoration(
-          color: _greenLight,
-          borderRadius: BorderRadius.circular(12)),
+          color: _greenLight, borderRadius: BorderRadius.circular(12)),
       child: const Icon(Icons.restaurant, color: _green, size: 28));
 
   Widget _macroChip(String label, String value, Color color) => Container(
@@ -377,16 +396,16 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('ยกเลิก',
-                  style: TextStyle(color: Colors.grey))),
+              child:
+                  const Text('ยกเลิก', style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _deleteMeal(mealType);
             },
             child: const Text('ลบ',
-                style: TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.bold)),
+                style:
+                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -530,10 +549,12 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
       }
     });
 
-    final int targetCal =
-        userData.targetCalories.toInt() > 0 ? userData.targetCalories.toInt() : 1500;
+    final int targetCal = userData.targetCalories.toInt() > 0
+        ? userData.targetCalories.toInt()
+        : 1500;
     final int currentCal = userData.consumedCalories;
-    final double progress = (targetCal > 0) ? (currentCal / targetCal).clamp(0.0, 1.0) : 0.0;
+    final double progress =
+        (targetCal > 0) ? (currentCal / targetCal).clamp(0.0, 1.0) : 0.0;
     final bool isOver = currentCal > targetCal;
 
     if (isOver && !_hasWarnedCalories) {
@@ -583,30 +604,30 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                   ]),
                 )
               : RefreshIndicator(
-              onRefresh: _fetchAllData,
-              color: _green,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildDateHeader(),
-                    const SizedBox(height: 16),
-                    _buildCalorieCard(
-                        currentCal, targetCal, progress, isOver, userData),
-                    const SizedBox(height: 12),
-                    _buildMacroRow(userData),
-                    const SizedBox(height: 12),
-                    _buildWeightBMIRow(userData, bmi, bmiStatus),
-                    const SizedBox(height: 16),
-                    _buildRestaurantButton(targetCal - currentCal),
-                    const SizedBox(height: 12),
-                    _buildMealsSection(userData),
-                    const SizedBox(height: 100),
-                  ],
+                  onRefresh: _fetchAllData,
+                  color: _green,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildDateHeader(),
+                        const SizedBox(height: 16),
+                        _buildCalorieCard(
+                            currentCal, targetCal, progress, isOver, userData),
+                        const SizedBox(height: 12),
+                        _buildMacroRow(userData),
+                        const SizedBox(height: 12),
+                        _buildWeightBMIRow(userData, bmi, bmiStatus),
+                        const SizedBox(height: 16),
+                        _buildRestaurantButton(targetCal - currentCal),
+                        const SizedBox(height: 12),
+                        _buildMealsSection(userData),
+                        const SizedBox(height: 100),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
     );
   }
 
@@ -615,8 +636,19 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   Widget _buildDateHeader() {
     final isToday = _isToday(_viewDate);
     final thaiMonths = [
-      '', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+      '',
+      'ม.ค.',
+      'ก.พ.',
+      'มี.ค.',
+      'เม.ย.',
+      'พ.ค.',
+      'มิ.ย.',
+      'ก.ค.',
+      'ส.ค.',
+      'ก.ย.',
+      'ต.ค.',
+      'พ.ย.',
+      'ธ.ค.'
     ];
     final dateLabel =
         '${_viewDate.day} ${thaiMonths[_viewDate.month]} ${_viewDate.year + 543}';
@@ -639,8 +671,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               Text(
                 isToday ? 'วันนี้' : 'ดูข้อมูลย้อนหลัง',
                 style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withOpacity(0.75)),
+                    fontSize: 13, color: Colors.white.withOpacity(0.75)),
               ),
               const SizedBox(height: 2),
               Text(
@@ -751,7 +782,10 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                   Icon(Icons.bar_chart_rounded, size: 14, color: _green),
                   SizedBox(width: 4),
                   Text('กราฟ',
-                      style: TextStyle(fontSize: 12, color: _green, fontWeight: FontWeight.w600)),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: _green,
+                          fontWeight: FontWeight.w600)),
                 ]),
               ),
             ),
@@ -811,8 +845,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _calorieStatItem(
-                        'เป้าหมาย', '$targetCal kcal', _green, Icons.flag_outlined),
+                    _calorieStatItem('เป้าหมาย', '$targetCal kcal', _green,
+                        Icons.flag_outlined),
                     const SizedBox(height: 12),
                     // Removed extra stat item based on user request
                     const SizedBox(height: 8),
@@ -845,9 +879,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: isOver
-                  ? Colors.red.shade50
-                  : const Color(0xFFF0F7E8),
+              color: isOver ? Colors.red.shade50 : const Color(0xFFF0F7E8),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(children: [
@@ -862,7 +894,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                   advice,
                   style: TextStyle(
                       fontSize: 13,
-                      color: isOver ? Colors.red.shade700 : const Color(0xFF3D5A27),
+                      color: isOver
+                          ? Colors.red.shade700
+                          : const Color(0xFF3D5A27),
                       fontWeight: FontWeight.w500),
                 ),
               ),
@@ -990,7 +1024,10 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                     fontWeight: FontWeight.bold,
                     color: Colors.black87)),
             Text('/ $target g',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
@@ -1016,7 +1053,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => RestaurantMapScreen(remainingCalories: remainingCalories.toDouble())),
+            MaterialPageRoute(
+                builder: (context) => RestaurantMapScreen(
+                    remainingCalories: remainingCalories.toDouble())),
           );
         },
         child: Container(
@@ -1035,7 +1074,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.restaurant_menu_rounded, color: Colors.white, size: 20),
+              Icon(Icons.restaurant_menu_rounded,
+                  color: Colors.white, size: 20),
               SizedBox(width: 8),
               Text(
                 'ค้นหาร้านอาหารใกล้คุณ',
@@ -1053,18 +1093,21 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
   // ─── Weight & BMI Row ─────────────────────────────────────────────────────
 
-  Widget _buildWeightBMIRow(
-      dynamic userData, double bmi, String bmiStatus) {
+  Widget _buildWeightBMIRow(dynamic userData, double bmi, String bmiStatus) {
     final diff = (userData.weight - userData.targetWeight).abs();
     final action =
         (userData.weight > userData.targetWeight) ? 'ลดอีก' : 'เพิ่มอีก';
 
     Color bmiColor = _green;
     if (bmi > 0) {
-      if (bmi < 18.5) bmiColor = const Color(0xFF3498DB);
-      else if (bmi < 22.9) bmiColor = _green;
-      else if (bmi < 25) bmiColor = const Color(0xFFF39C12);
-      else bmiColor = const Color(0xFFE74C3C);
+      if (bmi < 18.5)
+        bmiColor = const Color(0xFF3498DB);
+      else if (bmi < 22.9)
+        bmiColor = _green;
+      else if (bmi < 25)
+        bmiColor = const Color(0xFFF39C12);
+      else
+        bmiColor = const Color(0xFFE74C3C);
     }
 
     return Padding(
@@ -1084,77 +1127,82 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                     offset: const Offset(0, 3))
               ],
             ),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                          color: _green.withOpacity(0.1),
-                          shape: BoxShape.circle),
-                      child: const Icon(Icons.monitor_weight_outlined,
-                          size: 16, color: _green),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                      color: _green.withOpacity(0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.monitor_weight_outlined,
+                      size: 16, color: _green),
+                ),
+                const SizedBox(width: 8),
+                const Text('น้ำหนัก',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87)),
+              ]),
+              const SizedBox(height: 12),
+              RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${userData.weight.toInt()}',
+                      style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87),
                     ),
-                    const SizedBox(width: 8),
-                    const Text('น้ำหนัก',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87)),
-                  ]),
-                  const SizedBox(height: 12),
-                  RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: '${userData.weight.toInt()}',
-                          style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87),
-                        ),
-                        const TextSpan(
-                          text: ' กก.',
-                          style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                              fontWeight: FontWeight.w500),
-                        ),
-                      ],
+                    const TextSpan(
+                      text: ' กก.',
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'เป้าหมาย: ${userData.targetWeight.toInt()} กก.',
-                    style: const TextStyle(
-                        fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _greenLight,
-                      borderRadius: BorderRadius.circular(20),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'เป้าหมาย: ${userData.targetWeight.toInt()} กก.',
+                style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _greenLight,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                        action == 'ลดอีก'
+                            ? Icons.arrow_downward_rounded
+                            : Icons.arrow_upward_rounded,
+                        size: 14,
+                        color: _greenDark),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$action ${diff.toStringAsFixed(1)} กก.',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: _greenDark,
+                          fontWeight: FontWeight.bold),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(action == 'ลดอีก' ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded, size: 14, color: _greenDark),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$action ${diff.toStringAsFixed(1)} กก.',
-                          style: const TextStyle(
-                              fontSize: 13,
-                              color: _greenDark,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                ]),
+                  ],
+                ),
+              ),
+            ]),
           ),
         ),
 
@@ -1173,81 +1221,81 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                             heightCm: userData.height)))
                 : null,
             child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3))
-              ],
-            ),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                          color: bmiColor.withOpacity(0.1),
-                          shape: BoxShape.circle),
-                      child: Icon(Icons.speed_rounded,
-                          size: 16, color: bmiColor),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('BMI',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87)),
-                  ]),
-                  const SizedBox(height: 12),
-                  bmi > 0
-                      ? RichText(
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: bmi.toStringAsFixed(1),
-                                style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: bmiColor),
-                              ),
-                            ],
-                          ),
-                        )
-                      : const Text('-',
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3))
+                ],
+              ),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                            color: bmiColor.withOpacity(0.1),
+                            shape: BoxShape.circle),
+                        child: Icon(Icons.speed_rounded,
+                            size: 16, color: bmiColor),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('BMI',
                           style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey)),
-                  const SizedBox(height: 4),
-                  Text(
-                    'ส่วนสูง ${userData.height.toInt()} ซม.',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade500),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: bmiColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87)),
+                    ]),
+                    const SizedBox(height: 12),
+                    bmi > 0
+                        ? RichText(
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: bmi.toStringAsFixed(1),
+                                  style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                      color: bmiColor),
+                                ),
+                              ],
+                            ),
+                          )
+                        : const Text('-',
+                            style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ส่วนสูง ${userData.height.toInt()} ซม.',
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade500),
                     ),
-                    child: Text(
-                      bmiStatus,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: bmiColor,
-                          fontWeight: FontWeight.w600),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: bmiColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        bmiStatus,
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: bmiColor,
+                            fontWeight: FontWeight.w600),
+                      ),
                     ),
-                  ),
-                ]),
-          ),
+                  ]),
+            ),
           ),
         ),
       ]),
@@ -1268,8 +1316,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
             width: 4,
             height: 22,
             decoration: BoxDecoration(
-                color: _green,
-                borderRadius: BorderRadius.circular(2)),
+                color: _green, borderRadius: BorderRadius.circular(2)),
           ),
           const SizedBox(width: 10),
           const Text(
@@ -1308,8 +1355,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                       fontWeight: FontWeight.w500)),
               const SizedBox(height: 4),
               Text('กดปุ่ม "บันทึก" เพื่อเพิ่มรายการ',
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade400)),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
             ]),
           )
         else
@@ -1340,8 +1386,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         ],
       ),
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
           width: 44,
           height: 44,
