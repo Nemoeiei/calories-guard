@@ -1673,6 +1673,8 @@ def login(user: UserLogin):
 
             "access_token": getattr(auth_session, "access_token", None),
 
+            "refresh_token": getattr(auth_session, "refresh_token", None),
+
         }
 
     except HTTPException:

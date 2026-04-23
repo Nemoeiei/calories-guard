@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/user_data_provider.dart';
 import '../../services/auth_service.dart';
 import 'forgot_password_screen.dart';
@@ -104,6 +105,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       ref
           .read(userDataProvider.notifier)
           .setLoginInfo(_emailCtrl.text.trim(), _passCtrl.text);
+      final refreshToken = data['refresh_token'] as String?;
+      if (refreshToken != null) {
+        try {
+          await Supabase.instance.client.auth.setSession(refreshToken);
+        } catch (_) {}
+      }
       await Future.delayed(const Duration(milliseconds: 100));
       _navigateAfterLogin(data['role_id'] ?? 2);
     } else {
