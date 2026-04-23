@@ -1,0 +1,53 @@
+name: Synthetic probe (prod)
+
+# Runs every 10 minutes against the production API. On failure, the job fails
+# — which surfaces in GitHub's cron history and (because SENTRY_DSN is set)
+# also captures an exception in Sentry, which the #14 alert rules pick up.
+#
+# The synthetic user is seeded once per env (see docs/STAGING.md §synthetic).
+# It records and immediately deletes a meal, so no residual data accumulates
+# beyond the 30s between meal_create and cleanup.
+#
+# GitHub Actions cron is best-effort — not a replacement for UptimeRobot on
+# /health, which pings every 5 minutes on infra separate from GitHub. This
+# workflow exists for the *deep* check (login + write path), not liveness.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'prod | staging'
+        required: true
+        default: 'prod'
+
+concurrency:
+  # Prevent overlapping runs if one probe slows past 10 minutes — don't
+  # want to DOS our own rate limiter.
+  group: synthetic-${{ github.event.inputs.target || 'prod' }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install minimal deps
+        run: pip install requests sentry-sdk
+
+      - name: Run probe
+        env:
+          SYNTHETIC_BASE_URL: ${{ github.event.inputs.target == 'staging' && secrets.STAGING_BASE_URL || secrets.PROD_BASE_URL }}
+          SYNTHETIC_EMAIL: ${{ secrets.SYNTHETIC_EMAIL }}
+          SYNTHETIC_PASSWORD: ${{ secrets.SYNTHETIC_PASSWORD }}
+          SYNTHETIC_USER_ID: ${{ secrets.SYNTHETIC_USER_ID }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_PROBE }}
+        run: python backend/scripts/synthetic_check.py

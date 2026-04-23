@@ -1,0 +1,409 @@
+import os
+import re
+import secrets
+from datetime import date, datetime, timedelta
+from random import randint
+
+from fastapi import APIRouter, HTTPException, Request, Depends
+from psycopg2.extras import RealDictCursor
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from jose import jwt
+
+from database import get_db_connection
+from app.core.security import get_password_hash, verify_password
+from app.core.observability import track
+
+
+_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+_JWT_ALGO = "HS256"
+_JWT_TTL_HOURS = 12
+
+
+def _issue_access_token(user_id: int, email: str, role_id: int) -> str:
+    """
+    Issue an HS256 JWT signed with SUPABASE_JWT_SECRET so that
+    backend's get_current_user / get_current_admin can verify it.
+    Payload mirrors what Supabase Auth would set, so the same
+    verification path works for both self-issued + Supabase tokens.
+    """
+    now = datetime.utcnow()
+    payload = {
+        "sub": f"cg-user-{user_id}",
+        "email": email,
+        "role": "authenticated",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(hours=_JWT_TTL_HOURS)).timestamp()),
+        "app_metadata": {"user_id": user_id, "role_id": role_id},
+    }
+    return jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGO)
+from app.services.email_service import (
+    send_welcome_email, send_verification_email, send_password_reset_email,
+)
+from app.models.schemas import (
+    UserRegister, UserLogin, UserVerifyEmail,
+    PasswordResetRequest, PasswordResetVerify, PasswordResetConfirm,
+    SocialLoginRequest,
+)
+
+router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
+
+
+def _generate_code() -> str:
+    return f"{randint(100000, 999999)}"
+
+
+def _init_password_reset_table():
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS password_reset_codes (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+            code VARCHAR(10) NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """)
+        conn.commit()
+    except Exception as e:
+        print('Could not create password reset table:', e)
+    finally:
+        conn.close()
+
+
+_init_password_reset_table()
+
+
+@router.post("/register")
+@limiter.limit("5/minute")
+def register(request: Request, user: UserRegister):
+    if not re.match(r'^[\w\.\-\+]+@[\w\-]+(\.[\w\-]+)*\.[a-zA-Z]{2,}$', user.email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (user.email,))
+        if cur.fetchone():
+            raise HTTPException(status_code=400, detail="Email already exists")
+        hashed_pw = get_password_hash(user.password)
+        cur.execute("""
+            INSERT INTO users (email, password_hash, username, role_id, is_email_verified)
+            VALUES (%s, %s, %s, 2, FALSE)
+            RETURNING user_id, email, username
+        """, (user.email, hashed_pw, user.username))
+        new_user = cur.fetchone()
+        code = str(randint(100000, 999999))
+        expires = datetime.now() + timedelta(minutes=15)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS email_verification_codes (
+                id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL, code VARCHAR(10) NOT NULL,
+                expires_at TIMESTAMP NOT NULL, used BOOLEAN DEFAULT FALSE
+            )
+        """)
+        cur.execute("INSERT INTO email_verification_codes (user_id, code, expires_at) VALUES (%s, %s, %s)",
+                    (new_user['user_id'], code, expires))
+        conn.commit()
+        send_verification_email(new_user['email'], new_user['username'], code)
+        return {"message": "User created. Please check email for verification code.", "user": new_user}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail="Registration failed. Please try again later.")
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post("/verify-email")
+def verify_email(req: UserVerifyEmail):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="Email not found")
+        cur.execute("SELECT * FROM email_verification_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY id DESC LIMIT 1", (user['user_id'], req.code))
+        code_record = cur.fetchone()
+        if not code_record or code_record['expires_at'] < datetime.now():
+            raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+        cur.execute("UPDATE users SET is_email_verified = TRUE WHERE user_id = %s", (user['user_id'],))
+        cur.execute("UPDATE email_verification_codes SET used = TRUE WHERE id = %s", (code_record['id'],))
+        conn.commit()
+        send_welcome_email(user['email'], user['username'])
+        return {"message": "Email verified successfully", "user_id": user['user_id']}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post("/resend-verification-email")
+def resend_verification_email(req: PasswordResetRequest):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="ไม่พบอีเมลนี้ในระบบ")
+        if user['is_email_verified']:
+            raise HTTPException(status_code=400, detail="อีเมลนี้ได้รับการยืนยันแล้ว")
+        cur.execute("UPDATE email_verification_codes SET used = TRUE WHERE user_id = %s", (user['user_id'],))
+        code = str(randint(100000, 999999))
+        expires = datetime.now() + timedelta(minutes=15)
+        cur.execute("INSERT INTO email_verification_codes (user_id, code, expires_at) VALUES (%s, %s, %s)",
+                    (user['user_id'], code, expires))
+        conn.commit()
+        send_verification_email(user['email'], user['username'], code)
+        return {"message": "ส่งรหัสยืนยันใหม่ไปยังอีเมลแล้ว"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post("/login")
+@limiter.limit("10/minute")
+def login(request: Request, user: UserLogin):
+    # SLO: login success rate is one of the three dashboard panels (#14)
+    with track("auth.login", "POST /login", email_domain=(user.email or "").split("@")[-1]):
+        return _login_impl(user)
+
+
+def _login_impl(user):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (user.email,))
+        db_user = cur.fetchone()
+        if not db_user or not verify_password(user.password, db_user['password_hash']):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not db_user.get('is_email_verified'):
+            raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox for the verification code.")
+
+        today = date.today()
+        last_login = db_user.get('last_login_date')
+        if isinstance(last_login, datetime):
+            last_login = last_login.date()
+        total_days = int(db_user.get('total_login_days') or 0)
+        streak = int(db_user.get('current_streak') or 0)
+        if last_login != today:
+            total_days += 1
+            if last_login is None or (today - last_login).days > 1:
+                streak = 1
+            else:
+                streak += 1
+            cur.execute("""
+                UPDATE users
+                SET last_login_date = %s, total_login_days = %s, current_streak = %s
+                WHERE user_id = %s
+            """, (datetime.combine(today, datetime.min.time()), total_days, streak, db_user['user_id']))
+            streak_milestones = {
+                1: "ยินดีต้อนรับ! เริ่มต้นดูแลสุขภาพกับ Calories Guard วันนี้เลย",
+                3: "ยอดเยี่ยม! คุณใช้แอปต่อเนื่อง 3 วันแล้ว ไปต่อได้เลย!",
+                7: "เจ๋งมาก! 7 วันติดต่อกัน! คุณมีวินัยสุดๆ!",
+                14: "สุดยอด! 2 สัปดาห์ติดต่อกันแล้ว นับถือมากครับ!",
+                30: "ระดับตำนาน! 30 วันไม่เคยพลาด คุณทำได้แล้ว!",
+            }
+            if streak in streak_milestones:
+                msg = streak_milestones[streak]
+                cur.execute("""
+                    INSERT INTO notifications (user_id, title, message, type)
+                    VALUES (%s, %s, %s, 'achievement')
+                    ON CONFLICT DO NOTHING
+                """, (db_user['user_id'], f"Streak {streak} วัน!", msg))
+        conn.commit()
+        access_token = _issue_access_token(
+            db_user['user_id'], db_user['email'], db_user['role_id']
+        )
+        return {
+            "message": "Login successful",
+            "user_id": db_user['user_id'],
+            "username": db_user['username'],
+            "email": db_user['email'],
+            "role_id": db_user['role_id'],
+            "current_streak": streak,
+            "access_token": access_token,
+            "token_type": "Bearer",
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Login failed. Please try again later.")
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post("/social-login")
+def social_login(body: SocialLoginRequest):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT * FROM users WHERE email = %s AND deleted_at IS NULL",
+            (body.email,)
+        )
+        user = cur.fetchone()
+        if user:
+            today = date.today()
+            last_login = user.get('last_login_date')
+            if last_login and hasattr(last_login, 'date'):
+                last_login = last_login.date()
+            total_days = int(user.get('total_login_days') or 0) + 1
+            streak = int(user.get('current_streak') or 0)
+            if last_login is None:
+                streak = 1
+            elif last_login == today:
+                total_days -= 1
+            elif (today - last_login).days == 1:
+                streak += 1
+            else:
+                streak = 1
+            cur.execute(
+                """UPDATE users SET last_login_date = %s, total_login_days = %s,
+                   current_streak = %s WHERE user_id = %s""",
+                (today, total_days, streak, user['user_id'])
+            )
+            conn.commit()
+            return {
+                "user_id": int(user['user_id']),
+                "email": user['email'],
+                "username": user.get('username') or body.name,
+                "role_id": int(user.get('role_id') or 2),
+                "provider": body.provider,
+            }
+        else:
+            fake_hash = secrets.token_hex(32)
+            cur.execute(
+                """INSERT INTO users
+                   (username, email, password_hash, role_id, is_email_verified, created_at)
+                   VALUES (%s, %s, %s, 2, TRUE, NOW())
+                   RETURNING user_id""",
+                (body.name, body.email, fake_hash)
+            )
+            row = cur.fetchone()
+            new_id = row['user_id']
+            conn.commit()
+            return {
+                "user_id": int(new_id),
+                "email": body.email,
+                "username": body.name,
+                "role_id": 2,
+                "provider": body.provider,
+                "is_new_user": True,
+            }
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post('/password-reset/request')
+def password_reset_request(req: PasswordResetRequest):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="อีเมลไม่ถูกต้อง")
+        code = _generate_code()
+        expires = datetime.now() + timedelta(minutes=15)
+        cur.execute(
+            "INSERT INTO password_reset_codes (user_id, code, expires_at, used) VALUES (%s, %s, %s, %s)",
+            (user['user_id'], code, expires, False),
+        )
+        conn.commit()
+        send_password_reset_email(req.email, user['username'], code)
+        return {"message": "รหัสยืนยันถูกส่งไปยังอีเมลแล้ว"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post('/password-reset/verify')
+def password_reset_verify(req: PasswordResetVerify):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+        if not user.get('birth_date'):
+            raise HTTPException(status_code=400, detail="กรุณากรอกข้อมูล วันเดือนปีเกิด ในโปรไฟล์")
+        if isinstance(user['birth_date'], datetime):
+            user_birth = user['birth_date'].date()
+        else:
+            user_birth = user['birth_date']
+        if user_birth != req.birth_date:
+            raise HTTPException(status_code=401, detail="วันเดือนปีเกิดไม่ตรงกับบัญชี")
+        cur.execute("SELECT * FROM password_reset_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY created_at DESC LIMIT 1", (user['user_id'], req.code))
+        row = cur.fetchone()
+        if not row or row['expires_at'] < datetime.now():
+            raise HTTPException(status_code=401, detail="รหัสไม่ถูกต้องหรือหมดอายุ")
+        return {"message": "ยืนยันโค้ดสำเร็จ"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post('/password-reset/confirm')
+def password_reset_confirm(req: PasswordResetConfirm):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+        if not user.get('birth_date'):
+            raise HTTPException(status_code=400, detail="กรุณากรอกข้อมูล วันเดือนปีเกิด ในโปรไฟล์")
+        if isinstance(user['birth_date'], datetime):
+            user_birth = user['birth_date'].date()
+        else:
+            user_birth = user['birth_date']
+        if user_birth != req.birth_date:
+            raise HTTPException(status_code=401, detail="วันเดือนปีเกิดไม่ตรงกับบัญชี")
+        cur.execute("SELECT * FROM password_reset_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY created_at DESC LIMIT 1", (user['user_id'], req.code))
+        row = cur.fetchone()
+        if not row or row['expires_at'] < datetime.now():
+            raise HTTPException(status_code=401, detail="รหัสไม่ถูกต้องหรือหมดอายุ")
+        new_hash = get_password_hash(req.new_password)
+        cur.execute("UPDATE users SET password_hash = %s WHERE user_id = %s", (new_hash, user['user_id']))
+        cur.execute("UPDATE password_reset_codes SET used = TRUE WHERE id = %s", (row['id'],))
+        conn.commit()
+        return {"message": "รีเซ็ตรหัสผ่านสำเร็จ"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_application_1/constants/constants.dart';
 import '/providers/user_data_provider.dart';
+import '/services/error_reporter.dart';
 
 // ─────────────────────────────────────────────
 //  RecipeDetailScreen
@@ -84,7 +85,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         final data = jsonDecode(res.body);
         setState(() => _isFav = data['is_favorite'] == true);
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('recipe_detail.fetch_favorite', e, st);
+    }
     setState(() => _favLoading = false);
   }
 

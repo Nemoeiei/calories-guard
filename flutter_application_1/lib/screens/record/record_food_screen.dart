@@ -9,6 +9,8 @@ import 'package:flutter_application_1/constants/constants.dart';
 import '/providers/user_data_provider.dart';
 import '../../services/health_service.dart';
 import '../../services/notification_helper.dart';
+import '../../widget/ai_meal_estimate_sheet.dart';
+import '../../services/error_reporter.dart';
 
 // ─────────────────────────────────────────────
 //  Models
@@ -155,7 +157,9 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
         if (mounted)
           setState(() => _waterGlasses = (ml / 250).round().clamp(0, 20));
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('record.fetch_water_log', e, st);
+    }
   }
 
   void _debouncedSaveWater() {
@@ -175,7 +179,9 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
           'date_record': DateFormat('yyyy-MM-dd').format(_selectedDate),
         }),
       );
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('record.save_water_log', e, st);
+    }
   }
 
   Future<void> _fetchDailyLog() async {
@@ -631,30 +637,65 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
               .map((e) => _buildFoodItem(e.value, meal, e.key)),
         ],
         const Divider(height: 1, indent: 16, endIndent: 16),
-        GestureDetector(
-          onTap: () => _showAddFoodSheet(meal),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration:
-                    BoxDecoration(color: _greenL, shape: BoxShape.circle),
-                child: const Icon(Icons.add, size: 16, color: _green),
+        Row(children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _showAddFoodSheet(meal),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration:
+                        BoxDecoration(color: _greenL, shape: BoxShape.circle),
+                    child: const Icon(Icons.add, size: 16, color: _green),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('เพิ่มอาหาร${meal.name.replaceAll('มื้อ', '')}',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _green,
+                          fontFamily: 'Inter')),
+                ]),
               ),
-              const SizedBox(width: 8),
-              Text('เพิ่มอาหาร${meal.name.replaceAll('มื้อ', '')}',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _green,
-                      fontFamily: 'Inter')),
-            ]),
+            ),
           ),
-        ),
+          Container(width: 1, height: 24, color: Colors.grey.shade200),
+          GestureDetector(
+            onTap: () => _showAiEstimateSheet(meal),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              child: Row(children: [
+                const Icon(Icons.auto_awesome, size: 16, color: _green),
+                const SizedBox(width: 6),
+                const Text('AI',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _green,
+                        fontFamily: 'Inter')),
+              ]),
+            ),
+          ),
+        ]),
       ]),
+    );
+  }
+
+  void _showAiEstimateSheet(MealSlot meal) {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+    final mealType = ['breakfast', 'lunch', 'dinner', 'snack'].contains(meal.id)
+        ? meal.id
+        : 'snack';
+    showAiMealEstimateSheet(
+      context: context,
+      userId: userId,
+      mealType: mealType,
+      date: _selectedDate,
+      onSaved: () => _fetchDailyLog(),
     );
   }
 
@@ -1204,7 +1245,9 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
         final data = jsonDecode(res.body) as List;
         if (mounted) setState(() => _units = data.cast<Map<String, dynamic>>());
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report('record.load_units', e, st);
+    }
   }
 
   void _showFoodDetail(Map<String, dynamic> food) {

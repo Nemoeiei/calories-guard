@@ -72,5 +72,5 @@ backend/verify_system.py
 backend/test_ai_prompt
 project_structure.txt
 
-# Local HTML/architecture drafts
-CaloriesGuard/
+# Local HTML/architecture drafts (root-level only, not kotlin package)
+/CaloriesGuard/

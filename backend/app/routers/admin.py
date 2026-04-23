@@ -1,0 +1,265 @@
+import json
+
+from fastapi import APIRouter, HTTPException, Depends
+from psycopg2.extras import RealDictCursor
+
+from database import get_db_connection
+from auth.dependencies import get_current_admin
+from app.models.schemas import AdminFoodReview, TempFoodApprove
+
+router = APIRouter()
+
+
+@router.get("/admin/users")
+def admin_list_users(search: str = "", current_user: dict = Depends(get_current_admin)):
+    """ดึงรายการ user ทั้งหมด สำหรับ admin panel"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        if search:
+            cur.execute(
+                """
+                SELECT user_id, username, email, role_id, created_at,
+                       last_login_date, current_streak, total_login_days
+                FROM users
+                WHERE username ILIKE %s OR email ILIKE %s
+                ORDER BY created_at DESC
+                """,
+                (f"%{search}%", f"%{search}%"),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT user_id, username, email, role_id, created_at,
+                       last_login_date, current_streak, total_login_days
+                FROM users
+                ORDER BY created_at DESC
+                """
+            )
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.get("/admin/temp-foods/pending-count")
+def admin_pending_count(current_user: dict = Depends(get_current_admin)):
+    """จำนวน temp_food ที่รอ admin อนุมัติ — ใช้แสดง badge บน nav"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM v_admin_temp_food_review WHERE is_verify = FALSE")
+        return {"count": cur.fetchone()[0]}
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.get("/admin/foods/similar")
+def admin_similar_foods(name: str = "", current_user: dict = Depends(get_current_admin)):
+    """
+    หาเมนูในตาราง foods ที่ชื่อคล้ายกับ name ที่ส่งมา.
+    ใช้ ILIKE เพื่อ detect duplicate ก่อน admin อนุมัติ.
+    """
+    if not name.strip():
+        return []
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT food_id, food_name, calories, protein, carbs, fat, image_url
+            FROM foods
+            WHERE food_name ILIKE %s
+               OR food_name ILIKE %s
+            ORDER BY food_name
+            LIMIT 5
+            """,
+            (f"%{name.strip()}%", f"%{name.strip().split()[0]}%"),
+        )
+        return cur.fetchall()
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.get("/admin/temp-foods")
+def admin_list_temp_foods(current_user: dict = Depends(get_current_admin), status: str = "pending"):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        where = ""
+        if status == "pending":
+            where = "WHERE is_verify = FALSE"
+        elif status == "verified":
+            where = "WHERE is_verify = TRUE"
+        cur.execute(
+            f"""
+            SELECT
+                tf_id, food_name, calories, protein, carbs, fat,
+                submitted_by AS user_id, submitted_by_username AS requester_name,
+                submitted_at, is_verify, verified_by, verified_at
+            FROM v_admin_temp_food_review
+            {where}
+            ORDER BY submitted_at DESC
+            """
+        )
+        return cur.fetchall()
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post("/admin/temp-foods/{tf_id}/approve")
+def admin_approve_temp_food(tf_id: int, req: TempFoodApprove, current_user: dict = Depends(get_current_admin)):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM temp_food WHERE tf_id = %s", (tf_id,))
+        tf = cur.fetchone()
+        if not tf:
+            raise HTTPException(status_code=404, detail="Temp food not found")
+
+        updates = []
+        vals = []
+        if req.food_name is not None:
+            updates.append("food_name = %s"); vals.append(req.food_name)
+        if req.calories is not None:
+            updates.append("calories = %s"); vals.append(req.calories)
+        if req.protein is not None:
+            updates.append("protein = %s"); vals.append(req.protein)
+        if req.carbs is not None:
+            updates.append("carbs = %s"); vals.append(req.carbs)
+        if req.fat is not None:
+            updates.append("fat = %s"); vals.append(req.fat)
+        if updates:
+            vals.append(tf_id)
+            cur.execute(f"UPDATE temp_food SET {', '.join(updates)} WHERE tf_id = %s", tuple(vals))
+
+        cur.execute("""
+            UPDATE verified_food
+            SET is_verify = TRUE, verified_by = %s, verified_at = NOW()
+            WHERE tf_id = %s
+        """, (req.admin_id, tf_id))
+
+        cur.execute(
+            """
+            INSERT INTO foods (
+                food_name, calories, protein, carbs, fat, image_url,
+                food_type, food_category,
+                sodium, sugar, cholesterol, fiber_g,
+                serving_quantity, serving_unit
+            )
+            SELECT
+                food_name, calories, protein, carbs, fat,
+                COALESCE(%s, NULL),
+                COALESCE(%s, 'dish'),
+                COALESCE(%s, NULL),
+                COALESCE(%s, NULL), COALESCE(%s, NULL),
+                COALESCE(%s, NULL), COALESCE(%s, 0),
+                COALESCE(%s, 1), COALESCE(%s, 'serving')
+            FROM temp_food
+            WHERE tf_id = %s
+            RETURNING food_id
+            """,
+            (
+                req.image_url,
+                req.food_type, req.food_category,
+                req.sodium, req.sugar,
+                req.cholesterol, req.fiber_g,
+                req.serving_quantity, req.serving_unit,
+                tf_id,
+            ),
+        )
+        new_food = cur.fetchone()
+        conn.commit()
+        return {"message": "Approved and added to foods", "food_id": new_food["food_id"] if new_food else None}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.delete("/admin/temp-foods/{tf_id}")
+def admin_reject_temp_food(tf_id: int, current_user: dict = Depends(get_current_admin)):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM temp_food WHERE tf_id = %s", (tf_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Temp food not found")
+        conn.commit()
+        return {"message": "Temp food rejected and deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.get("/admin/food-requests")
+def get_food_requests(current_user: dict = Depends(get_current_admin)):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT fr.request_id, fr.food_name, fr.status,
+                   fr.calories, fr.protein, fr.carbs, fr.fat,
+                   fr.ingredients_json, fr.created_at,
+                   u.username as requester_name
+            FROM food_requests fr
+            JOIN users u ON fr.user_id = u.user_id
+            WHERE fr.status = 'pending'
+            ORDER BY fr.created_at DESC
+        """)
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.put("/admin/food-requests/{request_id}")
+def verify_food_request(request_id: int, review: AdminFoodReview, current_user: dict = Depends(get_current_admin)):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM food_requests WHERE request_id = %s", (request_id,))
+        req_record = cur.fetchone()
+        if not req_record:
+            raise HTTPException(status_code=404, detail="Request not found")
+        cur.execute("""
+            UPDATE food_requests
+            SET status = %s, reviewed_by = %s
+            WHERE request_id = %s
+        """, (review.status, review.admin_id, request_id))
+        if review.status == 'approved' and req_record['ingredients_json']:
+            meta = req_record['ingredients_json']
+            if isinstance(meta, str):
+                meta = json.loads(meta)
+            food_id = meta.get('auto_added_food_id')
+            if food_id and review.calories is not None:
+                cur.execute("""
+                    UPDATE foods
+                    SET calories = %s, protein = %s, carbs = %s, fat = %s,
+                        image_url = COALESCE(%s, image_url)
+                    WHERE food_id = %s
+                """, (review.calories, review.protein, review.carbs, review.fat, review.image_url, food_id))
+        conn.commit()
+        return {"message": f"Request {review.status} successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()

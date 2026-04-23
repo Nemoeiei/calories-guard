@@ -1,29 +1,43 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../constants/constants.dart';
+import 'api_client.dart';
 
+/// AuthService wraps Supabase Auth and syncs user data with our backend.
+///
+/// Auth flow:
+///   1. Supabase handles sign-up/sign-in/social-login and issues JWT
+///   2. JWT is automatically attached to API calls via [ApiClient]
+///   3. Backend verifies JWT and maps Supabase UUID → our user_id
 class AuthService {
-  // ใช้ค่าเดียวกับ AppConstants เพื่อแก้ไข URL ที่เดียว
-  final String baseUrl = AppConstants.baseUrl;
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final _supabase = Supabase.instance.client;
+  final _api = ApiClient();
 
-  // ฟังก์ชันสมัครสมาชิก
+  // --- Email/Password Registration ---
+
   Future<Map<String, dynamic>> register(
-      String username, String email, String password) async {
-    final url = Uri.parse('$baseUrl/register');
-
+    String username,
+    String email,
+    String password,
+  ) async {
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': username,
-          'email': email,
-          'password': password,
-        }),
+      // 1. Sign up with Supabase Auth
+      final authResponse = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: {'username': username},
       );
+
+      if (authResponse.user == null) {
+        return {'success': false, 'message': 'Registration failed'};
+      }
+
+      // 2. Sync with our backend (create user row in our DB)
+      final response = await _api.post('/register', body: {
+        'username': username,
+        'email': email,
+        'password': password,
+        'supabase_uid': authResponse.user!.id,
+      });
 
       if (response.statusCode == 200) {
         return {'success': true, 'data': jsonDecode(response.body)};
@@ -31,27 +45,35 @@ class AuthService {
         final errorData = jsonDecode(response.body);
         return {
           'success': false,
-          'message': errorData['detail'] ?? 'Registration failed'
+          'message': errorData['detail'] ?? 'Backend sync failed',
         };
       }
+    } on AuthException catch (e) {
+      return {'success': false, 'message': e.message};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
     }
   }
 
-  // ฟังก์ชันเข้าสู่ระบบ
+  // --- Email/Password Login ---
+
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final url = Uri.parse('$baseUrl/login');
-
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
+      // 1. Sign in with Supabase Auth
+      final authResponse = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
       );
+
+      if (authResponse.user == null) {
+        return {'success': false, 'message': 'Login failed'};
+      }
+
+      // 2. Fetch user profile from our backend (JWT auto-attached by ApiClient)
+      final response = await _api.post('/login', body: {
+        'email': email,
+        'password': password,
+      });
 
       if (response.statusCode == 200) {
         return {'success': true, 'data': jsonDecode(response.body)};
@@ -59,171 +81,35 @@ class AuthService {
         final errorData = jsonDecode(response.body);
         return {
           'success': false,
-          'message': errorData['detail'] ?? 'Login failed'
+          'message': errorData['detail'] ?? 'Login failed',
         };
       }
+    } on AuthException catch (e) {
+      return {'success': false, 'message': e.message};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
     }
   }
 
-  // ฟังก์ชันยืนยันอีเมล
-  Future<Map<String, dynamic>> verifyEmail(String email, String code) async {
-    final url = Uri.parse('$baseUrl/verify-email');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'code': code,
-        }),
-      );
+  // --- Social Login (Google / Facebook) ---
 
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': jsonDecode(response.body)};
-      } else {
-        final errorData = jsonDecode(response.body);
-        return {
-          'success': false,
-          'message': errorData['detail'] ?? 'Verification failed'
-        };
-      }
-    } catch (e) {
-      return {'success': false, 'message': 'Connection error: $e'};
-    }
-  }
-
-  // ฟังก์ชันขอส่งรหัสยืนยันอีเมลใหม่
-  Future<Map<String, dynamic>> resendEmailVerification(String email) async {
-    final url = Uri.parse('$baseUrl/resend-verification-email');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      );
-
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'message': jsonDecode(response.body)['message']
-        };
-      } else {
-        final errorData = jsonDecode(response.body);
-        return {
-          'success': false,
-          'message': errorData['detail'] ?? 'Resend failed'
-        };
-      }
-    } catch (e) {
-      return {'success': false, 'message': 'Connection error: $e'};
-    }
-  }
-
-  Future<Map<String, dynamic>> requestPasswordReset(
-      String email, String birthDate) async {
-    final url = Uri.parse('$baseUrl/password-reset/request');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'birth_date': birthDate}),
-      );
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'message': jsonDecode(response.body)['message']
-        };
-      } else {
-        final errorData = jsonDecode(response.body);
-        return {
-          'success': false,
-          'message': errorData['detail'] ?? 'Request failed'
-        };
-      }
-    } catch (e) {
-      return {'success': false, 'message': 'Connection error: $e'};
-    }
-  }
-
-  Future<Map<String, dynamic>> verifyResetCode(
-      String email, String code, String birthDate) async {
-    final url = Uri.parse('$baseUrl/password-reset/verify');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body:
-            jsonEncode({'email': email, 'code': code, 'birth_date': birthDate}),
-      );
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'message': jsonDecode(response.body)['message']
-        };
-      } else {
-        final errorData = jsonDecode(response.body);
-        return {
-          'success': false,
-          'message': errorData['detail'] ?? 'Verify failed'
-        };
-      }
-    } catch (e) {
-      return {'success': false, 'message': 'Connection error: $e'};
-    }
-  }
-
-  Future<Map<String, dynamic>> confirmResetPassword(
-      String email, String code, String birthDate, String newPassword) async {
-    final url = Uri.parse('$baseUrl/password-reset/confirm');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'code': code,
-          'birth_date': birthDate,
-          'new_password': newPassword,
-        }),
-      );
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'message': jsonDecode(response.body)['message']
-        };
-      } else {
-        final errorData = jsonDecode(response.body);
-        return {
-          'success': false,
-          'message': errorData['detail'] ?? 'Reset failed'
-        };
-      }
-    } catch (e) {
-      return {'success': false, 'message': 'Connection error: $e'};
-    }
-  }
-
-  /// Social login (Google / Facebook) — finds or auto-creates the user in our backend.
   Future<Map<String, dynamic>> socialLogin({
     required String email,
     required String name,
     required String uid,
     required String provider,
   }) async {
-    final url = Uri.parse('$baseUrl/social-login');
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'name': name,
-          'uid': uid,
-          'provider': provider,
-        }),
-      );
+      // For social login, sign in via Supabase OAuth
+      // The Flutter UI should have already called signInWithOAuth
+      // which sets the session. We just sync with our backend.
+      final response = await _api.post('/social-login', body: {
+        'email': email,
+        'name': name,
+        'uid': uid,
+        'provider': provider,
+      });
+
       if (response.statusCode == 200) {
         return {'success': true, 'data': jsonDecode(response.body)};
       } else {
@@ -238,21 +124,47 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> oauthLogin(String accessToken) async {
-    final url = Uri.parse('$baseUrl/oauth-login');
+  /// Sign in with Google via Supabase OAuth.
+  Future<bool> signInWithGoogle() async {
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'access_token': accessToken}),
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'com.caloriesguard.app://login-callback',
       );
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Sign in with Facebook via Supabase OAuth.
+  Future<bool> signInWithFacebook() async {
+    try {
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.facebook,
+        redirectTo: 'com.caloriesguard.app://login-callback',
+      );
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // --- Email Verification (Supabase handles this) ---
+
+  Future<Map<String, dynamic>> verifyEmail(String email, String code) async {
+    try {
+      final response = await _api.post('/verify-email', body: {
+        'email': email,
+        'code': code,
+      });
       if (response.statusCode == 200) {
         return {'success': true, 'data': jsonDecode(response.body)};
       } else {
         final errorData = jsonDecode(response.body);
         return {
           'success': false,
-          'message': errorData['detail'] ?? 'OAuth login failed',
+          'message': errorData['detail'] ?? 'Verification failed',
         };
       }
     } catch (e) {
@@ -260,77 +172,54 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> signInWithGoogleViaSupabase() async {
+  Future<Map<String, dynamic>> resendEmailVerification(String email) async {
     try {
-      final serverClientId = AppConstants.googleWebClientId.trim();
-      if (serverClientId.isEmpty) {
-        return {
-          'success': false,
-          'message': 'Missing GOOGLE_WEB_CLIENT_ID for Google Sign-In',
-        };
-      }
-
-      final googleSignIn = GoogleSignIn(serverClientId: serverClientId);
-      await googleSignIn.signOut();
-
-      final googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        return {
-          'success': false,
-          'message': 'Google Sign-In cancelled',
-        };
-      }
-
-      final googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      final accessToken = googleAuth.accessToken;
-
-      if (idToken == null || accessToken == null) {
-        return {
-          'success': false,
-          'message': 'Google token is missing. Check Google OAuth client configuration.',
-        };
-      }
-
-      await _supabase.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      );
-
-      final sessionToken = _supabase.auth.currentSession?.accessToken;
-      if (sessionToken == null || sessionToken.isEmpty) {
-        return {
-          'success': false,
-          'message': 'Supabase session was not created',
-        };
-      }
-
-      return oauthLogin(sessionToken);
+      await _supabase.auth.resend(type: OtpType.signup, email: email);
+      return {'success': true, 'message': 'Verification email sent'};
     } on AuthException catch (e) {
       return {'success': false, 'message': e.message};
     } catch (e) {
-      return {'success': false, 'message': 'Google Sign-In failed: $e'};
+      return {'success': false, 'message': 'Connection error: $e'};
     }
   }
 
-  Future<bool> updateProfile(int userId, Map<String, dynamic> data) async {
-    final url = Uri.parse('$baseUrl/users/$userId');
+  // --- Password Reset (Supabase handles this) ---
 
+  Future<Map<String, dynamic>> requestPasswordReset(String email) async {
     try {
-      final response = await http.put(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(data),
-      );
+      await _supabase.auth.resetPasswordForEmail(email);
+      return {'success': true, 'message': 'Password reset email sent'};
+    } on AuthException catch (e) {
+      return {'success': false, 'message': e.message};
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
 
-      if (response.statusCode == 200) {
-        return true;
-      } else {
-        return false;
-      }
+  // --- Profile Update ---
+
+  Future<bool> updateProfile(int userId, Map<String, dynamic> data) async {
+    try {
+      final response = await _api.put('/users/$userId', body: data);
+      return response.statusCode == 200;
     } catch (e) {
       return false;
     }
   }
+
+  // --- Sign Out ---
+
+  Future<void> signOut() async {
+    await _supabase.auth.signOut();
+  }
+
+  // --- Current User ---
+
+  User? get currentUser => _supabase.auth.currentUser;
+  Session? get currentSession => _supabase.auth.currentSession;
+  bool get isSignedIn => _supabase.auth.currentSession != null;
+
+  /// Listen to auth state changes.
+  Stream<AuthState> get onAuthStateChange =>
+      _supabase.auth.onAuthStateChange;
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/user_data_provider.dart';
 import '../../services/auth_service.dart';
 import 'forgot_password_screen.dart';
@@ -118,21 +119,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  // ── Google Sign-In ────────────────────────────────────────────
+  // ── Social Login helper (backend sync) ───────────────────────
+  Future<void> _syncSocialBackend({
+    required String email,
+    required String name,
+    required String uid,
+    required String provider,
+  }) async {
+    final result = await _authService.socialLogin(
+        email: email, name: name, uid: uid, provider: provider);
+    if (result['success']) {
+      final data = result['data'];
+      ref.read(userDataProvider.notifier).setUserId(data['user_id'] as int);
+      ref.read(userDataProvider.notifier).setLoginInfo(email, '');
+      await Future.delayed(const Duration(milliseconds: 100));
+      _navigateAfterLogin(data['role_id'] ?? 2);
+    } else {
+      _showError(result['message'] ?? 'ล็อกอินไม่สำเร็จ กรุณาลองใหม่');
+    }
+  }
+
+  // ── Google Sign-In (via Supabase OAuth) ────────────────────────
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isGoogleLoading = true);
     try {
-      final result = await _authService.signInWithGoogleViaSupabase();
-      if (result['success']) {
-        final data = result['data'];
-        ref.read(userDataProvider.notifier).setUserId(data['user_id'] as int);
-        ref
-            .read(userDataProvider.notifier)
-            .setLoginInfo(data['email'] as String? ?? '', '');
-        await Future.delayed(const Duration(milliseconds: 100));
-        _navigateAfterLogin(data['role_id'] ?? 2);
-      } else {
-        _showError(result['message'] ?? 'ล็อกอินด้วย Google ไม่สำเร็จ');
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'com.caloriesguard.app://login-callback',
+      );
+      // After OAuth redirect, Supabase session is set automatically.
+      // The auth state change listener will handle navigation.
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await _syncSocialBackend(
+          email: user.email ?? '',
+          name: user.userMetadata?['full_name'] ?? user.email ?? 'User',
+          uid: user.id,
+          provider: 'google',
+        );
       }
     } catch (e) {
       _showError('Google Sign-In ล้มเหลว: $e');
@@ -143,6 +167,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   // ── Build ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
@@ -181,9 +206,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   const SizedBox(height: 20),
 
                   // ── Title ─────────────────────────────────────
-                  const Text(
-                    'ยินดีต้อนรับกลับ',
-                    style: TextStyle(
+                  Text(
+                    l10n.tr('login.title'),
+                    style: const TextStyle(
                         fontFamily: 'Karla',
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
@@ -203,7 +228,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   // ── Email field ───────────────────────────────
                   _buildInputField(
                     controller: _emailCtrl,
-                    hint: 'อีเมล',
+                    hint: l10n.tr('login.email'),
                     icon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                     validator: (v) {
@@ -220,7 +245,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   // ── Password field ────────────────────────────
                   _buildInputField(
                     controller: _passCtrl,
-                    hint: 'รหัสผ่าน',
+                    hint: l10n.tr('login.password'),
                     icon: Icons.lock_outline_rounded,
                     obscure: _obscurePass,
                     suffix: IconButton(
@@ -254,7 +279,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 6)),
                       child: Text(
-                        'ลืมรหัสผ่าน?',
+                        l10n.tr('login.forgot'),
                         style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 13,
@@ -288,9 +313,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               height: 22,
                               child: CircularProgressIndicator(
                                   color: Colors.white, strokeWidth: 2.5))
-                          : const Text(
-                              'เข้าสู่ระบบ',
-                              style: TextStyle(
+                          : Text(
+                              l10n.tr('login.cta'),
+                              style: const TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
