@@ -42,12 +42,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         child: FloatingActionButton(
           heroTag: 'chatFab',
           onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ChatScreen())),
+              context, MaterialPageRoute(builder: (_) => const ChatScreen())),
           backgroundColor: const Color(0xFF628141),
           shape: const CircleBorder(),
           tooltip: 'AI Coach',
-          child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 26),
+          child: const Icon(Icons.smart_toy_rounded,
+              color: Colors.white, size: 26),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -167,15 +167,30 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           ),
           const Spacer(),
           const NotificationBell(),
-          IconButton(
-            onPressed: () {
+          GestureDetector(
+            onTap: () {
               Navigator.push(
                   context,
                   MaterialPageRoute(
                       builder: (context) => const ProfileScreen()));
             },
-            icon:
-                const Icon(Icons.person_outline, color: Colors.white, size: 32),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Builder(builder: (context) {
+                final avatarUrl = ref.watch(userDataProvider).avatarUrl;
+                return CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.white.withOpacity(0.25),
+                  backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                      ? NetworkImage(avatarUrl)
+                      : null,
+                  child: (avatarUrl == null || avatarUrl.isEmpty)
+                      ? const Icon(Icons.person_outline,
+                          color: Colors.white, size: 22)
+                      : null,
+                );
+              }),
+            ),
           ),
         ],
       ),

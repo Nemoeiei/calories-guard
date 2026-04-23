@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_application_1/constants/constants.dart';
 import '/providers/user_data_provider.dart';
 
@@ -15,6 +17,42 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   static const _green = Color(0xFF628141);
   static const _greenDark = Color(0xFF3D5A27);
+  bool _isUploadingAvatar = false;
+
+  Future<void> _pickAndUploadAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+        source: ImageSource.gallery, maxWidth: 512, imageQuality: 80);
+    if (picked == null) return;
+
+    setState(() => _isUploadingAvatar = true);
+    try {
+      final userId = ref.read(userDataProvider).userId;
+      final bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last.toLowerCase();
+      final path = 'avatars/$userId.$ext';
+
+      await Supabase.instance.client.storage.from('avatars').uploadBinary(
+          path, bytes,
+          fileOptions: FileOptions(upsert: true, contentType: 'image/$ext'));
+
+      final publicUrl =
+          Supabase.instance.client.storage.from('avatars').getPublicUrl(path);
+
+      await _updateUserData({'avatar_url': publicUrl});
+      ref.read(userDataProvider.notifier).setAvatarUrl(publicUrl);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('อัปโหลดไม่สำเร็จ: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingAvatar = false);
+    }
+  }
 
   Future<void> _updateUserData(Map<String, dynamic> updateData) async {
     final userId = ref.read(userDataProvider).userId;
@@ -35,8 +73,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               weight: user.weight);
         }
         if (updateData.containsKey('height_cm')) {
-          final h =
-              double.tryParse(updateData['height_cm'].toString()) ?? user.height;
+          final h = double.tryParse(updateData['height_cm'].toString()) ??
+              user.height;
           ref.read(userDataProvider.notifier).setPersonalInfo(
               name: user.name,
               birthDate: user.birthDate ?? DateTime.now(),
@@ -44,9 +82,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               weight: user.weight);
         }
         if (updateData.containsKey('current_weight_kg')) {
-          final w = double.tryParse(
-                  updateData['current_weight_kg'].toString()) ??
-              user.weight;
+          final w =
+              double.tryParse(updateData['current_weight_kg'].toString()) ??
+                  user.weight;
           ref.read(userDataProvider.notifier).setPersonalInfo(
               name: user.name,
               birthDate: user.birthDate ?? DateTime.now(),
@@ -54,11 +92,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               weight: w);
         }
         if (updateData.containsKey('target_weight_kg')) {
-          final tw = double.tryParse(
-                  updateData['target_weight_kg'].toString()) ??
-              user.targetWeight;
-          ref.read(userDataProvider.notifier).setGoalInfo(
-              targetWeight: tw, duration: user.duration);
+          final tw =
+              double.tryParse(updateData['target_weight_kg'].toString()) ??
+                  user.targetWeight;
+          ref
+              .read(userDataProvider.notifier)
+              .setGoalInfo(targetWeight: tw, duration: user.duration);
         }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -74,8 +113,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('เกิดข้อผิดพลาด: $e'),
-              backgroundColor: Colors.red),
+              content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -109,8 +147,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('ยกเลิก',
-                  style: TextStyle(color: Colors.grey))),
+              child:
+                  const Text('ยกเลิก', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             onPressed: () {
               final text = controller.text.trim();
@@ -129,8 +167,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       backgroundColor: Colors.orange));
                   return;
                 }
-                if ((key == 'current_weight_kg' ||
-                        key == 'target_weight_kg') &&
+                if ((key == 'current_weight_kg' || key == 'target_weight_kg') &&
                     (value < 20 || value > 500)) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                       content: Text('น้ำหนักต้องอยู่ระหว่าง 20–500 กก.'),
@@ -215,31 +252,43 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               const SizedBox(height: 28),
 
               // Avatar
-              Stack(children: [
-                Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                    image: const DecorationImage(
-                        image:
-                            AssetImage('assets/images/profile/profile.png'),
-                        fit: BoxFit.cover),
+              GestureDetector(
+                onTap: _isUploadingAvatar ? null : _pickAndUploadAvatar,
+                child: Stack(children: [
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                      image: DecorationImage(
+                          image: (userData.avatarUrl != null &&
+                                  userData.avatarUrl!.isNotEmpty)
+                              ? NetworkImage(userData.avatarUrl!)
+                                  as ImageProvider
+                              : const AssetImage(
+                                  'assets/images/profile/profile.png'),
+                          fit: BoxFit.cover),
+                    ),
+                    child: _isUploadingAvatar
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : null,
                   ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: const BoxDecoration(
-                        color: Colors.white, shape: BoxShape.circle),
-                    child: const Icon(Icons.camera_alt_rounded,
-                        size: 16, color: _green),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: const BoxDecoration(
+                          color: Colors.white, shape: BoxShape.circle),
+                      child: const Icon(Icons.camera_alt_rounded,
+                          size: 16, color: _green),
+                    ),
                   ),
-                ),
-              ]),
+                ]),
+              ),
             ]),
           ),
 
@@ -248,75 +297,69 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           // ─── Info Card ──────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sectionLabel('ข้อมูลพื้นฐาน'),
-                  const SizedBox(height: 10),
-                  _buildInfoCard([
-                    _EditRow(
-                      label: 'ชื่อผู้ใช้',
-                      value: userData.name,
-                      icon: Icons.person_outline_rounded,
-                      iconColor: Colors.grey.shade500,
-                      onTap: () => _showEditDialog(
-                          'ชื่อผู้ใช้', 'username', userData.name),
-                    ),
-                    _EditRow(
-                      label: 'อายุ',
-                      value: '${userData.age} ปี',
-                      icon: Icons.cake_outlined,
-                      iconColor: Colors.grey.shade500,
-                      isEditable: false,
-                    ),
-                    _EditRow(
-                      label: 'ส่วนสูง',
-                      value: '${userData.height.toInt()} ซม.',
-                      icon: Icons.height_rounded,
-                      iconColor: Colors.grey.shade500,
-                      onTap: () => _showEditDialog(
-                          'ส่วนสูง', 'height_cm', userData.height.toString(),
-                          isNumber: true),
-                      isLast: true,
-                    ),
-                  ]),
-
-                  const SizedBox(height: 20),
-                  _sectionLabel('ข้อมูลน้ำหนัก'),
-                  const SizedBox(height: 10),
-                  _buildInfoCard([
-                    _EditRow(
-                      label: 'น้ำหนักปัจจุบัน',
-                      value: '${userData.weight.toInt()} กก.',
-                      icon: Icons.monitor_weight_outlined,
-                      iconColor: Colors.grey.shade500,
-                      onTap: () => _showEditDialog(
-                          'น้ำหนักปัจจุบัน',
-                          'current_weight_kg',
-                          userData.weight.toString(),
-                          isNumber: true),
-                    ),
-                    _EditRow(
-                      label: 'น้ำหนักเป้าหมาย',
-                      value: '${userData.targetWeight.toInt()} กก.',
-                      icon: Icons.flag_outlined,
-                      iconColor: Colors.grey.shade500,
-                      onTap: () => _showEditDialog(
-                          'น้ำหนักเป้าหมาย',
-                          'target_weight_kg',
-                          userData.targetWeight.toString(),
-                          isNumber: true),
-                    ),
-                    _EditRow(
-                      label: 'วันที่เหลือ',
-                      value: '$daysLeftText วัน',
-                      icon: Icons.calendar_today_outlined,
-                      iconColor: Colors.grey.shade500,
-                      isEditable: false,
-                      isLast: true,
-                    ),
-                  ]),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _sectionLabel('ข้อมูลพื้นฐาน'),
+              const SizedBox(height: 10),
+              _buildInfoCard([
+                _EditRow(
+                  label: 'ชื่อผู้ใช้',
+                  value: userData.name,
+                  icon: Icons.person_outline_rounded,
+                  iconColor: Colors.grey.shade500,
+                  onTap: () =>
+                      _showEditDialog('ชื่อผู้ใช้', 'username', userData.name),
+                ),
+                _EditRow(
+                  label: 'อายุ',
+                  value: '${userData.age} ปี',
+                  icon: Icons.cake_outlined,
+                  iconColor: Colors.grey.shade500,
+                  isEditable: false,
+                ),
+                _EditRow(
+                  label: 'ส่วนสูง',
+                  value: '${userData.height.toInt()} ซม.',
+                  icon: Icons.height_rounded,
+                  iconColor: Colors.grey.shade500,
+                  onTap: () => _showEditDialog(
+                      'ส่วนสูง', 'height_cm', userData.height.toString(),
+                      isNumber: true),
+                  isLast: true,
+                ),
+              ]),
+              const SizedBox(height: 20),
+              _sectionLabel('ข้อมูลน้ำหนัก'),
+              const SizedBox(height: 10),
+              _buildInfoCard([
+                _EditRow(
+                  label: 'น้ำหนักปัจจุบัน',
+                  value: '${userData.weight.toInt()} กก.',
+                  icon: Icons.monitor_weight_outlined,
+                  iconColor: Colors.grey.shade500,
+                  onTap: () => _showEditDialog('น้ำหนักปัจจุบัน',
+                      'current_weight_kg', userData.weight.toString(),
+                      isNumber: true),
+                ),
+                _EditRow(
+                  label: 'น้ำหนักเป้าหมาย',
+                  value: '${userData.targetWeight.toInt()} กก.',
+                  icon: Icons.flag_outlined,
+                  iconColor: Colors.grey.shade500,
+                  onTap: () => _showEditDialog('น้ำหนักเป้าหมาย',
+                      'target_weight_kg', userData.targetWeight.toString(),
+                      isNumber: true),
+                ),
+                _EditRow(
+                  label: 'วันที่เหลือ',
+                  value: '$daysLeftText วัน',
+                  icon: Icons.calendar_today_outlined,
+                  iconColor: Colors.grey.shade500,
+                  isEditable: false,
+                  isLast: true,
+                ),
+              ]),
+            ]),
           ),
 
           const SizedBox(height: 40),
@@ -346,16 +389,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               offset: const Offset(0, 4))
         ],
       ),
-      child: Column(
-          children: rows.map((r) => _buildEditTile(r)).toList()),
+      child: Column(children: rows.map((r) => _buildEditTile(r)).toList()),
     );
   }
 
   Widget _buildEditTile(_EditRow row) {
     return Column(children: [
       ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         leading: Container(
           width: 38,
           height: 38,
@@ -379,18 +420,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     color: Colors.grey.shade50,
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.grey.shade200)),
-                child: const Icon(Icons.edit_rounded,
-                    size: 15, color: _green),
+                child: const Icon(Icons.edit_rounded, size: 15, color: _green),
               )
             : null,
         onTap: row.isEditable ? row.onTap : null,
       ),
       if (!row.isLast)
         Divider(
-            height: 1,
-            indent: 70,
-            endIndent: 20,
-            color: Colors.grey.shade100),
+            height: 1, indent: 70, endIndent: 20, color: Colors.grey.shade100),
     ]);
   }
 }

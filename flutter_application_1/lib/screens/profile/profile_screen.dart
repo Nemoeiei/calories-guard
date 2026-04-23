@@ -15,15 +15,14 @@ import '/screens/chat/chat_screen.dart';
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userData = ref.watch(userDataProvider);
 
     String daysLeftText = '0';
     if (userData.targetDate != null) {
-      final today = DateTime(DateTime.now().year, DateTime.now().month,
-          DateTime.now().day);
+      final today = DateTime(
+          DateTime.now().year, DateTime.now().month, DateTime.now().day);
       final target = DateTime(userData.targetDate!.year,
           userData.targetDate!.month, userData.targetDate!.day);
       final diff = target.difference(today).inDays;
@@ -50,8 +49,8 @@ class ProfileScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ─── Header Banner ────────────────────────────────
-            _buildHeaderBanner(context, userData, goalText, goalColor,
-                goalIcon, daysLeftText),
+            _buildHeaderBanner(
+                context, userData, goalText, goalColor, goalIcon, daysLeftText),
 
             const SizedBox(height: 20),
 
@@ -69,8 +68,9 @@ class ProfileScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _buildMenuCard([
-                _MenuEntry(Icons.edit_rounded, 'แก้ไขโปรไฟล์',
-                    const Color(0xFF5B8DD9), () {
+                _MenuEntry(
+                    Icons.edit_rounded, 'แก้ไขโปรไฟล์', const Color(0xFF5B8DD9),
+                    () {
                   Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -83,8 +83,7 @@ class ProfileScreen extends ConsumerWidget {
                       MaterialPageRoute(
                           builder: (_) => const GoalSelectionScreen()));
                 }),
-                _MenuEntry(
-                    Icons.directions_run_rounded, 'แก้ไขระดับกิจกรรม',
+                _MenuEntry(Icons.directions_run_rounded, 'แก้ไขระดับกิจกรรม',
                     const Color(0xFF27AE60), () {
                   Navigator.push(
                       context,
@@ -100,12 +99,11 @@ class ProfileScreen extends ConsumerWidget {
                           builder: (_) =>
                               const FoodAllergyScreen(isEditing: true)));
                 }),
-                _MenuEntry(Icons.settings_rounded, 'ตั้งค่า',
-                    const Color(0xFF8E44AD), () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const SettingScreen()));
+                _MenuEntry(
+                    Icons.settings_rounded, 'ตั้งค่า', const Color(0xFF8E44AD),
+                    () {
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const SettingScreen()));
                 }, isLast: true),
               ]),
             ),
@@ -120,10 +118,8 @@ class ProfileScreen extends ConsumerWidget {
               child: _buildMenuCard([
                 _MenuEntry(Icons.smart_toy_rounded, 'น้องซีการ์ด',
                     const Color(0xFF628141), () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const ChatScreen()));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ChatScreen()));
                 }, isLast: true),
               ]),
             ),
@@ -136,8 +132,8 @@ class ProfileScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _buildMenuCard([
-                _MenuEntry(Icons.sync_rounded, 'ยูนิต',
-                    const Color(0xFF16A085), () {
+                _MenuEntry(Icons.sync_rounded, 'ยูนิต', const Color(0xFF16A085),
+                    () {
                   Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -213,51 +209,49 @@ class ProfileScreen extends ConsumerWidget {
               shape: BoxShape.circle,
               color: Colors.white.withOpacity(0.2),
               border: Border.all(color: Colors.white, width: 2.5),
-              image: const DecorationImage(
-                  image: AssetImage('assets/images/profile/profile.png'),
+              image: DecorationImage(
+                  image: (userData.avatarUrl != null &&
+                          userData.avatarUrl!.isNotEmpty)
+                      ? NetworkImage(userData.avatarUrl!) as ImageProvider
+                      : const AssetImage('assets/images/profile/profile.png'),
                   fit: BoxFit.cover),
             ),
           ),
           const SizedBox(width: 16),
 
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(userData.name,
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(userData.name,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+              const SizedBox(height: 4),
+              Text(
+                  'อายุ ${userData.age} ปี  •  สูง ${userData.height.toInt()} ซม.',
+                  style: TextStyle(
+                      fontSize: 13, color: Colors.white.withOpacity(0.8))),
+              const SizedBox(height: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(goalIcon, size: 14, color: Colors.white),
+                  const SizedBox(width: 5),
+                  Text('เป้าหมาย: $goalText',
                       style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white)),
-                  const SizedBox(height: 4),
-                  Text(
-                      'อายุ ${userData.age} ปี  •  สูง ${userData.height.toInt()} ซม.',
-                      style: TextStyle(
                           fontSize: 13,
-                          color: Colors.white.withOpacity(0.8))),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: Colors.white.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(goalIcon, size: 14, color: Colors.white),
-                          const SizedBox(width: 5),
-                          Text('เป้าหมาย: $goalText',
-                              style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w500)),
-                        ]),
-                  ),
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500)),
                 ]),
+              ),
+            ]),
           ),
         ]),
       ]),
@@ -278,34 +272,24 @@ class ProfileScreen extends ConsumerWidget {
       ),
       child: Row(children: [
         Expanded(
-          child: _statItem(
-              '${userData.weight.toInt()} กก.',
-              'น้ำหนักปัจจุบัน',
-              Icons.monitor_weight_outlined,
-              const Color(0xFF27AE60)),
+          child: _statItem('${userData.weight.toInt()} กก.', 'น้ำหนักปัจจุบัน',
+              Icons.monitor_weight_outlined, const Color(0xFF27AE60)),
         ),
         Container(width: 1, height: 60, color: const Color(0xFFEEEEEE)),
         Expanded(
-          child: _statItem(
-              '${userData.targetWeight.toInt()} กก.',
-              'เป้าหมาย',
-              Icons.flag_outlined,
-              const Color(0xFFE74C3C)),
+          child: _statItem('${userData.targetWeight.toInt()} กก.', 'เป้าหมาย',
+              Icons.flag_outlined, const Color(0xFFE74C3C)),
         ),
         Container(width: 1, height: 60, color: const Color(0xFFEEEEEE)),
         Expanded(
-          child: _statItem(
-              '$daysLeftText วัน',
-              'วันที่เหลือ',
-              Icons.calendar_today_outlined,
-              const Color(0xFF3498DB)),
+          child: _statItem('$daysLeftText วัน', 'วันที่เหลือ',
+              Icons.calendar_today_outlined, const Color(0xFF3498DB)),
         ),
       ]),
     );
   }
 
-  Widget _statItem(
-      String value, String label, IconData icon, Color color) {
+  Widget _statItem(String value, String label, IconData icon, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
       child: Column(children: [
@@ -313,9 +297,7 @@ class ProfileScreen extends ConsumerWidget {
         const SizedBox(height: 6),
         Text(value,
             style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: color)),
+                fontSize: 15, fontWeight: FontWeight.bold, color: color)),
         const SizedBox(height: 2),
         Text(label,
             style: TextStyle(

@@ -51,6 +51,9 @@ class UserData {
   // --- 6. การแพ้อาหาร (Allergies) ---
   final List<int> allergyFlagIds;
 
+  // --- 7. Avatar ---
+  final String? avatarUrl;
+
   UserData({
     this.userId = 0,
     this.email = '',
@@ -81,6 +84,7 @@ class UserData {
     this.unitEnergy = 'kcal',
     this.unitWater = 'ml',
     this.allergyFlagIds = const [],
+    this.avatarUrl,
   });
 
   // --- 🧮 Logic 1: คำนวณอายุ ---
@@ -225,6 +229,8 @@ class UserData {
     String? unitEnergy,
     String? unitWater,
     List<int>? allergyFlagIds,
+    String? avatarUrl,
+    bool clearAvatarUrl = false,
   }) {
     return UserData(
       userId: userId ?? this.userId,
@@ -256,6 +262,7 @@ class UserData {
       unitEnergy: unitEnergy ?? this.unitEnergy,
       unitWater: unitWater ?? this.unitWater,
       allergyFlagIds: allergyFlagIds ?? this.allergyFlagIds,
+      avatarUrl: clearAvatarUrl ? null : (avatarUrl ?? this.avatarUrl),
     );
   }
 }
@@ -415,7 +422,12 @@ class UserDataNotifier extends StateNotifier<UserData> {
       unitHeight: data['unit_height']?.toString() ?? state.unitHeight,
       unitEnergy: data['unit_energy']?.toString() ?? state.unitEnergy,
       unitWater: data['unit_water']?.toString() ?? state.unitWater,
+      avatarUrl: data['avatar_url']?.toString(),
     );
+  }
+
+  void setAvatarUrl(String? url) {
+    state = state.copyWith(avatarUrl: url);
   }
 }
 
