@@ -162,7 +162,10 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
       await http.post(
         Uri.parse('${AppConstants.baseUrl}/water_logs/$userId'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'amount_ml': _waterGlasses * 250}),
+        body: jsonEncode({
+          'amount_ml': _waterGlasses * 250,
+          'date_record': DateFormat('yyyy-MM-dd').format(_selectedDate),
+        }),
       );
     } catch (_) {}
   }

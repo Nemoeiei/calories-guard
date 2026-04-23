@@ -626,6 +626,7 @@ class RecipeReview(BaseModel):
 
 class WaterLogUpdate(BaseModel):
     amount_ml: int  # total ml for the day (absolute, not delta)
+    date_record: str | None = None  # ISO date string, defaults to today
 
 
 class AllergyUpdate(BaseModel):
@@ -3613,17 +3614,17 @@ def upsert_water_log(user_id: int, entry: WaterLogUpdate):
         raise HTTPException(status_code=400, detail="amount_ml must be >= 0")
     try:
         glasses = max(0, round(entry.amount_ml / 250))
-        today = date.today().isoformat()
+        target_date = entry.date_record or date.today().isoformat()
         res = (_sb_table("water_logs")
                .upsert({
                    "user_id": user_id,
-                   "date_record": today,
+                   "date_record": target_date,
                    "amount_ml": entry.amount_ml,
                    "glasses": glasses,
                }, on_conflict="user_id,date_record")
                .execute())
         saved = res.data[0]["amount_ml"] if res.data else entry.amount_ml
-        return {"date_record": today, "amount_ml": saved}
+        return {"date_record": target_date, "amount_ml": saved}
     except HTTPException:
         raise
     except Exception as e:
