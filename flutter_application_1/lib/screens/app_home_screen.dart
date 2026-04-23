@@ -36,6 +36,12 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncViewDateFromProvider();
       _fetchAllData();
+      ref.listenManual(navIndexProvider, (prev, next) {
+        if (next == 0 && prev != 0) {
+          _syncViewDateFromProvider();
+          _fetchDailyData(_viewDate);
+        }
+      });
     });
   }
 

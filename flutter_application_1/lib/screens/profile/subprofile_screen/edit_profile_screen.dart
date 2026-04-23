@@ -44,7 +44,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       if (streamed.statusCode == 200) {
         final data = jsonDecode(body);
         final publicUrl = data['avatar_url'] as String;
-        ref.read(userDataProvider.notifier).setAvatarUrl(publicUrl);
+        final cacheBusted =
+            '$publicUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+        ref.read(userDataProvider.notifier).setAvatarUrl(cacheBusted);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

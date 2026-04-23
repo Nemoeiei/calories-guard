@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -102,6 +103,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
   late AnimationController _waterAnim;
   bool _isSaving = false;
   bool _isLoadingData = false;
+  Timer? _waterDebounce;
 
   @override
   void initState() {
@@ -116,6 +118,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
   @override
   void dispose() {
     _waterAnim.dispose();
+    _waterDebounce?.cancel();
     super.dispose();
   }
 
@@ -153,6 +156,11 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
           setState(() => _waterGlasses = (ml / 250).round().clamp(0, 20));
       }
     } catch (_) {}
+  }
+
+  void _debouncedSaveWater() {
+    _waterDebounce?.cancel();
+    _waterDebounce = Timer(const Duration(milliseconds: 600), _saveWaterLog);
   }
 
   Future<void> _saveWaterLog() async {
@@ -500,7 +508,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
             _waterBtn(Icons.remove, () {
               if (_waterGlasses > 0) {
                 setState(() => _waterGlasses--);
-                _saveWaterLog();
+                _debouncedSaveWater();
               }
             }),
             const SizedBox(width: 8),
@@ -514,7 +522,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
             _waterBtn(Icons.add, () {
               if (_waterGlasses < 20) {
                 setState(() => _waterGlasses++);
-                _saveWaterLog();
+                _debouncedSaveWater();
               }
             }),
           ]),
@@ -527,7 +535,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
                       child: GestureDetector(
                         onTap: () {
                           setState(() => _waterGlasses = i + 1);
-                          _saveWaterLog();
+                          _debouncedSaveWater();
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
