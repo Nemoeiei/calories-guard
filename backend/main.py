@@ -2306,12 +2306,20 @@ async def upload_avatar(user_id: int, file: UploadFile = File(...)):
     try:
         contents = await file.read()
         ext = (file.filename or "jpg").rsplit(".", 1)[-1].lower()
-        path = f"avatars/{user_id}.{ext}"
+        content_type = file.content_type or f"image/{ext}"
 
+        # ลบไฟล์เก่าทุก extension เพื่อไม่ให้สะสม
+        for old_ext in ("jpg", "jpeg", "png", "webp", "gif"):
+            try:
+                supabase_admin.storage.from_("avatars").remove([f"avatars/{user_id}.{old_ext}"])
+            except Exception:
+                pass
+
+        path = f"avatars/{user_id}.{ext}"
         supabase_admin.storage.from_("avatars").upload(
             path=path,
             file=contents,
-            file_options={"content-type": file.content_type or f"image/{ext}", "upsert": "true"},
+            file_options={"content-type": content_type, "upsert": "true"},
         )
 
         public_url = supabase_admin.storage.from_("avatars").get_public_url(path)
