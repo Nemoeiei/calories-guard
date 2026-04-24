@@ -197,3 +197,85 @@ Total: 30 conflicts on `git merge claude/jolly-wu`.
 - Schema โดยรวมพอสำหรับ closed beta หลัง v14/v15 hardening
 - จุดที่ควรทำก่อน production คือ normalize recipe reviews/favorites ให้ชัดระหว่าง `food_id` กับ `recipe_id`
 - ควร rotate Supabase DB password เพราะ password ถูกส่งมาใน chat แล้ว
+
+---
+
+## 2026-04-24 — Session: P0 continuation + v17 recipe consistency
+
+### Context
+ผู้ใช้ให้เริ่มทำงาน P0 ต่อ และทำ `v17_recipe_consistency`
+
+### Progress log
+- [x] เพิ่ม migration `backend/migrations/v17_recipe_consistency.sql`
+- [x] แก้ `backend/app/routers/social.py` ให้ `/recipes/{food_id}/reviews` และ `/review` resolve `recipe_id` จาก `recipes.food_id`
+- [x] คง mobile API path เดิมไว้เพื่อไม่ให้ Flutter ต้องเปลี่ยน route
+- [x] เพิ่ม regression tests `backend/tests/test_recipe_social.py`
+- [x] อัปเดต `docs/STATUS.md` และ `docs/SUPABASE_CLEANGOAL_SCHEMA_REVIEW.md`
+
+### Verification
+- `python -m pytest backend\tests\test_recipe_social.py backend\tests\test_recipe_routes.py -q` → 4 passed
+- `python -m pytest backend -q` → 64 passed, 1 skipped
+
+### Follow-ups
+- Apply `v16_a_recipes_ai_fields.sql` และ `v17_recipe_consistency.sql` บน Supabase SQL Editor/CLI
+- Rotate Supabase DB password
+- Samsung Health real-device verify
+
+---
+
+## 2026-04-24 — Session: apply Supabase recipe migrations
+
+### Context
+ผู้ใช้ให้ Supabase session pooler URL เพื่อเชื่อมต่อ DB จากเครื่องนี้
+
+### Progress log
+- [x] ต่อ Supabase ผ่าน pooler `aws-1-ap-southeast-1.pooler.supabase.com:5432` สำเร็จ
+- [x] แก้ `v16_a_recipes_ai_fields.sql` ให้มี `BEGIN/COMMIT` และบันทึก `schema_migrations`
+- [x] Apply `v16_a_recipes_ai_fields.sql` บน Supabase สำเร็จ
+- [x] พบ orphan seed reviews 20 rows ที่ FK ไป `recipes/users` ไม่ได้
+- [x] ปรับ `v17_recipe_consistency.sql` ให้ remap เท่าที่ทำได้ แล้ว archive orphan reviews ก่อนเพิ่ม FK
+- [x] Apply `v17_recipe_consistency.sql` บน Supabase สำเร็จ
+
+### Verification
+- `cleangoal.schema_migrations` มี `v16_a_recipes_ai_fields` และ `v17_recipe_consistency`
+- `recipes` มี `ingredients_json`, `tools_json`, `tips_json`, `generated_by`
+- `recipe_reviews` missing recipe/user references = 0
+- archived orphan seed reviews = 20
+
+### Follow-ups
+- Rotate Supabase DB password
+- Samsung Health real-device verify
+
+---
+
+## 2026-04-24 — Session: Supabase 3NF audit + dish taxonomy
+
+### Context
+ผู้ใช้ต้องการตรวจฐานข้อมูล Supabase ให้ละเอียดก่อนทำ ER diagram/data dictionary และต้องการเพิ่มตาราง `dish` เพื่อแยก category ออกจาก `foods`
+
+### Progress log
+- [x] ตรวจ live schema ผ่าน Supabase session pooler
+- [x] เพิ่ม migration `backend/migrations/v18_dishes_3nf_integrity.sql`
+- [x] เพิ่ม migration `backend/migrations/v19_detail_items_unit_fk.sql` หลัง scan พบ `detail_items.unit_id` ยังไม่มี FK
+- [x] Dry-run `v18` แล้ว rollback สำเร็จก่อน apply จริง
+- [x] Apply `v18_dishes_3nf_integrity` บน Supabase สำเร็จ
+- [x] Apply `v19_detail_items_unit_fk` บน Supabase สำเร็จ
+- [x] เพิ่ม `dish_categories`, `dishes`, `foods.dish_id`, `foods.serving_unit_id`
+- [x] เพิ่ม `recipes.favorite_count` ให้ตรงกับ trigger และ Flutter recipe UI
+- [x] Archive orphan recipe relations 100 rows และ invalid unit conversions 19 rows ก่อนใส่ FK
+- [x] เพิ่มเอกสาร live audit: `docs/SUPABASE_3NF_AUDIT_2026_04_24.md`
+- [x] สร้าง column-level snapshot สำหรับ data dictionary: `docs/SUPABASE_DATA_DICTIONARY_LIVE_2026_04_24.md`
+
+### Verification
+- `cleangoal.schema_migrations` มี `v16_a_recipes_ai_fields`, `v17_recipe_consistency`, `v18_dishes_3nf_integrity`
+- Active `foods` = 103, missing `dish_id` = 0
+- Foods with `serving_unit` but missing `serving_unit_id` = 0
+- Non-PK, non-archive `_id` columns without FK = 0
+- Main orphan FK checks = 0
+- New tables `dish_categories`, `dishes`, `recipe_relation_orphan_archive`, `unit_conversion_orphan_archive` have RLS enabled
+
+### Follow-ups
+- Rotate Supabase DB password
+- Use `docs/SUPABASE_3NF_AUDIT_2026_04_24.md` as the baseline for ER diagram/data dictionary
+- Use `docs/SUPABASE_DATA_DICTIONARY_LIVE_2026_04_24.md` for column/type/key/reference details
+- Samsung Health real-device verify

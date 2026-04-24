@@ -6,14 +6,35 @@ Scope: schema analysis + normalization recommendations for the Supabase-only dat
 
 ## Verification Note
 
-I attempted to connect to the live Supabase database from this workspace, but the direct DB host resolves as IPv6-only here and the common Supabase pooler endpoints did not match the tenant. So this review is based on repository truth:
+Initial direct DB connection failed because `db.zawlghlnzgftlxcoipuf.supabase.co` resolved as IPv6-only from this workspace. A Supabase session pooler URL later worked:
+
+```text
+postgres.zawlghlnzgftlxcoipuf @ aws-1-ap-southeast-1.pooler.supabase.com:5432
+```
+
+Live verification on 2026-04-24 confirmed:
+
+- `cleangoal` has 40 base tables after v18.
+- `v16_a_recipes_ai_fields`, `v17_recipe_consistency`, `v18_dishes_3nf_integrity`, and `v19_detail_items_unit_fk` are applied in `cleangoal.schema_migrations`.
+- `recipes` has `ingredients_json`, `tools_json`, `tips_json`, and `generated_by`.
+- `recipe_reviews` has valid FKs to `recipes(recipe_id)` and `users(user_id)`.
+- 20 orphan seed reviews were archived to `cleangoal.recipe_reviews_orphan_archive`; remaining live review rows have no missing recipe/user references.
+- `dish_categories` and `dishes` now exist; all 103 active `foods` rows have `dish_id`.
+- `foods.serving_unit_id` now maps all live serving units to `units`.
+- `detail_items.unit_id` now has an FK to `units`.
+- Old orphan recipe relation rows and invalid unit conversions were archived before adding FKs.
+
+- Current detailed audit: [SUPABASE_3NF_AUDIT_2026_04_24.md](SUPABASE_3NF_AUDIT_2026_04_24.md)
+- Current column snapshot: [SUPABASE_DATA_DICTIONARY_LIVE_2026_04_24.md](SUPABASE_DATA_DICTIONARY_LIVE_2026_04_24.md)
+
+The original review was based on repository truth:
 
 - `docs/ER_DIAGRAM.md` post-v14 schema notes
 - `docs/DATA_DICTIONARY.md`
 - `backend/migrations/v14_*.sql`, `v15_*.sql`, `v16_a_recipes_ai_fields.sql`
 - Current backend/router usage under `backend/app/`
 
-Before applying any destructive normalization, verify against live Supabase with the queries in the last section.
+Use the queries in the last section after future migrations.
 
 ## Executive Verdict
 
@@ -25,8 +46,8 @@ Recommended posture:
 
 1. Keep Supabase `cleangoal` as the only database.
 2. Keep backend SQL access through `DATABASE_URL`/`psycopg2` for now.
-3. Apply `v16_a_recipes_ai_fields.sql` after schema qualification.
-4. Do one small v17 cleanup migration for recipe review/favorite consistency before production.
+3. Treat `v16`/`v17`/`v18`/`v19` as the current live DB baseline.
+4. Use `dish_categories -> dishes -> foods` for the ER diagram and data dictionary.
 5. Defer larger table drops until after closed beta telemetry confirms unused paths.
 
 ## Current Shape
@@ -49,7 +70,7 @@ Recommended posture:
 | Area | Current state | Risk | Recommendation |
 |---|---|---|---|
 | Recipe detail | `recipes` has prose fields and v16 JSONB AI cache fields | OK if v16_a is applied | Keep JSONB for generated recipe payload |
-| Recipe review | Docs/schema model use `recipe_id`; current `social.py` queries `recipe_reviews.food_id` | Runtime failure or schema drift | Normalize reviews to `recipe_id`; API can still accept `food_id` and map internally |
+| Recipe review | DB model uses `recipe_id`; API paths still accept `food_id` | Resolved by v17 | `v17_recipe_consistency.sql` and `social.py` resolve `recipe_id` from `food_id` |
 | Recipe favorite | `recipe_favorites` exists, but current `/recipes/{food_id}/favorite` uses `user_favorites(food_id)` | Duplicate favorite concepts | Prefer `user_favorites` if favorite means food/menu; retire `recipe_favorites` later |
 | Food moderation | `temp_food` + `verified_food` and legacy `food_requests` both exist | Duplicate workflows | Keep both for beta, but declare `food_requests` legacy unless admin still needs it |
 | Food subtype tables | `beverages` and `snacks` exist while `foods.food_type/category` carries most behavior | Unused subtype drift | Drop later if no code/admin flow writes them |
@@ -81,7 +102,7 @@ What should not remain ambiguous:
 - `recipe_ingredients`, `recipe_steps`, `recipe_tools`, and `recipe_tips` should be treated as legacy/seeded recipe-detail tables unless a future admin editor actually writes them.
 - `recipe_reviews` should not mix `food_id` and `recipe_id`. Pick `recipe_id` in the DB, because reviews belong to a recipe row. The endpoint can still take `food_id` for mobile compatibility.
 
-Recommended v17 direction:
+Implemented v17 direction:
 
 ```sql
 -- Verify before migration.
@@ -98,11 +119,13 @@ ORDER BY ordinal_position;
 -- FK user_id -> users(user_id) ON DELETE CASCADE
 ```
 
-Then update `backend/app/routers/social.py` to:
+`backend/app/routers/social.py` now:
 
 1. Resolve `recipe_id` from `recipes WHERE food_id = %s`.
 2. Query/insert reviews by `recipe_id`.
 3. Keep the public API path `/recipes/{food_id}/reviews`.
+
+The migration file is `backend/migrations/v17_recipe_consistency.sql`. It is intentionally conservative: it backfills `recipe_id` from a legacy `food_id` column if that column exists, preserves the old column as legacy metadata, and fails loudly if any review row cannot be mapped to a recipe.
 
 ## Food Moderation Normalization
 
@@ -172,42 +195,18 @@ The migration has been updated in repo to use `cleangoal.recipes`. Without this,
 - apply every file in `backend/migrations/` in order
 - track one canonical column in `cleangoal.schema_migrations` (`version`, not mixed `name`/`version`)
 
-## Suggested Next Migration: `v17_recipe_consistency`
+## Applied Normalization Migrations
 
-This should be done only after live verification.
+The planned `v17` work is now complete, and `v18` adds the food taxonomy requested for ERD/data-dictionary work.
 
-Goal:
+| Migration | Result |
+|---|---|
+| `v16_a_recipes_ai_fields.sql` | Adds AI recipe cache JSONB fields to `recipes` |
+| `v17_recipe_consistency.sql` | Makes recipe reviews use `recipe_id`; archives unmappable seed reviews |
+| `v18_dishes_3nf_integrity.sql` | Adds `dish_categories`, `dishes`, `foods.dish_id`, `foods.serving_unit_id`, missing recipe/unit FKs, and archive tables |
+| `v19_detail_items_unit_fk.sql` | Adds the remaining FK from `detail_items.unit_id` to `units(unit_id)` |
 
-1. Ensure `recipes.food_id` is unique and not null.
-2. Ensure `recipe_reviews` uses `recipe_id`, not `food_id`.
-3. Decide whether `recipe_favorites` is kept or retired.
-4. Add/confirm FKs for active recipe tables.
-5. Add indexes for review listing.
-
-Sketch:
-
-```sql
-BEGIN;
-
--- 1. Confirm recipes has one row per food.
-ALTER TABLE cleangoal.recipes
-  ALTER COLUMN food_id SET NOT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS recipes_food_id_uq
-  ON cleangoal.recipes(food_id);
-
--- 2. If recipe_reviews has food_id, migrate it to recipe_id.
--- Exact SQL depends on the live column set; verify first.
-
--- 3. Ensure review uniqueness by recipe/user.
-CREATE UNIQUE INDEX IF NOT EXISTS recipe_reviews_recipe_user_uq
-  ON cleangoal.recipe_reviews(recipe_id, user_id);
-
-CREATE INDEX IF NOT EXISTS recipe_reviews_recipe_created_idx
-  ON cleangoal.recipe_reviews(recipe_id, created_at DESC);
-
-COMMIT;
-```
+The current detailed live audit is in [SUPABASE_3NF_AUDIT_2026_04_24.md](SUPABASE_3NF_AUDIT_2026_04_24.md).
 
 ## Live Verification Queries
 
@@ -284,4 +283,4 @@ ORDER BY c.relname;
 
 ## Final Recommendation
 
-For closed beta, the schema is acceptable if `v16_a` is applied and the app keeps using backend-only DB access. The one schema/code mismatch to resolve before production is recipe reviews/favorites. Do that as a focused v17 migration and router patch, rather than another broad normalization sweep.
+For ER diagram and data dictionary work, use the live post-v18 shape as the current baseline. The database is now acceptable for closed beta from a relational-integrity perspective: recipe review consistency is fixed, dish/category taxonomy exists, serving units are FK-backed, and previously invalid legacy rows are archived. The main remaining product decision is whether to retire legacy compatibility columns/tables after the mobile/admin code has moved to the normalized references.

@@ -7,6 +7,8 @@
 > **Revision 2** (2026-04-18): removed 9 phantom tables I had hallucinated (`articles`, `chatbot_interactions`, `community_posts`, `follows`, `likes`, `recommendations`, `user_detail_logs`, `user_preferences`, `food_reviews`); added 5 real tables that I had missed (`chat_messages`, `recipe_favorites`, `recipe_steps`, `recipe_tips`, `recipe_tools`). No rows or DDL were ever lost — this was a documentation error only.
 >
 > **Revision 3** (2026-04-19): v14 phases A–F have been applied (`v14_a_critical_fixes`, `v14_b_integrity`, `v14_c_deduplicate`, `v14_d_seed_units`, `v14_e_timestamptz`, `v14_f_drop_unused` in `cleangoal.schema_migrations`). Live schema is now **35 tables** (2 dropped in Phase C: `user_goals`, `user_activities`; 4 in Phase F: `progress`, `weekly_summaries`, `chat_messages`, `user_health_content_views`). All timestamp columns are `timestamptz`. For the post-v14 target state see **[ER_DIAGRAM.md](ER_DIAGRAM.md)**; for the system view see **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)**. The per-table descriptions below still apply to the surviving tables but the "Issues found" section is now largely resolved — see §7 of ER_DIAGRAM.md for the small remaining list.
+>
+> **Revision 4** (2026-04-24): live Supabase has moved to the post-v19 baseline (`v16_a_recipes_ai_fields`, `v17_recipe_consistency`, `v18_dishes_3nf_integrity`, `v19_detail_items_unit_fk`). Use **[SUPABASE_3NF_AUDIT_2026_04_24.md](SUPABASE_3NF_AUDIT_2026_04_24.md)** and **[SUPABASE_DATA_DICTIONARY_LIVE_2026_04_24.md](SUPABASE_DATA_DICTIONARY_LIVE_2026_04_24.md)** as the current ERD/data-dictionary handoff before rewriting this older document.
 
 ---
 

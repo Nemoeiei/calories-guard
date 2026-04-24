@@ -11,6 +11,22 @@ from app.models.schemas import RecipeReview, AllergyUpdate
 router = APIRouter()
 
 
+def _get_recipe_id_for_food(cur, food_id: int) -> int:
+    """Resolve the internal recipe_id while keeping public APIs food_id-based."""
+    cur.execute(
+        """
+        SELECT recipe_id
+        FROM recipes
+        WHERE food_id = %s AND deleted_at IS NULL
+        """,
+        (food_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return row["recipe_id"]
+
+
 # --- Favorites ---
 
 @router.get("/recipes/{food_id}/favorite/{user_id}")
@@ -80,9 +96,10 @@ def get_recipe_reviews(food_id: int):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        recipe_id = _get_recipe_id_for_food(cur, food_id)
         cur.execute("""
             WITH review_stats AS (
-                SELECT food_id,
+                SELECT recipe_id,
                     COUNT(*) AS review_count,
                     ROUND(AVG(rating)::numeric, 1) AS avg_rating,
                     COUNT(*) FILTER (WHERE rating = 5) AS five_star,
@@ -90,16 +107,16 @@ def get_recipe_reviews(food_id: int):
                     COUNT(*) FILTER (WHERE rating = 3) AS three_star,
                     COUNT(*) FILTER (WHERE rating = 2) AS two_star,
                     COUNT(*) FILTER (WHERE rating = 1) AS one_star
-                FROM recipe_reviews WHERE food_id = %s GROUP BY food_id
+                FROM recipe_reviews WHERE recipe_id = %s GROUP BY recipe_id
             )
             SELECT rr.review_id, rr.user_id, u.username, rr.rating, rr.comment, rr.created_at,
                    rs.review_count, rs.avg_rating,
                    rs.five_star, rs.four_star, rs.three_star, rs.two_star, rs.one_star
             FROM recipe_reviews rr
             JOIN users u ON u.user_id = rr.user_id
-            LEFT JOIN review_stats rs ON rs.food_id = rr.food_id
-            WHERE rr.food_id = %s ORDER BY rr.created_at DESC
-        """, (food_id, food_id))
+            LEFT JOIN review_stats rs ON rs.recipe_id = rr.recipe_id
+            WHERE rr.recipe_id = %s ORDER BY rr.created_at DESC
+        """, (recipe_id, recipe_id))
         rows = cur.fetchall()
         if not rows:
             return {"reviews": [], "review_count": 0, "avg_rating": None, "rating_distribution": {}}
@@ -119,6 +136,8 @@ def get_recipe_reviews(food_id: int):
                 "3": stats["three_star"], "2": stats["two_star"], "1": stats["one_star"]
             },
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -133,13 +152,14 @@ def upsert_recipe_review(food_id: int, review: RecipeReview):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        recipe_id = _get_recipe_id_for_food(cur, food_id)
         cur.execute("""
-            INSERT INTO recipe_reviews (food_id, user_id, rating, comment)
+            INSERT INTO recipe_reviews (recipe_id, user_id, rating, comment)
             VALUES (%s, %s, %s, %s)
-            ON CONFLICT (food_id, user_id)
+            ON CONFLICT (recipe_id, user_id)
             DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, created_at = NOW()
             RETURNING review_id
-        """, (food_id, review.user_id, review.rating, review.comment))
+        """, (recipe_id, review.user_id, review.rating, review.comment))
         review_id = cur.fetchone()["review_id"]
         conn.commit()
         return {"message": "Review saved", "review_id": review_id}

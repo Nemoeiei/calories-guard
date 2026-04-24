@@ -13,7 +13,7 @@
 - Mobile: `flutter_application_1/` — Riverpod + supabase_flutter
 - Backend: `backend/main.py` + `backend/app/routers/*` (โมดูล) · Gunicorn + Uvicorn 2 workers · Docker บน Railway
 - Admin web: `admin-web/` — Vite + React + Tailwind · Cloudflare Pages
-- DB: Supabase Postgres schema `cleangoal` (migrations v8–v16_a) + RLS + food-images bucket
+- DB: Supabase Postgres schema `cleangoal` (migrations v8–v19) + RLS + food-images bucket
 - AI: `backend/ai_models/llm_provider.py` (unified) + `chatbot_agent.py` (3-agent pipeline)
 - Ops: GitHub Actions (ci / deploy / synthetic-every-10-min), Sentry APM, Railway cron cleanup
 
@@ -60,6 +60,7 @@
 - [x] CSV-driven Thai food importer (commit `49db83c1`)
 - [x] Thai / English l10n สำหรับ public + hot-path screens (commit `dfce599a`)
 - [x] DeepSeek LoRA fine-tune notebook — app-scoped (commit `1ec2d765`)
+- [x] Supabase 3NF cleanup + dish taxonomy — `dish_categories -> dishes -> foods`, FK cleanup, orphan archives (v18/v19, 2026-04-24)
 
 ### Ops / Deploy / Observability
 - [x] Deploy pipeline — staging auto / prod manual + smoke test + Slack (commit `3c3aa50a`)
@@ -80,6 +81,7 @@
 - [ ] **Samsung Health real-device verify** — code เสร็จแล้ว (commit `c4328486`) แต่ยังไม่รันบน Android จริง
   - ต้องเช็ก: FlutterFragmentActivity, Health Connect permissions dialog, intent filter, package visibility
   - ถ้าฟังก์ชันพัง ต้องไล่ log `com.google.android.apps.healthdata` และ `com.sec.android.app.shealth`
+- [ ] **Rotate Supabase DB password** — password เคยถูก paste ใน chat แล้ว ต้อง rotate ก่อนใช้ staging/prod จริง
 - [x] **Recipe schema decision** — เลือก Approach B: JSONB columns ใน `recipes` + LLM cache
   - `GET /recipes/{food_id}` เหลือ owner เดียวที่ `backend/app/routers/foods.py`
   - เพิ่ม regression test `backend/tests/test_recipe_routes.py` กัน route ซ้ำกลับมา
@@ -89,9 +91,12 @@
 - [x] **Production pre-deploy test plan** — ร่าง checklist ครบชุดแล้ว
   - scope ที่ต้องครอบคลุม: smoke (health, auth, meal CRUD, chat), load (k6 มีแล้ว แต่ยังไม่ได้รันจริง), security (RLS, rate limit), i18n (th/en), network error path, offline behavior, version mismatch
   - artifact: [PRE_DEPLOY_TESTS.md](PRE_DEPLOY_TESTS.md) พร้อมช่อง result/note สำหรับ release candidate
-- [ ] **Apply v16_a migration บน Supabase**
-  - ไฟล์: [backend/migrations/v16_a_recipes_ai_fields.sql](../backend/migrations/v16_a_recipes_ai_fields.sql)
-  - รันผ่าน Supabase SQL Editor หรือ CLI
+- [x] **Apply recipe/3NF migrations บน Supabase**
+  - ไฟล์: [backend/migrations/v16_a_recipes_ai_fields.sql](../backend/migrations/v16_a_recipes_ai_fields.sql) — JSONB recipe AI cache
+  - ไฟล์: [backend/migrations/v17_recipe_consistency.sql](../backend/migrations/v17_recipe_consistency.sql) — normalize `recipe_reviews` ให้ใช้ `recipe_id`
+  - ไฟล์: [backend/migrations/v18_dishes_3nf_integrity.sql](../backend/migrations/v18_dishes_3nf_integrity.sql) — normalize `dish_categories/dishes`, `foods.serving_unit_id`, recipe/unit FKs
+  - ไฟล์: [backend/migrations/v19_detail_items_unit_fk.sql](../backend/migrations/v19_detail_items_unit_fk.sql) — FK `detail_items.unit_id -> units.unit_id`
+  - Applied live on Supabase 2026-04-24; archived 20 orphan seed reviews, 100 orphan recipe relation rows, and 19 invalid unit conversion rows
 - [ ] **Staging environment** — provision Supabase staging project + Railway staging service แยกจาก prod (PRODUCTION_READINESS #10)
 - [ ] **Load test บน staging จริง** — k6 scripts พร้อมแล้ว ([backend/scripts/loadtest/](../backend/scripts/loadtest/)) ต้องรันแล้วอ่าน p95/p99 (PRODUCTION_READINESS #13)
 - [ ] **Sentry SLO dashboard** — สร้าง dashboard + alerts บน Sentry UI (code tagging เสร็จแล้ว, UI ยังไม่ได้ทำ) (PRODUCTION_READINESS #14)
@@ -106,6 +111,7 @@
 - [ ] Notebook `deepseek_finetune.ipynb` ยังไม่ได้ train จริง — ต้องมี GPU/Colab Pro run ก่อนดูว่า alignment % ขึ้นจริงไหม
 - [ ] Health Connect อาจไม่มีบน Samsung บางรุ่น — fallback path ใน `HealthService.healthConnectStatus()` ต้องเทสต์
 - [ ] Railway redeploy หลัง commit `37d55627` — ต้องเปิด dashboard เช็กว่า `/health` เขียวจริง
+- [ ] Final ER diagram/data dictionary should use [SUPABASE_3NF_AUDIT_2026_04_24.md](SUPABASE_3NF_AUDIT_2026_04_24.md) and [SUPABASE_DATA_DICTIONARY_LIVE_2026_04_24.md](SUPABASE_DATA_DICTIONARY_LIVE_2026_04_24.md) as the live post-v19 baseline
 
 ---
 
@@ -114,6 +120,7 @@
 - **`LLM_PROVIDER=local`** — ใช้ transformers + LoRA adapter, ใหญ่ (~1.5B params) → Railway container อาจ OOM; ปัจจุบัน default = `gemini`
 - **ไม่มี background queue** (Celery/RQ) — AI calls sync + 30s timeout; ถ้า Gemini ช้า/down, user เห็น error ตรงๆ
 - **ไม่มี Redis cache** — `recipes` JSONB คือ cache เดียว; `/foods`, `/users/me`, `/meals/*` ไม่มี layer cache
+- **Recipe favorite naming** — endpoint `/recipes/{food_id}/favorite` ยังใช้ `user_favorites(food_id)` ตาม mobile API เดิม; `recipe_favorites` ถูก mark เป็น legacy ใน v17
 - **Legacy env vars** `DB_HOST`/`DB_PORT`/`DB_NAME` ใน config ยังอยู่แต่ไม่ใช้ (เก็บไว้ backward compat) — ลบทิ้งเมื่อมั่นใจ
 - **Forgot-password in-app OTP** — ตอนนี้เป็น no-op placeholder; Supabase ส่ง reset link ทางเมล UI ยังต้อง rework (WORK_HISTORY note)
 - **iOS build** ยังไม่ได้ verify หลัง bundle id rename — ต้องเปิด Xcode ทดสอบ
@@ -170,4 +177,4 @@ VITE_API_BASE_URL=...
 **Smoke test ก่อน merge**: `cd backend && pytest` + `cd flutter_application_1 && flutter analyze`
 **Deploy**: push `main` = auto staging / `workflow_dispatch + confirm=yes` = prod
 
-งานแรกที่แนะนำให้หยิบ (P0): **ตัดสินใจ recipe schema** แล้ว **รัน Samsung Health บนเครื่องจริง** — สองอันนี้ block closed beta launch
+งานแรกที่แนะนำให้หยิบ (P0): **rotate Supabase DB password** แล้ว **รัน Samsung Health บนเครื่องจริง** — สองอันนี้ยัง block closed beta launch
