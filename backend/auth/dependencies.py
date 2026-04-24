@@ -7,11 +7,12 @@ Provides:
 """
 
 import os
+import requests as _requests
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
+from jose import jwt, JWTError, jwk
 from dotenv import load_dotenv
 
 # โหลด env
@@ -19,27 +20,64 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.en
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
-ALGORITHM = "HS256"
+SUPABASE_URL = os.getenv("SUPABASE_PROJECT_URL") or os.getenv("SUPABASE_URL", "")
+_JWKS_CACHE: list = []
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def _decode_token(token: str) -> dict:
-    """Decode and verify a Supabase JWT. Returns the payload dict."""
+def _get_jwks() -> list:
+    global _JWKS_CACHE
+    if _JWKS_CACHE:
+        return _JWKS_CACHE
+    if not SUPABASE_URL:
+        return []
     try:
-        payload = jwt.decode(
-            token,
-            SUPABASE_JWT_SECRET,
-            algorithms=[ALGORITHM],
-            options={"verify_aud": False},
-        )
-        return payload
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from e
+        resp = _requests.get(f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json", timeout=5)
+        if resp.status_code == 200:
+            _JWKS_CACHE = resp.json().get("keys", [])
+    except Exception:
+        pass
+    return _JWKS_CACHE
+
+
+def _decode_token(token: str) -> dict:
+    """Decode and verify a Supabase JWT. Supports both HS256 (legacy) and ES256 (ECC P-256)."""
+    # Try HS256 with shared secret first (legacy)
+    if SUPABASE_JWT_SECRET:
+        try:
+            return jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                options={"verify_aud": False},
+            )
+        except JWTError:
+            pass
+
+    # Try ES256 via JWKS (new ECC P-256 key)
+    header = jwt.get_unverified_header(token)
+    kid = header.get("kid")
+    keys = _get_jwks()
+    for key_data in keys:
+        if kid and key_data.get("kid") != kid:
+            continue
+        try:
+            public_key = jwk.construct(key_data)
+            return jwt.decode(
+                token,
+                public_key,
+                algorithms=["ES256", "RS256"],
+                options={"verify_aud": False},
+            )
+        except JWTError:
+            continue
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 def _get_user_id_from_payload(payload: dict) -> Optional[int]:
