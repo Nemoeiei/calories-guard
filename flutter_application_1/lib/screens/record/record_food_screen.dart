@@ -11,6 +11,7 @@ import '../../services/health_service.dart';
 import '../../services/notification_helper.dart';
 import '../../widget/ai_meal_estimate_sheet.dart';
 import '../../services/error_reporter.dart';
+import '../recommend_food/recipe_detail_screen.dart';
 
 // ─────────────────────────────────────────────
 //  Models
@@ -712,34 +713,48 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
         ),
         const SizedBox(width: 10),
         Expanded(
-            child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Text(food.name,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600)),
-              if (food.isPending) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3E0),
-                      borderRadius: BorderRadius.circular(99)),
-                  child: const Text('รอตรวจสอบ',
-                      style: TextStyle(
-                          fontSize: 9,
-                          color: _orange,
-                          fontWeight: FontWeight.w600)),
+            child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: (food.foodId == null || food.foodId == 0 || food.isPending)
+              ? null
+              : () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          RecipeDetailScreen(foodId: food.foodId!),
+                    ),
+                  ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Flexible(
+                  child: Text(food.name,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
                 ),
-              ],
-            ]),
-            Text(
-                '${food.amount % 1 == 0 ? food.amount.toInt() : food.amount} ${food.unitName}  •  '
-                'P:${food.totalProtein.toInt()}g  C:${food.totalCarbs.toInt()}g  F:${food.totalFat.toInt()}g',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-          ],
+                if (food.isPending) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3E0),
+                        borderRadius: BorderRadius.circular(99)),
+                    child: const Text('รอตรวจสอบ',
+                        style: TextStyle(
+                            fontSize: 9,
+                            color: _orange,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ]),
+              Text(
+                  '${food.amount % 1 == 0 ? food.amount.toInt() : food.amount} ${food.unitName}  •  '
+                  'P:${food.totalProtein.toInt()}g  C:${food.totalCarbs.toInt()}g  F:${food.totalFat.toInt()}g',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+            ],
+          ),
         )),
         Text('${food.totalCalories.toInt()} kcal',
             style: const TextStyle(
