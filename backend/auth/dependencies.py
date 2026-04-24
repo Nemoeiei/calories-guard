@@ -7,81 +7,58 @@ Provides:
 """
 
 import os
-import requests as _requests
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError, jwk
+from supabase import create_client, Client
 from dotenv import load_dotenv
 
 # โหลด env
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 SUPABASE_URL = os.getenv("SUPABASE_PROJECT_URL") or os.getenv("SUPABASE_URL", "")
-_JWKS_CACHE: list = []
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+
+_supabase_client: Optional[Client] = None
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def _get_jwks() -> list:
-    global _JWKS_CACHE
-    if _JWKS_CACHE:
-        return _JWKS_CACHE
-    if not SUPABASE_URL:
-        print("AUTH: SUPABASE_URL not set, cannot fetch JWKS")
-        return []
-    try:
-        resp = _requests.get(f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json", timeout=5)
-        if resp.status_code == 200:
-            _JWKS_CACHE = resp.json().get("keys", [])
-            print(f"AUTH: JWKS loaded, {len(_JWKS_CACHE)} key(s)")
-        else:
-            print(f"AUTH: JWKS fetch failed: {resp.status_code}")
-    except Exception as e:
-        print(f"AUTH: JWKS fetch error: {e}")
-    return _JWKS_CACHE
+def _get_client() -> Client:
+    global _supabase_client
+    if _supabase_client is None:
+        _supabase_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    return _supabase_client
 
 
 def _decode_token(token: str) -> dict:
-    """Decode and verify a Supabase JWT. Supports both HS256 (legacy) and ES256 (ECC P-256)."""
-    # Try HS256 with shared secret first (legacy)
-    if SUPABASE_JWT_SECRET:
-        try:
-            return jwt.decode(
-                token,
-                SUPABASE_JWT_SECRET,
-                algorithms=["HS256"],
-                options={"verify_aud": False},
+    """Verify Supabase JWT via Supabase Auth API. Works with any signing algorithm."""
+    try:
+        response = _get_client().auth.get_user(token)
+        user = response.user
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-        except JWTError:
-            pass
-
-    # Try ES256 via JWKS (new ECC P-256 key)
-    header = jwt.get_unverified_header(token)
-    kid = header.get("kid")
-    keys = _get_jwks()
-    for key_data in keys:
-        if kid and key_data.get("kid") != kid:
-            continue
-        try:
-            public_key = jwk.construct(key_data)
-            return jwt.decode(
-                token,
-                public_key,
-                algorithms=["ES256", "RS256"],
-                options={"verify_aud": False},
-            )
-        except JWTError:
-            continue
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or expired token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+        return {
+            "sub": user.id,
+            "email": user.email,
+            "app_metadata": user.app_metadata or {},
+            "user_metadata": user.user_metadata or {},
+            "role": "authenticated",
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def _get_user_id_from_payload(payload: dict) -> Optional[int]:
