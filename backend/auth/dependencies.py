@@ -31,13 +31,17 @@ def _get_jwks() -> list:
     if _JWKS_CACHE:
         return _JWKS_CACHE
     if not SUPABASE_URL:
+        print("AUTH: SUPABASE_URL not set, cannot fetch JWKS")
         return []
     try:
         resp = _requests.get(f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json", timeout=5)
         if resp.status_code == 200:
             _JWKS_CACHE = resp.json().get("keys", [])
-    except Exception:
-        pass
+            print(f"AUTH: JWKS loaded, {len(_JWKS_CACHE)} key(s)")
+        else:
+            print(f"AUTH: JWKS fetch failed: {resp.status_code}")
+    except Exception as e:
+        print(f"AUTH: JWKS fetch error: {e}")
     return _JWKS_CACHE
 
 
