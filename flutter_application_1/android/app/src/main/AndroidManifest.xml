@@ -37,6 +37,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Health Connect permission rationale (Android 14+).
+                 Required so the OS can deep-link to our privacy policy
+                 when the user reviews Health-related permissions. -->
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
+            </intent-filter>
+            <!-- Health Connect on Android 13 (API 33) uses a separate action. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
+            </intent-filter>
         </activity>
         <!-- Supabase OAuth deep link callback -->
         <activity
@@ -66,5 +77,11 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Needed so PackageManager can see whether Health Connect and
+             Samsung Health are installed. Without these, Health Connect
+             availability probes return false on Android 11+ (scoped
+             package visibility). -->
+        <package android:name="com.google.android.apps.healthdata"/>
+        <package android:name="com.sec.android.app.shealth"/>
     </queries>
 </manifest>

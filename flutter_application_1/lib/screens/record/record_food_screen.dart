@@ -1008,24 +1008,49 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
   Future<void> _syncSamsungHealth() async {
     setState(() => _isSyncingHealth = true);
     try {
-      final granted = await HealthService.requestPermissions();
-      if (!granted) {
-        if (mounted) {
+      final readiness = await HealthService.ensureReady();
+      if (!mounted) return;
+
+      switch (readiness) {
+        case HealthReadiness.unsupported:
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text(
-                'ไม่ได้รับอนุญาตให้เข้าถึงข้อมูลสุขภาพ\nกรุณาอนุญาตใน Settings'),
+                'อุปกรณ์นี้ไม่รองรับ Health Connect — ซิงค์ Samsung Health ไม่ได้'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
+            duration: Duration(seconds: 4),
           ));
-        }
-        return;
+          return;
+        case HealthReadiness.needsInstall:
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text(
+                'ยังไม่ได้ติดตั้ง Health Connect — แตะปุ่มติดตั้งเพื่อดาวน์โหลด'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'ติดตั้ง',
+              textColor: Colors.white,
+              onPressed: HealthService.openHealthConnectInstall,
+            ),
+          ));
+          return;
+        case HealthReadiness.permissionDenied:
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'ไม่ได้รับสิทธิ์อ่านข้อมูลสุขภาพ\n'
+                'เปิดแอป Health Connect → Apps → Calories Guard → อนุญาตการอ่านทั้งหมด'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ));
+          return;
+        case HealthReadiness.ok:
+          break;
       }
 
       final calories = await HealthService.fetchCaloriesBurned(_selectedDate);
       final steps = await HealthService.fetchSteps(_selectedDate);
+      if (!mounted) return;
 
-      if (calories > 0) {
-        // สร้าง activity จาก Samsung Health
+      if (calories > 0 || steps > 0) {
         final act = Activity(
           name: 'Samsung Health — กิจกรรมรวม',
           emoji: '⌚',
@@ -1033,27 +1058,32 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
           caloriesBurned: calories,
         );
         setState(() {
-          // ลบข้อมูล Samsung Health เดิมออกก่อน
           _activities.removeWhere((a) => a.name.startsWith('Samsung Health'));
-          _activities.add(act);
+          if (calories > 0) _activities.add(act);
         });
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-              'ซิงค์สำเร็จ! เผาผลาญ ${calories.toInt()} kcal | ก้าว $steps ก้าว',
-            ),
-            backgroundColor: const Color(0xFF628141),
-            duration: const Duration(seconds: 3),
-          ));
-        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'ซิงค์สำเร็จ! เผาผลาญ ${calories.toInt()} kcal | ก้าว $steps ก้าว',
+          ),
+          backgroundColor: const Color(0xFF628141),
+          duration: const Duration(seconds: 3),
+        ));
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('ไม่พบข้อมูลกิจกรรมจาก Samsung Health ในวันนี้'),
-            backgroundColor: Colors.orange,
-          ));
-        }
+        // Permissions are fine but no data — typically means Samsung Health
+        // hasn't been linked to Health Connect yet.
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text(
+              'ไม่พบข้อมูลกิจกรรมในวันนี้\n'
+              'เปิด Samsung Health → ตั้งค่า → Health Connect และเปิดการซิงค์'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'ติดตั้ง Samsung Health',
+            textColor: Colors.white,
+            onPressed: HealthService.openSamsungHealthInstall,
+          ),
+        ));
       }
     } catch (e) {
       if (mounted) {
