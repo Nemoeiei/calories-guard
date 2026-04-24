@@ -93,6 +93,12 @@ class AuthService {
         return {'success': false, 'message': 'Login failed'};
       }
 
+      // Store token explicitly in case currentSession is null (email unconfirmed in Supabase)
+      final sessionToken = authResponse.session?.accessToken;
+      if (sessionToken != null) {
+        ApiClient.setManualToken(sessionToken);
+      }
+
       // 2. Fetch user profile from our backend (JWT auto-attached by ApiClient)
       final response = await _api.post('/login', body: {
         'email': email,
@@ -264,6 +270,5 @@ class AuthService {
   bool get isSignedIn => _supabase.auth.currentSession != null;
 
   /// Listen to auth state changes.
-  Stream<AuthState> get onAuthStateChange =>
-      _supabase.auth.onAuthStateChange;
+  Stream<AuthState> get onAuthStateChange => _supabase.auth.onAuthStateChange;
 }

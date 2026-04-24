@@ -18,9 +18,13 @@ class ApiClient {
 
   String get _baseUrl => AppConstants.baseUrl;
 
+  /// Manually stored token (used when currentSession is null after login).
+  static String? _manualToken;
+  static void setManualToken(String? token) => _manualToken = token;
+
   /// Get the current Supabase access token, or null if not signed in.
   String? get _accessToken =>
-      Supabase.instance.client.auth.currentSession?.accessToken;
+      Supabase.instance.client.auth.currentSession?.accessToken ?? _manualToken;
 
   Map<String, String> _headers({Map<String, String>? extra}) {
     final headers = <String, String>{
@@ -86,8 +90,10 @@ class ApiClient {
     Map<String, String>? queryParams,
     Map<String, String>? extraHeaders,
   }) {
-    final uri = Uri.parse('$_baseUrl$path').replace(queryParameters: queryParams);
-    return _handleResponse(http.get(uri, headers: _headers(extra: extraHeaders)));
+    final uri =
+        Uri.parse('$_baseUrl$path').replace(queryParameters: queryParams);
+    return _handleResponse(
+        http.get(uri, headers: _headers(extra: extraHeaders)));
   }
 
   Future<http.Response> post(
@@ -97,7 +103,8 @@ class ApiClient {
   }) {
     final uri = Uri.parse('$_baseUrl$path');
     return _handleResponse(
-      http.post(uri, headers: _headers(extra: extraHeaders), body: jsonEncode(body)),
+      http.post(uri,
+          headers: _headers(extra: extraHeaders), body: jsonEncode(body)),
     );
   }
 
@@ -108,7 +115,8 @@ class ApiClient {
   }) {
     final uri = Uri.parse('$_baseUrl$path');
     return _handleResponse(
-      http.put(uri, headers: _headers(extra: extraHeaders), body: jsonEncode(body)),
+      http.put(uri,
+          headers: _headers(extra: extraHeaders), body: jsonEncode(body)),
     );
   }
 
@@ -119,7 +127,8 @@ class ApiClient {
   }) {
     final uri = Uri.parse('$_baseUrl$path');
     return _handleResponse(
-      http.patch(uri, headers: _headers(extra: extraHeaders), body: jsonEncode(body)),
+      http.patch(uri,
+          headers: _headers(extra: extraHeaders), body: jsonEncode(body)),
     );
   }
 
