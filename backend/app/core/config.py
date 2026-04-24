@@ -62,10 +62,22 @@ if _HAS_PSETTINGS:
         supabase_project_url: str = ""  # legacy alias used by supabase_storage.py
 
         # AI (optional — coach falls back to canned responses if missing)
+        #
+        # The actual LLM backend is selected by llm_provider (gemini | deepseek
+        # | local). Only the key for the selected provider needs to be set;
+        # others are ignored. See ai_models/llm_provider.py for the full
+        # routing logic.
         gemini_api_key: str = ""
+        gemini_model: str = "gemini-2.5-flash"
+        deepseek_api_key: str = ""
+        deepseek_base_url: str = "https://api.deepseek.com"
+        deepseek_model: str = "deepseek-chat"
+        local_model_path: str = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+        local_adapter_path: str = ""
+        llm_provider: str = "gemini"
         # Kill-switch: set AI_ENABLED=false in Railway to disable AI
         # endpoints (chat + food auto-add) without a redeploy. Used when
-        # Gemini is rate-limiting, when we're over budget, or during
+        # the provider is rate-limiting, when we're over budget, or during
         # incidents.
         ai_enabled: bool = True
 

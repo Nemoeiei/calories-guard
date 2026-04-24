@@ -23,17 +23,18 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-import google.generativeai as genai
 from psycopg2.extras import RealDictCursor
 from database import get_db_connection
 from dotenv import load_dotenv
 
 from ai_models.food_extraction import extract_foods as _tok_extract_foods
+from ai_models.llm_provider import generate as llm_generate, is_configured as llm_is_configured
 
+# Backend is selected by LLM_PROVIDER. We keep a couple of legacy constants
+# exported for any call-site still probing them, but all generation now goes
+# through ai_models.llm_provider.
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # kept for back-compat probes
 
 
 # ─── Scope Guard ─────────────────────────────────────────────────────────────
@@ -412,17 +413,20 @@ class NutritionAnalysisAgent:
         return None
 
     def _estimate_food_gemini(self, name: str, user_id: int = None) -> Optional[dict]:
-        if not GEMINI_API_KEY:
+        # Historical name — the actual backend is LLM_PROVIDER-driven (Gemini,
+        # DeepSeek, or local). Kept as-is so callers don't break.
+        if not llm_is_configured():
             return None
         try:
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            prompt = (
-                f'ประมาณโภชนาการของ "{name}" 1 จาน (ปริมาณปกติ) '
-                f'ตอบเป็น JSON เท่านั้น ไม่มี markdown: '
-                f'{{"calories":0,"protein":0,"carbs":0,"fat":0}}'
+            system = (
+                "คุณคือผู้เชี่ยวชาญด้านโภชนาการ ตอบเป็น JSON เท่านั้น ไม่มี markdown"
             )
-            r = model.generate_content(prompt)
-            text = re.sub(r"```(?:json)?", "", r.text).strip("`").strip()
+            user = (
+                f'ประมาณโภชนาการของ "{name}" 1 จาน (ปริมาณปกติ) '
+                f'ตอบเป็น JSON: {{"calories":0,"protein":0,"carbs":0,"fat":0}}'
+            )
+            text = llm_generate(system, user)
+            text = re.sub(r"```(?:json)?", "", text).strip("`").strip()
             d = json.loads(text)
             result = {
                 "name": name,
@@ -572,15 +576,10 @@ class ResponseComposerAgent:
 
         system_prompt = "\n".join(system_parts)
 
-        # ── Gemini call ───────────────────────────────────────────────────────
-        if GEMINI_API_KEY:
+        # ── LLM call (Gemini / DeepSeek / local, selected by LLM_PROVIDER) ───
+        if llm_is_configured():
             try:
-                model = genai.GenerativeModel("gemini-2.5-flash")
-                response = model.generate_content([
-                    {"role": "user", "parts": [system_prompt]},
-                    {"role": "user", "parts": [f"คำถาม/ข้อความ: {msg}"]},
-                ])
-                return response.text
+                return llm_generate(system_prompt, f"คำถาม/ข้อความ: {msg}")
             except Exception:
                 pass  # fallthrough to rule-based
 

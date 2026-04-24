@@ -1,17 +1,16 @@
 import os
-import json
-import google.generativeai as genai
+import json  # noqa: F401 — kept for downstream consumers
 from psycopg2.extras import RealDictCursor
 from database import get_db_connection
 from ai_models.weight_trend_model import WeightTrendAnalyzer
 from ai_models.food_analyzer import FoodAnalyzer
+from ai_models.llm_provider import generate as llm_generate, is_configured as llm_is_configured
 from dotenv import load_dotenv
 
-# Initialize Gemini & Environment Variables
+# The actual LLM backend (Gemini / DeepSeek / local) is selected by the
+# LLM_PROVIDER env var and isolated inside ai_models.llm_provider. This file
+# no longer knows or cares which vendor is on the other end.
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 _SCOPE_KEYWORDS = [
     "กิน", "ทาน", "อาหาร", "เมนู", "แคลอรี", "โภชนาการ", "สารอาหาร",
@@ -176,17 +175,17 @@ class CoachingAgent:
 
 จงตอบคำถามของผู้ใช้โดยนำข้อมูลเชิงลึกเหล่านี้มาใช้อ้างอิงอย่างแนบเนียน ไม่ส่งผลลัพธ์เป็น Code หรือเชิงเทคนิคเกินไป เน้นการแนะนำเมนูอาหารและโปรแกรมออกกำลังกายที่เหมาะสมกับเป้าหมายของผู้ใช้"""
 
-        if not GEMINI_API_KEY:
-            # Fallback if no API key
+        if not llm_is_configured():
+            # Fallback if the selected provider has no API key configured.
             trend_val = weight_trend.get('trend', 'ยังระบุไม่ได้เนื่องจากข้อมูลไม่ครบ')
-            return f"[System: No Gemini API Key. Mock Response]\\nจากข้อมูลของคุณ แนวโน้มตอนนี้น้ำหนัก {trend_val} ครับ! เมนูแนะนำวันนี้ควรเพิ่มโปรตีนนะครับ"
+            provider = os.getenv('LLM_PROVIDER', 'gemini')
+            return (
+                f"[System: LLM provider '{provider}' not configured. Mock Response]\n"
+                f"จากข้อมูลของคุณ แนวโน้มตอนนี้น้ำหนัก {trend_val} ครับ! "
+                f"เมนูแนะนำวันนี้ควรเพิ่มโปรตีนนะครับ"
+            )
 
         try:
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            response = model.generate_content([
-                {"role": "user", "parts": [system_prompt]},
-                {"role": "user", "parts": [f"ผู้ใช้ถามว่า: {user_message}"]}
-            ])
-            return response.text
+            return llm_generate(system_prompt, f"ผู้ใช้ถามว่า: {user_message}")
         except Exception as e:
             return f"ระบบ AI ขัดข้องชั่วคราว: {str(e)}"
