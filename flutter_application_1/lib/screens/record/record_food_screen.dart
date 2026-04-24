@@ -1605,32 +1605,58 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-        child: TextField(
-          controller: _searchCtrl,
-          onChanged: (_) => setState(() {
-            _showQuickAdd = false;
-          }),
-          decoration: InputDecoration(
-            hintText: 'ค้นหาเมนูอาหาร...',
-            prefixIcon: const Icon(Icons.search, color: _green),
-            suffixIcon: _searchCtrl.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: () {
-                      _searchCtrl.clear();
-                      setState(() {
-                        _showQuickAdd = false;
-                      });
-                    })
-                : null,
-            filled: true,
-            fillColor: _greenL,
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (_) => setState(() {
+                _showQuickAdd = false;
+              }),
+              decoration: InputDecoration(
+                hintText: 'ค้นหาเมนูอาหาร...',
+                prefixIcon: const Icon(Icons.search, color: _green),
+                suffixIcon: _searchCtrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() {
+                            _showQuickAdd = false;
+                          });
+                        })
+                    : null,
+                filled: true,
+                fillColor: _greenL,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          // Always-visible shortcut to the quick-add form, so users can
+          // create a new meal entry without having to type a bogus search first.
+          Tooltip(
+            message: 'สร้างเมนูใหม่',
+            child: InkWell(
+              onTap: () {
+                _qNameCtrl.text = _searchCtrl.text.trim();
+                setState(() => _showQuickAdd = true);
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _green,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 22),
+              ),
+            ),
+          ),
+        ]),
       ),
       Expanded(
         child: _dbLoading

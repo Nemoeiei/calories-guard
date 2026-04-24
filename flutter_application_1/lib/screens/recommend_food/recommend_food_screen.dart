@@ -127,6 +127,34 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
   }
 
   // ────────────────────────────────────────────
+  //  SUGGEST NEW FOOD — opens a bottom sheet that POSTs to /foods/auto-add
+  //  Admin reviews the submission before it becomes a real food entry.
+  // ────────────────────────────────────────────
+  void _openSuggestFoodSheet(String prefillName) {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาเข้าสู่ระบบก่อนเพิ่มเมนู')),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _SuggestFoodSheet(
+        initialName: prefillName,
+        userId: userId,
+        onSubmitted: () {
+          // Refresh to let newly-approved items appear. Won't show pending ones
+          // (that's by design — temp_food is admin-gated).
+          _fetchAllFood();
+        },
+      ),
+    );
+  }
+
+  // ────────────────────────────────────────────
   //  BUILD
   // ────────────────────────────────────────────
   @override
@@ -289,10 +317,52 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                   _searchResults.isEmpty
-                      ? const Center(child: Padding(
-                          padding: EdgeInsets.all(40),
-                          child: Text('ไม่พบเมนูที่ค้นหา',
-                            style: TextStyle(color: Colors.grey))))
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(40),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.search_off_rounded,
+                                    size: 52, color: Colors.grey.shade300),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'ไม่พบ "$_searchQuery" ในฐานข้อมูล',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade600),
+                                ),
+                                const SizedBox(height: 20),
+                                ElevatedButton.icon(
+                                  onPressed: () =>
+                                      _openSuggestFoodSheet(_searchQuery),
+                                  icon: const Icon(Icons.add_circle_outline,
+                                      size: 18),
+                                  label: const Text('ขอเพิ่มเมนูนี้',
+                                      style:
+                                          TextStyle(fontWeight: FontWeight.w700)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF628141),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 24, vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(14)),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'เมนูที่เพิ่มจะรอแอดมินตรวจสอบก่อนเผยแพร่',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade500),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
                       : _buildGrid(_searchResults),
                 ]
 
@@ -873,6 +943,192 @@ class FoodCategoryScreen extends StatelessWidget {
                     ]),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  _SuggestFoodSheet
+//  Bottom sheet to submit a new food suggestion → /foods/auto-add (temp_food).
+//  Admin reviews and approves before it shows up in the catalog.
+// ─────────────────────────────────────────────
+class _SuggestFoodSheet extends StatefulWidget {
+  final String initialName;
+  final int userId;
+  final VoidCallback onSubmitted;
+  const _SuggestFoodSheet({
+    required this.initialName,
+    required this.userId,
+    required this.onSubmitted,
+  });
+
+  @override
+  State<_SuggestFoodSheet> createState() => _SuggestFoodSheetState();
+}
+
+class _SuggestFoodSheetState extends State<_SuggestFoodSheet> {
+  static const _green = Color(0xFF628141);
+  late final TextEditingController _nameCtrl;
+  final TextEditingController _calCtrl = TextEditingController();
+  final TextEditingController _proteinCtrl = TextEditingController();
+  final TextEditingController _carbsCtrl = TextEditingController();
+  final TextEditingController _fatCtrl = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _calCtrl.dispose();
+    _proteinCtrl.dispose();
+    _carbsCtrl.dispose();
+    _fatCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณากรอกชื่อเมนู')),
+      );
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      final res = await http.post(
+        Uri.parse('${AppConstants.baseUrl}/foods/auto-add'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'food_name': name,
+          'calories': double.tryParse(_calCtrl.text.trim()) ?? 0,
+          'protein': double.tryParse(_proteinCtrl.text.trim()) ?? 0,
+          'carbs': double.tryParse(_carbsCtrl.text.trim()) ?? 0,
+          'fat': double.tryParse(_fatCtrl.text.trim()) ?? 0,
+          'user_id': widget.userId,
+        }),
+      );
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        Navigator.pop(context);
+        widget.onSubmitted();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('ส่งคำขอเพิ่มเมนูแล้ว รอแอดมินตรวจสอบ'),
+              backgroundColor: _green),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ส่งคำขอไม่สำเร็จ (${res.statusCode})')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Widget _numberField(String label, TextEditingController c, String suffix) {
+    return TextField(
+      controller: c,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixText: suffix,
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomInset),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2))),
+            ),
+            const SizedBox(height: 12),
+            const Text('ขอเพิ่มเมนูใหม่',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text('แอดมินจะตรวจสอบก่อนเพิ่มเข้าฐานข้อมูล',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _nameCtrl,
+              decoration: InputDecoration(
+                labelText: 'ชื่อเมนู *',
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300)),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _numberField('แคลอรี่', _calCtrl, 'kcal'),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _numberField('โปรตีน', _proteinCtrl, 'g')),
+              const SizedBox(width: 10),
+              Expanded(child: _numberField('คาร์บ', _carbsCtrl, 'g')),
+              const SizedBox(width: 10),
+              Expanded(child: _numberField('ไขมัน', _fatCtrl, 'g')),
+            ]),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _submitting ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _green,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _submitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Text('ส่งคำขอ',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
               ),
             ),
           ],
