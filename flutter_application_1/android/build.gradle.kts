@@ -24,7 +24,6 @@ subprojects {
             kotlinOptions {
                 languageVersion = "1.9"
                 apiVersion = "1.9"
-                jvmTarget = "17"
             }
         }
     }
