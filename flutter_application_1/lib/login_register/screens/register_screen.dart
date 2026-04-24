@@ -110,39 +110,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  void _showPasswordRules() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('เงื่อนไขรหัสผ่าน',
-              style:
-                  TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold)),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _RuleItem(text: 'ความยาวอย่างน้อย 8 ตัวอักษร'),
-              _RuleItem(text: 'มีตัวพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว'),
-              _RuleItem(text: 'มีอักขระพิเศษ (เช่น !, @, #) อย่างน้อย 1 ตัว'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('เข้าใจแล้ว',
-                  style: TextStyle(
-                      color: Color(0xFF628141), fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _handleRegister() async {
     String firstName = _firstNameController.text.trim();
     String lastName = _lastNameController.text.trim();
@@ -315,8 +282,53 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           ),
                         ),
                       const SizedBox(height: 20),
-                      _buildLabel('Password *', onInfoTap: _showPasswordRules),
+                      _buildLabel('Password *'),
                       _buildTextField(_passwordController, isPassword: true),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 8, top: 6, right: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'เงื่อนไขรหัสผ่าน:',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.redAccent,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              '• ความยาวอย่างน้อย 8 ตัวอักษร',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: Colors.redAccent,
+                                height: 1.4,
+                              ),
+                            ),
+                            Text(
+                              '• มีตัวพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: Colors.redAccent,
+                                height: 1.4,
+                              ),
+                            ),
+                            Text(
+                              '• มีอักขระพิเศษ (เช่น !, @, #) อย่างน้อย 1 ตัว',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: Colors.redAccent,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 20),
                       _buildLabel('Confirm password *'),
                       _buildTextField(_confirmPasswordController,
@@ -405,27 +417,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           style: const TextStyle(
               fontFamily: 'Inter', fontSize: 16, color: Colors.black),
         ),
-      ),
-    );
-  }
-}
-
-class _RuleItem extends StatelessWidget {
-  final String text;
-  const _RuleItem({required this.text});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.check_circle_outline, size: 16, color: Colors.green),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Text(text,
-                  style: const TextStyle(fontFamily: 'Inter', fontSize: 14))),
-        ],
       ),
     );
   }
