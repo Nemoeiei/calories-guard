@@ -1442,52 +1442,294 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     );
   }
 
-  /// Quick Stats: รวมสัปดาห์ (+ progress bar) และ วันที่ทานตามเป้า
+  /// Quick Stats: หัวใจของ progress — เป้าแคลสัปดาห์ ที่ต้องอ่านได้ชัดในวินาทีเดียว
   Widget _buildQuickStats(
       DateTime weekMonday, double targetCal, UserData userData) {
     final totalCal = _getWeekTotalCal(weekMonday);
-    final daysMet  = _getWeekDaysMetGoal(weekMonday, targetCal);
-    final weeklyTarget = targetCal * 7;
-    final weekPct = weeklyTarget > 0
-        ? (totalCal / weeklyTarget).clamp(0.0, 1.0)
-        : 0.0;
+    final daysMet = _getWeekDaysMetGoal(weekMonday, targetCal);
+    final weeklyTarget = (targetCal * 7).toInt();
+    final remaining = weeklyTarget - totalCal; // บวก=เหลือ, ลบ=เกิน
+    final weekPctRaw =
+        weeklyTarget > 0 ? totalCal / weeklyTarget : 0.0; // ไม่ clamp — แสดงเกินได้
+    final weekPctBar = weekPctRaw.clamp(0.0, 1.0);
 
-    const orange = Color(0xFFE85D04);
-    const green  = Color(0xFF628141);
+    // คำนวณ "วันที่เหลือในสัปดาห์" เฉพาะเมื่อดูสัปดาห์ปัจจุบัน
+    final now = DateTime.now();
+    final nowDayOnly = DateTime(now.year, now.month, now.day);
+    final weekStart =
+        DateTime(weekMonday.year, weekMonday.month, weekMonday.day);
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final isCurrentWeek =
+        !nowDayOnly.isBefore(weekStart) && !nowDayOnly.isAfter(weekEnd);
+    final daysElapsed = isCurrentWeek
+        ? (nowDayOnly.difference(weekStart).inDays + 1).clamp(1, 7)
+        : 7;
+    final daysRemaining = isCurrentWeek ? (7 - daysElapsed) : 0;
+    final avgPerDay = daysElapsed > 0 ? (totalCal / daysElapsed).round() : 0;
+    final budgetPerRemainingDay = daysRemaining > 0 && remaining > 0
+        ? (remaining / daysRemaining).round()
+        : 0;
 
-    return Row(children: [
-      // ── การ์ด 1: แคลฯ รวมสัปดาห์ + progress bar ──────────────────────
-      Expanded(
-        child: _statCardWithBar(
-          icon: Icons.local_fire_department,
-          iconBg: orange.withOpacity(0.15),
-          iconColor: orange,
-          value: _formatNumber(totalCal),
-          unit: 'kcal',
-          label: 'แคลฯ รวมสัปดาห์',
-          subLabel: 'เป้า ${_formatNumber(weeklyTarget.toInt())} kcal',
-          progress: weekPct,
-          barColor: totalCal > weeklyTarget ? Colors.red : orange,
-          pctText: '${(weekPct * 100).toInt()}%',
+    // ─── สี + ข้อความสถานะ ───────────────────────────────────────────────
+    const greenOk = Color(0xFF2E7D32);
+    const amberWarn = Color(0xFFE67E22);
+    const redOver = Color(0xFFD32F2F);
+    const blueNeutral = Color(0xFF1565C0);
+
+    late Color statusColor;
+    late IconData statusIcon;
+    late String statusText;
+    if (totalCal == 0) {
+      statusColor = blueNeutral;
+      statusIcon = Icons.info_outline;
+      statusText = 'ยังไม่มีบันทึกในสัปดาห์นี้';
+    } else if (remaining < 0) {
+      statusColor = redOver;
+      statusIcon = Icons.error_outline;
+      statusText =
+          'เกินเป้าแล้ว ${_formatNumber(remaining.abs())} kcal';
+    } else if (weekPctRaw >= 0.85) {
+      statusColor = amberWarn;
+      statusIcon = Icons.warning_amber_rounded;
+      statusText = 'ใกล้ถึงเป้ารายสัปดาห์แล้ว';
+    } else {
+      statusColor = greenOk;
+      statusIcon = Icons.check_circle_outline;
+      statusText = 'ยังอยู่ในเป้า';
+    }
+
+    String _fmt(int n) => _formatNumber(n);
+
+    return Column(children: [
+      // ── การ์ดหลัก: เป้าแคลสัปดาห์ เต็มความกว้าง อ่านง่าย ──────────────────
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE8EFCF)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 2))
+          ],
         ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Header: label + percent badge
+          Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.local_fire_department,
+                  color: statusColor, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'เป้าแคลรวมสัปดาห์',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                    fontFamily: 'Inter'),
+              ),
+            ),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${(weekPctRaw * 100).toInt()}%',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: statusColor,
+                    fontFamily: 'Inter'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          // ตัวเลขหลัก: "ทาน X,XXX / Y,YYY kcal"
+          RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: _fmt(totalCal),
+                  style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: statusColor,
+                      letterSpacing: -0.5,
+                      fontFamily: 'Inter'),
+                ),
+                TextSpan(
+                  text: '  / ${_fmt(weeklyTarget)} kcal',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                      fontFamily: 'Inter'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Stack(children: [
+              LinearProgressIndicator(
+                value: weekPctBar,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                minHeight: 10,
+              ),
+              // Overshoot indicator เมื่อเกิน 100%
+              if (weekPctRaw > 1.0)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          redOver.withOpacity(0.9),
+                          redOver.withOpacity(0.6),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          // Status row (ไอคอน + ข้อความ)
+          Row(children: [
+            Icon(statusIcon, size: 16, color: statusColor),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                statusText,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                    fontFamily: 'Inter'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          // Breakdown: 3 ช่องย่อย — เหลือ / เฉลี่ย / งบรายวัน
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7FAF3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              Expanded(
+                child: _statChip(
+                    label: remaining >= 0 ? 'เหลือในสัปดาห์' : 'เกินไป',
+                    value: _fmt(remaining.abs()),
+                    unit: 'kcal',
+                    color: remaining >= 0 ? greenOk : redOver),
+              ),
+              Container(
+                  width: 1, height: 32, color: Colors.grey.shade200),
+              Expanded(
+                child: _statChip(
+                    label: isCurrentWeek
+                        ? 'เฉลี่ย ($daysElapsed วัน)'
+                        : 'เฉลี่ยต่อวัน',
+                    value: _fmt(avgPerDay),
+                    unit: 'kcal/วัน',
+                    color: Colors.black87),
+              ),
+              Container(
+                  width: 1, height: 32, color: Colors.grey.shade200),
+              Expanded(
+                child: _statChip(
+                    label: isCurrentWeek && daysRemaining > 0
+                        ? 'งบ $daysRemaining วันที่เหลือ'
+                        : 'เป้ารายวัน',
+                    value: isCurrentWeek && daysRemaining > 0
+                        ? _fmt(budgetPerRemainingDay)
+                        : _fmt(targetCal.toInt()),
+                    unit: 'kcal/วัน',
+                    color: isCurrentWeek && daysRemaining > 0 && remaining > 0
+                        ? blueNeutral
+                        : Colors.black87),
+              ),
+            ]),
+          ),
+        ]),
       ),
-      const SizedBox(width: 10),
-      // ── การ์ด 2: วันที่ทานตามเป้า ─────────────────────────────────────
-      Expanded(
-        child: _statCardWithBar(
-          icon: Icons.gps_fixed,
-          iconBg: green.withOpacity(0.15),
-          iconColor: green,
-          value: '$daysMet/7',
-          unit: 'วัน',
-          label: 'วันที่ทานตามเป้า',
-          subLabel: 'ทานแคลฯ ≤ เป้าหมาย/วัน',
-          progress: daysMet / 7,
-          barColor: green,
-          pctText: '${((daysMet / 7) * 100).toInt()}%',
-        ),
+      const SizedBox(height: 10),
+      // ── การ์ดเสริม: วันที่ทานตามเป้า (คงเดิมแต่ย่อลง) ──────────────────
+      _statCardWithBar(
+        icon: Icons.gps_fixed,
+        iconBg: greenOk.withOpacity(0.12),
+        iconColor: greenOk,
+        value: '$daysMet/7',
+        unit: 'วัน',
+        label: 'วันที่ทานตามเป้า',
+        subLabel: 'นับเฉพาะวันที่ทานแคลฯ ≤ เป้าหมายต่อวัน',
+        progress: daysMet / 7,
+        barColor: greenOk,
+        pctText: '${((daysMet / 7) * 100).toInt()}%',
       ),
     ]);
+  }
+
+  /// ช่องตัวเลขย่อยใน breakdown ของการ์ดเป้าแคลสัปดาห์
+  Widget _statChip({
+    required String label,
+    required String value,
+    required String unit,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+                fontFamily: 'Inter')),
+        const SizedBox(height: 2),
+        RichText(
+          textAlign: TextAlign.center,
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: value,
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    fontFamily: 'Inter'),
+              ),
+              TextSpan(
+                text: ' $unit',
+                style: TextStyle(
+                    fontSize: 9,
+                    color: Colors.grey[600],
+                    fontFamily: 'Inter'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _statCardWithBar({
