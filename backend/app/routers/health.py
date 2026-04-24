@@ -29,6 +29,19 @@ def health():
     return {"status": "ok", "api_version": API_VERSION}
 
 
+@router.get("/debug-auth")
+def debug_auth(request: Request):
+    """Debug endpoint — shows whether Authorization header is received. Remove after fix."""
+    auth_header = request.headers.get("authorization", "")
+    has_token = bool(auth_header.startswith("Bearer "))
+    token_preview = auth_header[7:27] + "..." if has_token else None
+    return {
+        "code_version": "supabase-client-v1",
+        "has_auth_header": has_token,
+        "token_preview": token_preview,
+    }
+
+
 @router.post("/upload-image/")
 @limiter.limit("10/minute")
 async def upload_image(
