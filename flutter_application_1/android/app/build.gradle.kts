@@ -23,6 +23,7 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.caloriesguard.app"
     compileSdk = 36
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "com.caloriesguard.app"
