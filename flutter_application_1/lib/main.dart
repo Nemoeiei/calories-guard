@@ -7,20 +7,15 @@ import 'l10n/app_localizations.dart';
 import 'login_register/screens/welcome_screen.dart';
 import 'services/notification_helper.dart';
 import 'services/api_client.dart';
+import 'constants/constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Supabase (replaces Firebase)
   await Supabase.initialize(
-    url: const String.fromEnvironment(
-      'SUPABASE_URL',
-      defaultValue: 'https://your-project.supabase.co',
-    ),
-    anonKey: const String.fromEnvironment(
-      'SUPABASE_ANON_KEY',
-      defaultValue: '',
-    ),
+    url: AppConstants.supabaseUrl,
+    anonKey: AppConstants.supabaseAnonKey,
   );
 
   // Setup API client 401 handler
