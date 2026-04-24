@@ -1,9 +1,16 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/auth_service.dart';
 
+/// Forgot-password flow is delegated to Supabase Auth.
+///
+/// Supabase sends a password-reset *link* (not an OTP) to the user's inbox.
+/// Clicking the link opens a Supabase-hosted page where the user picks a new
+/// password. We therefore only collect the email here and show a clear
+/// "check your inbox" message — no in-app code entry, no birth-date challenge.
+///
+/// The legacy OTP-based flow (backend `/password-reset/*`) is kept on the
+/// server for backwards compatibility but is no longer called from the app.
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -15,25 +22,12 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final AuthService _authService = AuthService();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _codeController = TextEditingController();
-  final TextEditingController _birthDateController = TextEditingController();
-  final TextEditingController _newPasswordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
-
   bool _isLoading = false;
-  int _step = 0;
-  Timer? _timer;
-  int _remainingTime = 0;
+  bool _sent = false;
 
   @override
   void dispose() {
-    _timer?.cancel();
     _emailController.dispose();
-    _codeController.dispose();
-    _birthDateController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -42,101 +36,34 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(msg),
-          backgroundColor: isError ? Colors.red : Colors.green),
+          backgroundColor: isError ? Colors.redAccent : Colors.green),
     );
   }
 
-  void _startTimer() {
-    setState(() => _remainingTime = 60);
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      if (_remainingTime > 0) {
-        setState(() => _remainingTime--);
-      } else {
-        timer.cancel();
-      }
-    });
-  }
-
-  Future<void> _resendCode() async {
+  Future<void> _sendResetLink() async {
     final email = _emailController.text.trim();
-    final birth = _birthDateController.text.trim();
-    if (email.isEmpty || birth.isEmpty) return;
-    
+    if (email.isEmpty) {
+      _showMessage('กรุณากรอกอีเมล', isError: true);
+      return;
+    }
+    final emailRegex =
+        RegExp(r'^[\w\.\-\+]+@[\w\-]+(\.[\w\-]+)*\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      _showMessage('กรุณากรอกอีเมลให้ถูกต้อง', isError: true);
+      return;
+    }
+
     setState(() => _isLoading = true);
     final result = await _authService.requestPasswordReset(email);
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (result['success']) {
-      _showMessage(result['message'] ?? 'ส่งรหัสยืนยันใหม่แล้ว');
-      _startTimer();
+      setState(() => _sent = true);
+      _showMessage(result['message'] ?? 'ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว');
     } else {
-      _showMessage(result['message'] ?? 'ส่งรหัสไม่สำเร็จ', isError: true);
+      _showMessage(result['message'] ?? 'ส่งลิงก์ไม่สำเร็จ', isError: true);
     }
-  }
-
-  Future<void> _sendResetCode() async {
-    final email = _emailController.text.trim();
-    final birth = _birthDateController.text.trim();
-    if (email.isEmpty || birth.isEmpty) {
-      _showMessage('กรุณากรอกอีเมลและวันเกิด', isError: true);
-      return;
-    }
-    setState(() => _isLoading = true);
-    final result = await _authService.requestPasswordReset(email);
-    setState(() => _isLoading = false);
-    if (result['success']) {
-      // Supabase sends a password-reset link by email.
-      // The user completes the flow via the emailed deep link — no in-app OTP.
-      _showMessage(result['message'] ??
-          'ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว โปรดตรวจสอบกล่องจดหมาย');
-      if (mounted) Navigator.pop(context);
-    } else {
-      _showMessage(result['message'] ?? 'ส่งโค้ดไม่สำเร็จ', isError: true);
-    }
-  }
-
-  Future<void> _resetPassword() async {
-    final email = _emailController.text.trim();
-    final code = _codeController.text.trim();
-    final birth = _birthDateController.text.trim();
-    final password = _newPasswordController.text;
-    final confirm = _confirmPasswordController.text;
-
-    if (email.isEmpty ||
-        code.isEmpty ||
-        birth.isEmpty ||
-        password.isEmpty ||
-        confirm.isEmpty) {
-      _showMessage('กรุณากรอกข้อมูลให้ครบ', isError: true);
-      return;
-    }
-    if (password.length < 6) {
-      _showMessage('รหัสผ่านต้องอย่างน้อย 6 ตัวอักษร', isError: true);
-      return;
-    }
-    if (password != confirm) {
-      _showMessage('รหัสผ่านไม่ตรงกัน', isError: true);
-      return;
-    }
-
-    // TODO(task-3): Supabase migration — the in-app OTP confirm flow is deprecated.
-    // Supabase sends a reset link by email; the user completes the reset via that link.
-    // Keeping a no-op path here until the UI is reworked to match the new flow.
-    setState(() => _isLoading = true);
-    final result = await _authService.requestPasswordReset(email);
-    setState(() => _isLoading = false);
-    if (result['success']) {
-      _showMessage(result['message'] ??
-          'ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว โปรดตรวจสอบกล่องจดหมาย');
-      if (mounted) Navigator.pop(context);
-    } else {
-      _showMessage(result['message'] ?? 'รีเซ็ตรหัสผ่านไม่สำเร็จ',
-          isError: true);
-    }
-    // Silence unused-variable warnings for fields kept for the upcoming rework.
-    if (code.isEmpty || birth.isEmpty || password.isEmpty) return;
   }
 
   @override
@@ -145,137 +72,110 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       backgroundColor: const Color(0xFFE8EFCF),
       appBar: AppBar(
         backgroundColor: const Color(0xFF4C6414),
+        foregroundColor: Colors.white,
         title: const Text('ลืมรหัสผ่าน'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('ระบบรีเซ็ตรหัสผ่านด้วยโค้ดยืนยันทางอีเมล',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-              const SizedBox(height: 18),
+              const Text(
+                'รีเซ็ตรหัสผ่านผ่านอีเมล',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1D1B20),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'กรอกอีเมลที่ใช้สมัครบัญชี ระบบจะส่งลิงก์รีเซ็ตรหัสผ่าน\nไปที่อีเมลของคุณ คลิกลิงก์เพื่อตั้งรหัสผ่านใหม่',
+                style: TextStyle(fontSize: 14, color: Colors.black87, height: 1.4),
+              ),
+              const SizedBox(height: 24),
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                    labelText: 'อีเมล', border: OutlineInputBorder()),
+                enabled: !_sent,
+                decoration: InputDecoration(
+                  labelText: 'อีเมล',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _birthDateController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  _DateTextFormatter(),
-                ],
-                decoration: const InputDecoration(
-                    labelText: 'วันเกิด (YYYY-MM-DD)',
-                    border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 14),
-              if (_step >= 1) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _codeController,
-                        decoration: const InputDecoration(
-                            labelText: 'รหัสยืนยัน', border: OutlineInputBorder()),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      height: 56, // ให้เข้ากับความสูง TextField โดยประมาณ
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _remainingTime > 0 ? Colors.grey : const Color(0xFF4C6414),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))
-                        ),
-                        onPressed: _remainingTime > 0 || _isLoading ? null : _resendCode,
+              const SizedBox(height: 20),
+              if (_sent)
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF4C6414)),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.check_circle, color: Color(0xFF4C6414)),
+                      SizedBox(width: 10),
+                      Expanded(
                         child: Text(
-                          _remainingTime > 0 ? 'รอ $_remainingTime วิ' : 'รับรหัสใหม่',
-                          style: const TextStyle(color: Colors.white),
+                          'ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว\n'
+                          'กรุณาตรวจสอบกล่องจดหมายและโฟลเดอร์สแปม',
+                          style: TextStyle(fontSize: 14, height: 1.4),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _newPasswordController,
-                  decoration: const InputDecoration(
-                      labelText: 'รหัสผ่านใหม่', border: OutlineInputBorder()),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _confirmPasswordController,
-                  decoration: const InputDecoration(
-                      labelText: 'ยืนยันรหัสผ่านใหม่',
-                      border: OutlineInputBorder()),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 14),
-              ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               Center(
                 child: SizedBox(
-                  width: 260,
+                  width: 280,
                   height: 52,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4C6414)),
-                    onPressed: _isLoading
-                        ? null
-                        : _step == 0
-                            ? _sendResetCode
-                            : _resetPassword,
+                      backgroundColor: const Color(0xFF4C6414),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: _isLoading ? null : _sendResetLink,
                     child: _isLoading
                         ? const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
+                                color: Colors.white, strokeWidth: 2),
+                          )
                         : Text(
-                            _step == 0
-                                ? 'ยืนยัน'
-                                : 'รีเซ็ตรหัสผ่าน',
-                            style: const TextStyle(fontSize: 16, color: Colors.white),
+                            _sent ? 'ส่งลิงก์อีกครั้ง' : 'ส่งลิงก์รีเซ็ตรหัสผ่าน',
+                            style: const TextStyle(
+                                fontSize: 16, color: Colors.white),
                           ),
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              if (_sent) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'กลับไปหน้าเข้าสู่ระบบ',
+                      style: TextStyle(color: Color(0xFF4C6414)),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _DateTextFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    String text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (text.length > 8) text = text.substring(0, 8);
-
-    String masked = '';
-    for (int i = 0; i < text.length; i++) {
-      masked += text[i];
-      if ((i == 3 || i == 5) && i != text.length - 1) {
-        masked += '-';
-      }
-    }
-
-    return TextEditingValue(
-      text: masked,
-      selection: TextSelection.collapsed(offset: masked.length),
     );
   }
 }

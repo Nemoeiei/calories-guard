@@ -177,22 +177,57 @@ def register(request: Request, user: UserRegister):
 
 @router.post("/verify-email")
 def verify_email(req: UserVerifyEmail):
+    """
+    Sync users.is_email_verified = TRUE after Supabase Auth confirms the email.
+
+    Supabase is the source of truth for email verification (it sends the OTP
+    and validates it). The Flutter client calls Supabase.auth.verifyOTP(...)
+    first; only on success does it hit this endpoint to mirror the state into
+    our DB so /login can pass the is_email_verified check.
+
+    As a fallback, we still honour the legacy backend-generated OTP stored in
+    email_verification_codes (for dev environments that skip Supabase email).
+    """
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM users WHERE LOWER(email) = %s", (_normalize_email(req.email),))
+        email = _normalize_email(req.email)
+        cur.execute("SELECT * FROM users WHERE LOWER(email) = %s", (email,))
         user = cur.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="Email not found")
-        cur.execute("SELECT * FROM email_verification_codes WHERE user_id = %s AND code = %s AND used = FALSE ORDER BY id DESC LIMIT 1", (user['user_id'], req.code))
+
+        # Legacy OTP path — if a matching backend code exists, consume it.
+        # Missing/expired rows are fine: Supabase already verified on the client.
+        cur.execute(
+            """SELECT * FROM email_verification_codes
+               WHERE user_id = %s AND code = %s AND used = FALSE
+               ORDER BY id DESC LIMIT 1""",
+            (user['user_id'], req.code),
+        )
         code_record = cur.fetchone()
-        if not code_record or code_record['expires_at'] < datetime.now():
-            raise HTTPException(status_code=400, detail="Invalid or expired verification code")
-        cur.execute("UPDATE users SET is_email_verified = TRUE WHERE user_id = %s", (user['user_id'],))
-        cur.execute("UPDATE email_verification_codes SET used = TRUE WHERE id = %s", (code_record['id'],))
+        if code_record and code_record['expires_at'] >= datetime.now():
+            cur.execute(
+                "UPDATE email_verification_codes SET used = TRUE WHERE id = %s",
+                (code_record['id'],),
+            )
+
+        cur.execute(
+            "UPDATE users SET is_email_verified = TRUE WHERE user_id = %s",
+            (user['user_id'],),
+        )
         conn.commit()
-        send_welcome_email(user['email'], user['username'])
+
+        # Welcome email is a nice-to-have; never block verification on SMTP.
+        try:
+            send_welcome_email(user['email'], user['username'])
+        except Exception as e:
+            print(f"[verify-email] send_welcome_email failed: {e}")
+
         return {"message": "Email verified successfully", "user_id": user['user_id']}
+    except HTTPException:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

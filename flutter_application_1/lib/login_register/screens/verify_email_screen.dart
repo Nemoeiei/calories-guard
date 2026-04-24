@@ -120,9 +120,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'รหัสยืนยันถูกส่งไปยัง ${widget.email} แล้ว',
+                'รหัสยืนยันถูกส่งไปยัง ${widget.email} แล้ว\nโปรดตรวจสอบกล่องจดหมาย (และโฟลเดอร์สแปม)',
                 style: TextStyle(
-                    fontFamily: 'Inter', fontSize: 16, color: Colors.grey[800]),
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    color: Colors.grey[800],
+                    height: 1.4),
               ),
               const SizedBox(height: 40),
               Container(
