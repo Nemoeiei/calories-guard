@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import type { AuthState } from '../types'
 import { configureApiAuth } from '../api/client'
 
@@ -47,6 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     )
   }, [])
+
+  return (
+    <Ctx.Provider value={{ auth, login, logout }}>{children}</Ctx.Provider>
+  )
+}
 
 export function useAuth() {
   const ctx = useContext(Ctx)
