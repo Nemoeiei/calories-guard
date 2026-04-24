@@ -147,3 +147,53 @@ Total: 30 conflicts on `git merge claude/jolly-wu`.
 ### Follow-ups
 - สิ่งที่ต้องทำต่อ session หน้า
 ```
+
+---
+
+## 2026-04-24 — Session: recipe schema decision + pre-deploy checklist
+
+### Context
+รับต่อจาก `docs/STATUS.md` โดยหยิบ P0/P1 ที่ทำใน repo ได้ก่อน
+
+### Progress log
+- [x] ยืนยันว่า `GET /recipes/{food_id}` เหลือ route เดียวใน `backend/app/routers/foods.py`
+- [x] เลือก recipe Approach B: JSONB columns ใน `recipes` สำหรับ LLM cache
+- [x] เพิ่ม regression test กัน recipe route duplication กลับมา
+- [x] เพิ่ม `docs/PRE_DEPLOY_TESTS.md` สำหรับ release-candidate checklist
+- [x] อัปเดต `docs/STATUS.md` ให้ recipe schema decision และ pre-deploy plan เป็น done
+
+### Verification
+- `python -m pytest backend\tests\test_recipe_routes.py -q` → 1 passed
+- `python -m pytest backend -q` → 61 passed, 1 skipped
+
+### Files touched
+- `backend/tests/test_recipe_routes.py` — regression test
+- `docs/STATUS.md` — task status update
+- `docs/PRE_DEPLOY_TESTS.md` — new pre-deploy checklist
+- `docs/WORK_HISTORY.md` — session log
+
+### Follow-ups
+- Apply `backend/migrations/v16_a_recipes_ai_fields.sql` on Supabase
+- Run Samsung Health verification on a real Samsung/Android device
+
+---
+
+## 2026-04-24 — Session: Supabase cleangoal schema review
+
+### Context
+ผู้ใช้ต้องการเช็กว่า schema `cleangoal` บน Supabase ปัจจุบันโอเคไหม และให้ทำไฟล์อธิบาย normalization ไว้
+
+### Progress log
+- [x] ลองต่อ live Supabase ด้วย direct host แล้วติด IPv6/DNS จากเครื่องนี้
+- [x] ลอง Supabase pooler region ทั่วไปแล้ว tenant ไม่ match จึงไม่ได้ยืนยัน live metadata
+- [x] วิเคราะห์จาก repo truth: `ER_DIAGRAM`, `DATA_DICTIONARY`, migrations v14-v16 และ backend router usage
+- [x] เพิ่มเอกสาร `docs/SUPABASE_CLEANGOAL_SCHEMA_REVIEW.md`
+- [x] แก้ `backend/migrations/v16_a_recipes_ai_fields.sql` ให้ใช้ `cleangoal.recipes` ชัดเจน
+
+### Verification
+- `python -m pytest backend -q` → 61 passed, 1 skipped
+
+### Findings
+- Schema โดยรวมพอสำหรับ closed beta หลัง v14/v15 hardening
+- จุดที่ควรทำก่อน production คือ normalize recipe reviews/favorites ให้ชัดระหว่าง `food_id` กับ `recipe_id`
+- ควร rotate Supabase DB password เพราะ password ถูกส่งมาใน chat แล้ว

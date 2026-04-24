@@ -80,17 +80,16 @@
 - [ ] **Samsung Health real-device verify** — code เสร็จแล้ว (commit `c4328486`) แต่ยังไม่รันบน Android จริง
   - ต้องเช็ก: FlutterFragmentActivity, Health Connect permissions dialog, intent filter, package visibility
   - ถ้าฟังก์ชันพัง ต้องไล่ log `com.google.android.apps.healthdata` และ `com.sec.android.app.shealth`
-- [ ] **Recipe schema ซ้ำซ้อน** — มี 2 approach ในโค้ดพร้อมกัน ต้องเลือกอันเดียว
-  - Approach A: แยกตาราง `recipe_ingredients / recipe_steps / recipe_tools / recipe_tips / recipe_reviews` (อยู่ใน `backend/main.py`, commit `2997b3f8`)
-  - Approach B: JSONB columns ใน `recipes` (อยู่ใน `backend/app/routers/foods.py`, commit `f743a951`) + migration `v16_a_recipes_ai_fields.sql`
-  - แนะนำ: เลือก B ถ้าเน้นความง่ายในการ cache LLM output, เลือก A ถ้าอยากให้ admin edit per-field ได้
-  - ตัดสินใจแล้วต้อง (1) ลบ path ที่ไม่ใช้ทิ้ง (2) เหลือ endpoint เดียว (3) apply migration เฉพาะที่เลือก
+- [x] **Recipe schema decision** — เลือก Approach B: JSONB columns ใน `recipes` + LLM cache
+  - `GET /recipes/{food_id}` เหลือ owner เดียวที่ `backend/app/routers/foods.py`
+  - เพิ่ม regression test `backend/tests/test_recipe_routes.py` กัน route ซ้ำกลับมา
+  - หมายเหตุ: `recipe_reviews` ยังอยู่เพราะเป็น social/review feature แยกจาก recipe detail payload
 
 ### P1 — ก่อน Production
-- [ ] **Production pre-deploy test plan** — ยังไม่ได้ร่าง checklist ที่ครบชุด
+- [x] **Production pre-deploy test plan** — ร่าง checklist ครบชุดแล้ว
   - scope ที่ต้องครอบคลุม: smoke (health, auth, meal CRUD, chat), load (k6 มีแล้ว แต่ยังไม่ได้รันจริง), security (RLS, rate limit), i18n (th/en), network error path, offline behavior, version mismatch
-  - artifact ที่ต้องส่งออก: `docs/PRE_DEPLOY_TESTS.md` พร้อม checkbox + ช่อง pass/fail/note
-- [ ] **Apply v16_a migration บน Supabase** — ถ้าเลือก approach B ข้างบน
+  - artifact: [PRE_DEPLOY_TESTS.md](PRE_DEPLOY_TESTS.md) พร้อมช่อง result/note สำหรับ release candidate
+- [ ] **Apply v16_a migration บน Supabase**
   - ไฟล์: [backend/migrations/v16_a_recipes_ai_fields.sql](../backend/migrations/v16_a_recipes_ai_fields.sql)
   - รันผ่าน Supabase SQL Editor หรือ CLI
 - [ ] **Staging environment** — provision Supabase staging project + Railway staging service แยกจาก prod (PRODUCTION_READINESS #10)
@@ -112,7 +111,6 @@
 
 ## 4. Known Issues / Tech Debt
 
-- **Recipe endpoint duplication** (ดู §3 P0) — ทั้ง `backend/main.py` และ `backend/app/routers/foods.py` มี `GET /recipes/{food_id}` — เสี่ยงทั้ง route registration conflict และ schema drift
 - **`LLM_PROVIDER=local`** — ใช้ transformers + LoRA adapter, ใหญ่ (~1.5B params) → Railway container อาจ OOM; ปัจจุบัน default = `gemini`
 - **ไม่มี background queue** (Celery/RQ) — AI calls sync + 30s timeout; ถ้า Gemini ช้า/down, user เห็น error ตรงๆ
 - **ไม่มี Redis cache** — `recipes` JSONB คือ cache เดียว; `/foods`, `/users/me`, `/meals/*` ไม่มี layer cache

@@ -7,7 +7,7 @@
 -- Flutter RecipeDetailScreen expects discrete lists of ingredients,
 -- tools, and tips — parsing those back out of prose would be lossy.
 
-ALTER TABLE recipes
+ALTER TABLE cleangoal.recipes
   ADD COLUMN IF NOT EXISTS ingredients_json JSONB,
   ADD COLUMN IF NOT EXISTS tools_json JSONB,
   ADD COLUMN IF NOT EXISTS tips_json JSONB,
@@ -15,4 +15,4 @@ ALTER TABLE recipes
 
 -- Mark existing hand-entered rows so we can tell seeded vs LLM-generated
 -- data apart in admin tools later.
-UPDATE recipes SET generated_by = 'seed' WHERE generated_by IS NULL;
+UPDATE cleangoal.recipes SET generated_by = 'seed' WHERE generated_by IS NULL;
