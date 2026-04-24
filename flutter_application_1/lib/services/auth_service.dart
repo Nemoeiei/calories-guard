@@ -93,20 +93,20 @@ class AuthService {
         return {'success': false, 'message': 'Login failed'};
       }
 
-      // Store token explicitly in case currentSession is null (email unconfirmed in Supabase)
-      final sessionToken = authResponse.session?.accessToken;
-      if (sessionToken != null) {
-        ApiClient.setManualToken(sessionToken);
-      }
-
-      // 2. Fetch user profile from our backend (JWT auto-attached by ApiClient)
+      // 2. Fetch user profile from our backend
       final response = await _api.post('/login', body: {
         'email': email,
         'password': password,
       });
 
       if (response.statusCode == 200) {
-        return {'success': true, 'data': jsonDecode(response.body)};
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        // Use backend-issued JWT for all subsequent API calls
+        final backendToken = data['access_token'] as String?;
+        if (backendToken != null) {
+          ApiClient.setManualToken(backendToken);
+        }
+        return {'success': true, 'data': data};
       } else {
         final errorData = jsonDecode(response.body);
         return {

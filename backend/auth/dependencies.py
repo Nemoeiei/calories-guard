@@ -11,53 +11,28 @@ from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from supabase import create_client, Client
+from jose import jwt, JWTError
 from dotenv import load_dotenv
 
 # โหลด env
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-SUPABASE_URL = os.getenv("SUPABASE_PROJECT_URL") or os.getenv("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-
-_supabase_client: Optional[Client] = None
+_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+_JWT_ALGO = "HS256"
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def _get_client() -> Client:
-    global _supabase_client
-    if _supabase_client is None:
-        _supabase_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    return _supabase_client
-
-
 def _decode_token(token: str) -> dict:
-    """Verify Supabase JWT via Supabase Auth API. Works with any signing algorithm."""
+    """Verify backend-issued HS256 JWT signed with SUPABASE_JWT_SECRET."""
     print(f"AUTH: token received len={len(token)} prefix={token[:20]}")
     try:
-        response = _get_client().auth.get_user(token)
-        user = response.user
-        if not user:
-            print("AUTH: get_user returned no user")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        print(f"AUTH: verified user={user.email}")
-        return {
-            "sub": user.id,
-            "email": user.email,
-            "app_metadata": user.app_metadata or {},
-            "user_metadata": user.user_metadata or {},
-            "role": "authenticated",
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"AUTH: get_user error: {type(e).__name__}: {e}")
+        payload = jwt.decode(token, _JWT_SECRET, algorithms=[_JWT_ALGO])
+        print(f"AUTH: verified sub={payload.get('sub')} email={payload.get('email')}")
+        return payload
+    except JWTError as e:
+        print(f"AUTH: JWTError: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
