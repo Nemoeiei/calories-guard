@@ -24,12 +24,7 @@ subprojects {
             kotlinOptions {
                 languageVersion = "1.9"
                 apiVersion = "1.9"
-                jvmTarget = "1.8"
             }
-        }
-        extensions.findByType<JavaPluginExtension>()?.apply {
-            sourceCompatibility = JavaVersion.VERSION_1_8
-            targetCompatibility = JavaVersion.VERSION_1_8
         }
     }
 }
