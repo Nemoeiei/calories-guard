@@ -35,15 +35,18 @@ def _get_client() -> Client:
 
 def _decode_token(token: str) -> dict:
     """Verify Supabase JWT via Supabase Auth API. Works with any signing algorithm."""
+    print(f"AUTH: token received len={len(token)} prefix={token[:20]}")
     try:
         response = _get_client().auth.get_user(token)
         user = response.user
         if not user:
+            print("AUTH: get_user returned no user")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        print(f"AUTH: verified user={user.email}")
         return {
             "sub": user.id,
             "email": user.email,
@@ -53,7 +56,8 @@ def _decode_token(token: str) -> dict:
         }
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        print(f"AUTH: get_user error: {type(e).__name__}: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -100,6 +104,7 @@ async def get_current_user(
     Raises 401 if no token or invalid token.
     """
     if credentials is None:
+        print("AUTH: get_current_user → no Authorization header → 401")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
