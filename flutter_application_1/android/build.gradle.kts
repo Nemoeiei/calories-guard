@@ -20,12 +20,11 @@ allprojects {
 
 subprojects {
     afterEvaluate {
-        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-            kotlinOptions {
-                languageVersion = "1.9"
-                apiVersion = "1.9"
-                jvmTarget = "17"
-            }
+        extensions.findByType<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension>()
+            ?.jvmToolchain(17)
+        extensions.findByType<JavaPluginExtension>()?.apply {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
         }
     }
 }
