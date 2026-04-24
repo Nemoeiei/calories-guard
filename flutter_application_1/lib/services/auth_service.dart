@@ -12,6 +12,30 @@ class AuthService {
   final _supabase = Supabase.instance.client;
   final _api = ApiClient();
 
+  // --- Live availability check (for register screen) ---
+
+  /// Returns {available: bool, reason: "format"|"taken"|null, networkError: bool}.
+  /// `networkError: true` means we couldn't reach the backend — UI should stay
+  /// neutral (don't block the user from submitting).
+  Future<Map<String, dynamic>> checkEmailAvailable(String email) async {
+    try {
+      final response = await _api.get(
+        '/check-email?email=${Uri.encodeQueryComponent(email)}',
+      );
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        return {
+          'available': body['available'] == true,
+          'reason': body['reason'],
+          'networkError': false,
+        };
+      }
+      return {'available': true, 'reason': null, 'networkError': true};
+    } catch (_) {
+      return {'available': true, 'reason': null, 'networkError': true};
+    }
+  }
+
   // --- Email/Password Registration ---
 
   Future<Map<String, dynamic>> register(

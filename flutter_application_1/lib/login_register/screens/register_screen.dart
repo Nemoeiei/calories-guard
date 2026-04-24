@@ -1,9 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_data_provider.dart';
 import 'verify_email_screen.dart';
 import '../../services/auth_service.dart';
-import 'data_consent_screen.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -23,14 +24,80 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
 
+  // --- Live email availability check ---
+  Timer? _emailDebounce;
+  String? _emailStatusText; // e.g. 'อีเมลนี้ถูกใช้งานแล้ว'
+  Color _emailStatusColor = Colors.grey;
+  bool _isEmailChecking = false;
+  bool _isEmailTaken = false;
+  String _lastCheckedEmail = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_onEmailChanged);
+  }
+
   @override
   void dispose() {
+    _emailDebounce?.cancel();
+    _emailController.removeListener(_onEmailChanged);
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _onEmailChanged() {
+    _emailDebounce?.cancel();
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() {
+        _emailStatusText = null;
+        _isEmailTaken = false;
+      });
+      return;
+    }
+    final emailRegex =
+        RegExp(r'^[\w\.\-\+]+@[\w\-]+(\.[\w\-]+)*\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      setState(() {
+        _emailStatusText = null;
+        _isEmailTaken = false;
+      });
+      return;
+    }
+    _emailDebounce = Timer(const Duration(milliseconds: 600), () async {
+      if (!mounted || email == _lastCheckedEmail) return;
+      setState(() {
+        _isEmailChecking = true;
+        _emailStatusText = 'กำลังตรวจสอบ...';
+        _emailStatusColor = Colors.grey;
+      });
+      final result = await _authService.checkEmailAvailable(email);
+      if (!mounted) return;
+      _lastCheckedEmail = email;
+      setState(() {
+        _isEmailChecking = false;
+        if (result['networkError'] == true) {
+          _emailStatusText = null;
+          _isEmailTaken = false;
+        } else if (result['available'] == true) {
+          _emailStatusText = '✓ อีเมลนี้สามารถใช้งานได้';
+          _emailStatusColor = const Color(0xFF2E7D32);
+          _isEmailTaken = false;
+        } else if (result['reason'] == 'taken') {
+          _emailStatusText = 'อีเมลนี้ถูกใช้งานแล้ว';
+          _emailStatusColor = Colors.redAccent;
+          _isEmailTaken = true;
+        } else {
+          _emailStatusText = null;
+          _isEmailTaken = false;
+        }
+      });
+    });
   }
 
   void _showError(String message) {
@@ -103,6 +170,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
     if (!RegExp(r'^[\w\.\-\+]+@[\w\-]+(\.[\w\-]+)*\.[a-zA-Z]{2,}$').hasMatch(email)) {
       _showError('กรุณากรอกอีเมลให้ถูกต้อง เช่น user@gmail.com');
+      return;
+    }
+    if (_isEmailTaken) {
+      _showError('อีเมลนี้ถูกใช้งานแล้ว กรุณาใช้อีเมลอื่น');
+      return;
+    }
+    if (_isEmailChecking) {
+      _showError('กำลังตรวจสอบอีเมล กรุณารอสักครู่');
       return;
     }
     if (password.length < 8) {
@@ -203,6 +278,42 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       const SizedBox(height: 20),
                       _buildLabel('E-mail *'),
                       _buildTextField(_emailController),
+                      if (_emailStatusText != null)
+                        Padding(
+                          padding:
+                              const EdgeInsets.only(left: 8, top: 4, right: 8),
+                          child: Row(
+                            children: [
+                              if (_isEmailChecking)
+                                const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Color(0xFF628141)),
+                                )
+                              else
+                                Icon(
+                                  _isEmailTaken
+                                      ? Icons.error_outline
+                                      : Icons.check_circle_outline,
+                                  size: 16,
+                                  color: _emailStatusColor,
+                                ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  _emailStatusText!,
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 13,
+                                    color: _emailStatusColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 20),
                       _buildLabel('Password *', onInfoTap: _showPasswordRules),
                       _buildTextField(_passwordController, isPassword: true),

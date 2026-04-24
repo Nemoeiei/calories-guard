@@ -80,23 +80,72 @@ def _init_password_reset_table():
 _init_password_reset_table()
 
 
-@router.post("/register")
-@limiter.limit("5/minute")
-def register(request: Request, user: UserRegister):
-    if not re.match(r'^[\w\.\-\+]+@[\w\-]+(\.[\w\-]+)*\.[a-zA-Z]{2,}$', user.email):
-        raise HTTPException(status_code=400, detail="Invalid email format")
+_EMAIL_RE = re.compile(r'^[\w\.\-\+]+@[\w\-]+(\.[\w\-]+)*\.[a-zA-Z]{2,}$')
+
+
+def _normalize_email(email: str) -> str:
+    """Lowercase + strip. Emails are case-insensitive in practice; store normalized."""
+    return (email or "").strip().lower()
+
+
+def _email_exists(cur, email: str) -> bool:
+    cur.execute("SELECT 1 FROM users WHERE LOWER(email) = %s LIMIT 1", (email,))
+    return cur.fetchone() is not None
+
+
+@router.get("/check-email")
+@limiter.limit("20/minute")
+def check_email(request: Request, email: str):
+    """
+    Live availability check used by the register screen as the user types.
+    Returns {available: bool, reason: str|None}. Rate-limited to curb enumeration.
+    """
+    normalized = _normalize_email(email)
+    if not normalized:
+        return {"available": False, "reason": "format"}
+    if not _EMAIL_RE.match(normalized):
+        return {"available": False, "reason": "format"}
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM users WHERE email = %s", (user.email,))
-        if cur.fetchone():
-            raise HTTPException(status_code=400, detail="Email already exists")
+        if _email_exists(cur, normalized):
+            return {"available": False, "reason": "taken"}
+        return {"available": True, "reason": None}
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post("/register")
+@limiter.limit("5/minute")
+def register(request: Request, user: UserRegister):
+    email = _normalize_email(user.email)
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="รูปแบบอีเมลไม่ถูกต้อง")
+    username = (user.username or "").strip()
+    if len(username) < 2:
+        raise HTTPException(status_code=400, detail="ชื่อผู้ใช้ต้องมีอย่างน้อย 2 ตัวอักษร")
+    if len(username) > 100:
+        raise HTTPException(status_code=400, detail="ชื่อผู้ใช้ต้องไม่เกิน 100 ตัวอักษร")
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        if _email_exists(cur, email):
+            # 409 Conflict is the correct status for duplicate resource
+            raise HTTPException(status_code=409, detail="อีเมลนี้ถูกใช้งานแล้ว")
         hashed_pw = get_password_hash(user.password)
-        cur.execute("""
-            INSERT INTO users (email, password_hash, username, role_id, is_email_verified)
-            VALUES (%s, %s, %s, 2, FALSE)
-            RETURNING user_id, email, username
-        """, (user.email, hashed_pw, user.username))
+        try:
+            cur.execute("""
+                INSERT INTO users (email, password_hash, username, role_id, is_email_verified)
+                VALUES (%s, %s, %s, 2, FALSE)
+                RETURNING user_id, email, username
+            """, (email, hashed_pw, username))
+        except Exception as e:
+            conn.rollback()
+            # psycopg2 UniqueViolation → race condition between check and insert
+            if 'unique' in str(e).lower() or 'duplicate' in str(e).lower():
+                raise HTTPException(status_code=409, detail="อีเมลนี้ถูกใช้งานแล้ว")
+            raise
         new_user = cur.fetchone()
         code = str(randint(100000, 999999))
         expires = datetime.now() + timedelta(minutes=15)
@@ -109,14 +158,18 @@ def register(request: Request, user: UserRegister):
         cur.execute("INSERT INTO email_verification_codes (user_id, code, expires_at) VALUES (%s, %s, %s)",
                     (new_user['user_id'], code, expires))
         conn.commit()
-        send_verification_email(new_user['email'], new_user['username'], code)
+        try:
+            send_verification_email(new_user['email'], new_user['username'], code)
+        except Exception as e:
+            # Don't fail registration if email send fails — user can request resend.
+            print(f"[register] send_verification_email failed: {e}")
         return {"message": "User created. Please check email for verification code.", "user": new_user}
     except HTTPException:
         conn.rollback()
         raise
     except Exception:
         conn.rollback()
-        raise HTTPException(status_code=500, detail="Registration failed. Please try again later.")
+        raise HTTPException(status_code=500, detail="ลงทะเบียนไม่สำเร็จ กรุณาลองใหม่ภายหลัง")
     finally:
         if conn:
             conn.close()
@@ -127,7 +180,7 @@ def verify_email(req: UserVerifyEmail):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        cur.execute("SELECT * FROM users WHERE LOWER(email) = %s", (_normalize_email(req.email),))
         user = cur.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="Email not found")
@@ -153,7 +206,7 @@ def resend_verification_email(req: PasswordResetRequest):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        cur.execute("SELECT * FROM users WHERE LOWER(email) = %s", (_normalize_email(req.email),))
         user = cur.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="ไม่พบอีเมลนี้ในระบบ")
@@ -184,10 +237,11 @@ def login(request: Request, user: UserLogin):
 
 
 def _login_impl(user):
+    email = _normalize_email(user.email)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM users WHERE email = %s", (user.email,))
+        cur.execute("SELECT * FROM users WHERE LOWER(email) = %s", (email,))
         db_user = cur.fetchone()
         if not db_user or not verify_password(user.password, db_user['password_hash']):
             raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -252,12 +306,13 @@ def _login_impl(user):
 
 @router.post("/social-login")
 def social_login(body: SocialLoginRequest):
+    email = _normalize_email(body.email)
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
-            "SELECT * FROM users WHERE email = %s AND deleted_at IS NULL",
-            (body.email,)
+            "SELECT * FROM users WHERE LOWER(email) = %s AND deleted_at IS NULL",
+            (email,)
         )
         user = cur.fetchone()
         if user:
@@ -295,14 +350,14 @@ def social_login(body: SocialLoginRequest):
                    (username, email, password_hash, role_id, is_email_verified, created_at)
                    VALUES (%s, %s, %s, 2, TRUE, NOW())
                    RETURNING user_id""",
-                (body.name, body.email, fake_hash)
+                (body.name, email, fake_hash)
             )
             row = cur.fetchone()
             new_id = row['user_id']
             conn.commit()
             return {
                 "user_id": int(new_id),
-                "email": body.email,
+                "email": email,
                 "username": body.name,
                 "role_id": 2,
                 "provider": body.provider,
@@ -321,7 +376,7 @@ def password_reset_request(req: PasswordResetRequest):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        cur.execute("SELECT * FROM users WHERE LOWER(email) = %s", (_normalize_email(req.email),))
         user = cur.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="อีเมลไม่ถูกต้อง")
@@ -348,7 +403,7 @@ def password_reset_verify(req: PasswordResetVerify):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        cur.execute("SELECT * FROM users WHERE LOWER(email) = %s", (_normalize_email(req.email),))
         user = cur.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
@@ -379,7 +434,7 @@ def password_reset_confirm(req: PasswordResetConfirm):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
+        cur.execute("SELECT * FROM users WHERE LOWER(email) = %s", (_normalize_email(req.email),))
         user = cur.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
