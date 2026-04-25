@@ -6,7 +6,24 @@ BEGIN;
 
 -- D.1 Rename column to match backend query in backend/app/routers/health.py:88
 --     (SELECT unit_id, name, quantity FROM units)
-ALTER TABLE cleangoal.units RENAME COLUMN conversion_factor TO quantity;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'cleangoal'
+          AND table_name = 'units'
+          AND column_name = 'conversion_factor'
+    ) AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'cleangoal'
+          AND table_name = 'units'
+          AND column_name = 'quantity'
+    ) THEN
+        ALTER TABLE cleangoal.units RENAME COLUMN conversion_factor TO quantity;
+    END IF;
+END$$;
 
 -- D.2 Seed a minimal standard unit catalogue. Gracefully no-op if rows exist.
 INSERT INTO cleangoal.units (name, quantity) VALUES
@@ -30,15 +47,15 @@ ON CONFLICT DO NOTHING;
 -- D.3 Seed common unit -> unit conversions (stored as multiplicative factors)
 -- Rows are idempotent via ON CONFLICT DO NOTHING if a uniqueness constraint
 -- exists; otherwise this block should be run once.
-INSERT INTO cleangoal.unit_conversions (from_unit_id, to_unit_id, multiplier)
-SELECT f.unit_id, t.unit_id, m.multiplier
+INSERT INTO cleangoal.unit_conversions (from_unit_id, to_unit_id, factor)
+SELECT f.unit_id, t.unit_id, m.factor
 FROM (VALUES
     ('kg',   'g',  1000.0),
     ('l',    'ml', 1000.0),
     ('tbsp', 'g',  15.0),
     ('tsp',  'g',  5.0),
     ('cup',  'ml', 240.0)
-) AS m(from_name, to_name, multiplier)
+) AS m(from_name, to_name, factor)
 JOIN cleangoal.units f ON f.name = m.from_name
 JOIN cleangoal.units t ON t.name = m.to_name
 ON CONFLICT DO NOTHING;

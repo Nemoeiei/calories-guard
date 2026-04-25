@@ -17,6 +17,13 @@ class ActivityLevel(str, Enum):
     very_active = 'very_active'
 
 
+class ThaiRegion(str, Enum):
+    central = 'central'
+    northern = 'northern'
+    northeastern = 'northeastern'
+    southern = 'southern'
+
+
 class UserRegister(BaseModel):
     email: str
     password: str
@@ -117,7 +124,7 @@ class TempFoodApprove(BaseModel):
 
 
 class MealItem(BaseModel):
-    food_id: int
+    food_id: Optional[int] = None
     amount: float = 1.0
     food_name: str
     cal_per_unit: float
@@ -163,6 +170,23 @@ class ChatMessage(BaseModel):
     message: str
     lat: float | None = None
     lng: float | None = None
+
+
+class UserRegionUpdate(BaseModel):
+    region: ThaiRegion | None  # None = clear preference (back to canonical Central)
+
+
+class RegionalNameSubmission(BaseModel):
+    user_id: int
+    region: ThaiRegion
+    name_th: str
+    popularity: int | None = None  # 1-5; admin may override at approval time
+
+
+class RegionalNameApprove(BaseModel):
+    admin_id: int
+    is_primary: bool = False
+    popularity: int | None = None
 
 
 class MealEstimateRequest(BaseModel):

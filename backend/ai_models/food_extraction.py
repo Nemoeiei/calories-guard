@@ -152,8 +152,11 @@ def extract_foods(
         except Exception:
             matches = []
 
-    if not matches:
-        matches = _regex_fallback(text, dictionary)
+    fallback_matches = _regex_fallback(text, dictionary)
+    if matches:
+        matches.extend(m for m in fallback_matches if m not in matches)
+    else:
+        matches = fallback_matches
         source = "regex"
 
     # De-dup, preserve order

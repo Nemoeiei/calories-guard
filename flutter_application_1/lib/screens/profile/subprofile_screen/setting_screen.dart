@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_application_1/services/api_client.dart';
@@ -15,8 +16,46 @@ class SettingScreen extends ConsumerStatefulWidget {
 class _SettingScreenState extends ConsumerState<SettingScreen> {
   static const _green = Color(0xFF628141);
   static const _greenDark = Color(0xFF3D5A27);
+  static const _regions = [
+    {'code': 'central', 'label': 'ภาคกลาง'},
+    {'code': 'northern', 'label': 'ภาคเหนือ'},
+    {'code': 'northeastern', 'label': 'ภาคอีสาน'},
+    {'code': 'southern', 'label': 'ภาคใต้'},
+  ];
 
   bool _isNotificationOn = true;
+  bool _regionLoading = false;
+  String? _selectedRegion;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRegion();
+  }
+
+  String get _regionLabel {
+    final match = _regions.where((r) => r['code'] == _selectedRegion);
+    return match.isEmpty ? 'ยังไม่ตั้งค่า' : match.first['label']!;
+  }
+
+  Future<void> _fetchRegion() async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+    setState(() => _regionLoading = true);
+    try {
+      final response = await ApiClient().get('/users/$userId/region');
+      if (response.statusCode == 200 && mounted) {
+        final data = response.body.isNotEmpty
+            ? Map<String, dynamic>.from(jsonDecode(response.body))
+            : <String, dynamic>{};
+        setState(() => _selectedRegion = data['region'] as String?);
+      }
+    } catch (_) {
+      // Settings still works if the backend is temporarily unreachable.
+    } finally {
+      if (mounted) setState(() => _regionLoading = false);
+    }
+  }
 
   // ─── Delete Account ──────────────────────────────────────────────────────
   Future<void> _deleteAccount() async {
@@ -292,6 +331,120 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
     );
   }
 
+  // ─── Food Region Selector ───────────────────────────────────────────────
+  void _showRegionSelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          const Text('เลือกภูมิภาคของชื่ออาหาร',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          _regionOption(code: null, label: 'ใช้ชื่อกลาง', isLast: false),
+          const SizedBox(height: 10),
+          ..._regions.map((r) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _regionOption(
+                  code: r['code'],
+                  label: r['label']!,
+                  isLast: r == _regions.last,
+                ),
+              )),
+        ]),
+      ),
+    );
+  }
+
+  Widget _regionOption({
+    required String? code,
+    required String label,
+    required bool isLast,
+  }) {
+    final selected = _selectedRegion == code;
+    return GestureDetector(
+      onTap: () => _saveRegion(code, label),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFEAF2DB) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? _green : Colors.grey.shade200,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _green.withOpacity(0.10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.location_on_outlined, color: _green, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(label,
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          ),
+          if (selected)
+            const Icon(Icons.check_circle_rounded, color: _green, size: 22)
+          else
+            Icon(Icons.circle_outlined, color: Colors.grey.shade300, size: 22),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _saveRegion(String? code, String label) async {
+    final userId = ref.read(userDataProvider).userId;
+    if (userId == 0) return;
+    try {
+      final response = await ApiClient().put(
+        '/users/$userId/region',
+        body: {'region': code},
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        setState(() => _selectedRegion = code);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('ตั้งชื่ออาหารเป็น $label แล้ว'),
+          backgroundColor: _green,
+          duration: const Duration(seconds: 2),
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('บันทึกภูมิภาคไม่สำเร็จ (${response.statusCode})'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('เกิดข้อผิดพลาด: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    }
+  }
+
   // ─── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -369,6 +522,13 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
               title: 'ภาษา',
               value: langLabel,
               onTap: _showLanguageSelector,
+            ),
+            _buildTileWithValue(
+              icon: Icons.location_on_outlined,
+              iconColor: Colors.grey.shade500,
+              title: 'ชื่ออาหารตามภูมิภาค',
+              value: _regionLoading ? 'กำลังโหลด' : _regionLabel,
+              onTap: _showRegionSelector,
             ),
             _buildTileWithValue(
               icon: Icons.palette_outlined,

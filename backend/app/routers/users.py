@@ -8,7 +8,7 @@ from psycopg2.extras import RealDictCursor
 from database import get_db_connection
 from auth.dependencies import get_current_user
 from app.core.dependencies import check_ownership
-from app.models.schemas import UserUpdate
+from app.models.schemas import UserRegionUpdate, UserUpdate
 from app.services.nutrition_service import (
     _compute_target_calories, _compute_target_macros,
     _check_1700_calorie_warning,
@@ -161,6 +161,66 @@ def get_user_profile(user_id: int, current_user: dict = Depends(get_current_user
         if out.get('goal_target_date') and hasattr(out['goal_target_date'], 'isoformat'):
             out['goal_target_date'] = out['goal_target_date'].isoformat()[:10] if out['goal_target_date'] else None
         return out
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.get("/users/{user_id}/region")
+def get_user_region(user_id: int, current_user: dict = Depends(get_current_user)):
+    check_ownership(current_user, user_id)
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT region::text AS region, region_source
+            FROM users
+            WHERE user_id = %s AND deleted_at IS NULL
+            """,
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.put("/users/{user_id}/region")
+def update_user_region(
+    user_id: int,
+    payload: UserRegionUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    check_ownership(current_user, user_id)
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        region = payload.region.value if payload.region else None
+        region_source = "manual" if region else "unset"
+        cur.execute(
+            """
+            UPDATE users
+            SET region = %s::thai_region,
+                region_source = %s
+            WHERE user_id = %s AND deleted_at IS NULL
+            RETURNING region::text AS region, region_source
+            """,
+            (region, region_source, user_id),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        conn.commit()
+        return row
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:
             conn.close()

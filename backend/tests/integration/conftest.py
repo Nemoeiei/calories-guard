@@ -63,7 +63,7 @@ def live_db():
 
 @pytest.fixture
 def test_user_id(live_db):
-    """Insert a throwaway user and yield its user_id. Rolled back at teardown."""
+    """Insert a throwaway user visible to app connections, then clean it up."""
     username = f"e2e_{uuid.uuid4().hex[:8]}"
     email = f"{username}@test.local"
     cur = live_db.cursor()
@@ -79,5 +79,20 @@ def test_user_id(live_db):
         (username, email),
     )
     uid = cur.fetchone()[0]
-    yield uid
-    # live_db fixture rolls back, so no manual cleanup needed
+    live_db.commit()
+    try:
+        yield uid
+    finally:
+        cur.execute("DELETE FROM users WHERE user_id = %s", (uid,))
+        live_db.commit()
+
+
+@pytest.fixture
+def test_unit_id(live_db):
+    """Return an existing unit_id that satisfies detail_items.unit_id FK."""
+    cur = live_db.cursor()
+    cur.execute("SELECT unit_id FROM units ORDER BY unit_id LIMIT 1")
+    row = cur.fetchone()
+    if not row:
+        pytest.skip("No units available for integration meal item test")
+    return row[0]

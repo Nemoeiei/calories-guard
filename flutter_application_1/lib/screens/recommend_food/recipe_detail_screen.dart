@@ -50,7 +50,11 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   // ────────────────────────────────────────────
   Future<void> _fetchRecipe() async {
     try {
-      final res = await ApiClient().get('/recipes/${widget.foodId}');
+      final userId = ref.read(userDataProvider).userId;
+      final res = await ApiClient().get(
+        '/recipes/${widget.foodId}',
+        queryParams: userId > 0 ? {'user_id': '$userId'} : null,
+      );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
@@ -187,7 +191,10 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     final imageUrl = r['image_url']?.toString();
     final category = r['category']?.toString() ?? 'อาหารไทย';
     final name =
-        r['recipe_name']?.toString() ?? r['food_name']?.toString() ?? '';
+        r['display_name']?.toString() ??
+        r['recipe_name']?.toString() ??
+        r['food_name']?.toString() ??
+        '';
     final desc = r['description']?.toString() ?? '';
 
     return SliverAppBar(
@@ -1194,7 +1201,11 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   // ────────────────────────────────────────────
   Widget _buildAddMealBar(Map<String, dynamic> r) {
     final cal = r['calories']?.toStringAsFixed(0) ?? '0';
-    final name = r['recipe_name']?.toString() ?? '';
+    final name =
+        r['display_name']?.toString() ??
+        r['recipe_name']?.toString() ??
+        r['food_name']?.toString() ??
+        '';
 
     return Positioned(
       bottom: 0,

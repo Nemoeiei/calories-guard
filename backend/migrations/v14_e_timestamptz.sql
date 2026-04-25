@@ -13,100 +13,74 @@ DROP VIEW IF EXISTS cleangoal.v_admin_temp_food_review;
 DROP INDEX IF EXISTS cleangoal.idx_meals_user_date_type;
 DROP INDEX IF EXISTS cleangoal.idx_meals_user_date;
 
-ALTER TABLE cleangoal.detail_items
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.email_verification_codes
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN expires_at TYPE timestamptz USING expires_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.exercise_logs
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.food_requests
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.foods
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN deleted_at TYPE timestamptz USING deleted_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.health_contents
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.ingredients
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.meals
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN meal_time  TYPE timestamptz USING meal_time  AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.notifications
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.password_reset_codes
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN expires_at TYPE timestamptz USING expires_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.recipe_favorites
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.recipe_ingredients
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.recipe_reviews
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.recipe_steps
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.recipe_tips
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.recipe_tools
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.recipes
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN deleted_at TYPE timestamptz USING deleted_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.schema_migrations
-    ALTER COLUMN applied_at TYPE timestamptz USING applied_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.temp_food
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.unit_conversions
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.user_allergy_preferences
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.user_favorites
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.user_meal_plans
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.users
-    ALTER COLUMN created_at          TYPE timestamptz USING created_at          AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN updated_at          TYPE timestamptz USING updated_at          AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN deleted_at          TYPE timestamptz USING deleted_at          AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN last_login_date     TYPE timestamptz USING last_login_date     AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN consent_accepted_at TYPE timestamptz USING consent_accepted_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.verified_food
-    ALTER COLUMN created_at  TYPE timestamptz USING created_at  AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN updated_at  TYPE timestamptz USING updated_at  AT TIME ZONE 'Asia/Bangkok',
-    ALTER COLUMN verified_at TYPE timestamptz USING verified_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.water_logs
-    ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'Asia/Bangkok';
-
-ALTER TABLE cleangoal.weight_logs
-    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Bangkok';
+DO $$
+DECLARE
+    target record;
+BEGIN
+    FOR target IN
+        SELECT *
+        FROM (VALUES
+            ('detail_items', 'created_at'),
+            ('email_verification_codes', 'created_at'),
+            ('email_verification_codes', 'expires_at'),
+            ('exercise_logs', 'created_at'),
+            ('food_requests', 'created_at'),
+            ('foods', 'created_at'),
+            ('foods', 'updated_at'),
+            ('foods', 'deleted_at'),
+            ('health_contents', 'created_at'),
+            ('ingredients', 'created_at'),
+            ('meals', 'created_at'),
+            ('meals', 'updated_at'),
+            ('meals', 'meal_time'),
+            ('notifications', 'created_at'),
+            ('password_reset_codes', 'created_at'),
+            ('password_reset_codes', 'expires_at'),
+            ('recipe_favorites', 'created_at'),
+            ('recipe_ingredients', 'created_at'),
+            ('recipe_reviews', 'created_at'),
+            ('recipe_steps', 'created_at'),
+            ('recipe_tips', 'created_at'),
+            ('recipe_tools', 'created_at'),
+            ('recipes', 'created_at'),
+            ('recipes', 'deleted_at'),
+            ('schema_migrations', 'applied_at'),
+            ('temp_food', 'created_at'),
+            ('temp_food', 'updated_at'),
+            ('unit_conversions', 'created_at'),
+            ('user_allergy_preferences', 'created_at'),
+            ('user_favorites', 'created_at'),
+            ('user_meal_plans', 'created_at'),
+            ('users', 'created_at'),
+            ('users', 'updated_at'),
+            ('users', 'deleted_at'),
+            ('users', 'last_login_date'),
+            ('users', 'consent_accepted_at'),
+            ('verified_food', 'created_at'),
+            ('verified_food', 'updated_at'),
+            ('verified_food', 'verified_at'),
+            ('water_logs', 'updated_at'),
+            ('weight_logs', 'created_at')
+        ) AS t(table_name, column_name)
+    LOOP
+        IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'cleangoal'
+              AND table_name = target.table_name
+              AND column_name = target.column_name
+              AND data_type = 'timestamp without time zone'
+        ) THEN
+            EXECUTE format(
+                'ALTER TABLE cleangoal.%I ALTER COLUMN %I TYPE timestamptz USING %I AT TIME ZONE %L',
+                target.table_name,
+                target.column_name,
+                target.column_name,
+                'Asia/Bangkok'
+            );
+        END IF;
+    END LOOP;
+END$$;
 
 -- Recreate functional indexes using an IMMUTABLE expression.
 -- Casting to date with a literal time zone is IMMUTABLE (vs DATE(timestamptz)

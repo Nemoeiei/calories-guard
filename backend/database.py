@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def get_db_connection():
-    """Return PostgreSQL connection using DATABASE_URL"""
-    database_url = os.getenv("DATABASE_URL")
+    """Return PostgreSQL connection using DATABASE_URL or DIRECT_DATABASE_URL."""
+    database_url = os.getenv("DIRECT_DATABASE_URL") or os.getenv("DATABASE_URL")
     
     if not database_url:
-        print("[DB] ❌ DATABASE_URL not set")
+        print("[DB] ❌ DATABASE_URL or DIRECT_DATABASE_URL not set")
         return None
     
     try:

@@ -7,6 +7,11 @@ import '../macro/macro_detail_screen.dart';
 
 import 'recipe_detail_screen.dart';
 
+String _foodDisplayName(Map<String, dynamic> item) =>
+    item['display_name']?.toString().trim().isNotEmpty == true
+        ? item['display_name'].toString()
+        : item['food_name']?.toString() ?? 'ไม่มีชื่อ';
+
 class RecommendedFoodScreen extends ConsumerStatefulWidget {
   const RecommendedFoodScreen({super.key});
 
@@ -40,7 +45,11 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
   // ────────────────────────────────────────────
   Future<void> _fetchAllFood() async {
     try {
-      final res = await ApiClient().get('/foods');
+      final userId = ref.read(userDataProvider).userId;
+      final res = await ApiClient().get(
+        '/foods',
+        queryParams: userId > 0 ? {'user_id': '$userId'} : null,
+      );
       if (res.statusCode == 200) {
         final List<dynamic> data = jsonDecode(res.body);
         final all = data.cast<Map<String, dynamic>>();
@@ -120,8 +129,13 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
     if (_searchQuery.isEmpty) return [];
     final all = [..._allFood, ..._allDrinks, ..._allDesserts];
     return all.where((item) {
+      final q = _searchQuery.toLowerCase();
       final name = item['food_name']?.toString().toLowerCase() ?? '';
-      return name.contains(_searchQuery.toLowerCase());
+      final displayName = item['display_name']?.toString().toLowerCase() ?? '';
+      final regionalName = item['regional_name']?.toString().toLowerCase() ?? '';
+      return name.contains(q) ||
+          displayName.contains(q) ||
+          regionalName.contains(q);
     }).toList();
   }
 
@@ -494,7 +508,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
   }
 
   Widget _buildMacroCard(Map<String, dynamic> item) {
-    final foodName = item['food_name']?.toString() ?? 'ไม่มีชื่อ';
+    final foodName = _foodDisplayName(item);
     final calories = item['calories']?.toString() ?? '0';
     final imageUrl = item['image_url']?.toString();
     // ✅ แปลง foodId เป็น int ให้ถูกต้อง
@@ -563,7 +577,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
   }
 
   Widget _buildFoodCard(Map<String, dynamic> item) {
-    final foodName = item['food_name']?.toString() ?? 'ไม่มีชื่อ';
+    final foodName = _foodDisplayName(item);
     final calories = item['calories']?.toString() ?? '0';
     final imageUrl = item['image_url']?.toString();
     // ✅ cast int ให้ถูกต้องทุกที่
@@ -875,7 +889,7 @@ class FoodCategoryScreen extends StatelessWidget {
 
   Widget _buildCategoryFoodCard(
       BuildContext context, Map<String, dynamic> item) {
-    final foodName = item['food_name']?.toString() ?? 'ไม่มีชื่อ';
+    final foodName = _foodDisplayName(item);
     final calories = item['calories']?.toString() ?? '0';
     final imageUrl = item['image_url']?.toString();
     final foodId = item['food_id'] != null

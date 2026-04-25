@@ -6,7 +6,7 @@ from psycopg2.extras import RealDictCursor, Json
 
 from database import get_db_connection
 from auth.dependencies import get_current_admin
-from app.models.schemas import FoodCreate, FoodAutoAdd, AdminFoodReview, TempFoodApprove
+from app.models.schemas import FoodCreate, FoodAutoAdd, RegionalNameSubmission
 from ai_models import llm_provider
 
 logger = logging.getLogger(__name__)
@@ -39,21 +39,31 @@ def _parse_ai_recipe(raw: str) -> dict:
 
 
 @router.get("/foods")
-def read_foods():
+def read_foods(user_id: int | None = None):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        region = _resolve_user_region(cur, user_id) if user_id else None
         cur.execute("""
             SELECT f.*,
+                   u.name AS serving_unit,
+                   COALESCE(frn.name_th, f.food_name) AS display_name,
+                   frn.name_th AS regional_name,
                    COALESCE(
                        array_agg(faf.flag_id) FILTER (WHERE faf.flag_id IS NOT NULL),
                        '{}'
                    ) AS allergy_flag_ids
             FROM foods f
+            LEFT JOIN units u ON u.unit_id = f.serving_unit_id
+            LEFT JOIN food_regional_names frn
+                   ON frn.food_id = f.food_id
+                  AND frn.region = %s::thai_region
+                  AND frn.is_primary
+                  AND frn.deleted_at IS NULL
             LEFT JOIN food_allergy_flags faf ON faf.food_id = f.food_id
-            GROUP BY f.food_id
+            GROUP BY f.food_id, u.name, frn.name_th
             ORDER BY f.food_id ASC
-        """)
+        """, (region,))
         rows = cur.fetchall()
         result = []
         for row in rows:
@@ -115,13 +125,164 @@ def user_auto_add_food(req: FoodAutoAdd):
 
 
 @router.get("/recommended-food")
-def get_recommended_food():
+def get_recommended_food(user_id: int | None = None):
+    """Top-N foods, optionally annotated with the caller's regional display_name.
+
+    `user_id` is optional; when set we resolve users.region and join the
+    primary regional alias for that region so the caller can show
+    "ข้าวปุ้น" instead of canonical "ขนมจีนน้ำยา" for an Isan user.
+    Falls back to canonical food_name when no region is set or no alias exists.
+    """
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM foods ORDER BY food_id ASC LIMIT 20")
+        region = _resolve_user_region(cur, user_id) if user_id else None
+        cur.execute(
+            """
+            SELECT f.*,
+                   COALESCE(frn.name_th, f.food_name) AS display_name,
+                   frn.name_th AS regional_name
+            FROM foods f
+            LEFT JOIN food_regional_names frn
+                   ON frn.food_id = f.food_id
+                  AND frn.region = %s::thai_region
+                  AND frn.is_primary
+                  AND frn.deleted_at IS NULL
+            ORDER BY f.food_id ASC
+            LIMIT 20
+            """,
+            (region,),
+        )
         return cur.fetchall()
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+def _resolve_user_region(cur, user_id: int) -> str | None:
+    """Look up users.region; return None if user has no preference set."""
+    cur.execute(
+        "SELECT region::text AS region FROM users "
+        "WHERE user_id = %s AND deleted_at IS NULL",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    return row["region"] if row else None
+
+
+@router.get("/foods/search")
+def search_foods(q: str = "", user_id: int | None = None, limit: int = 20):
+    """Search foods by canonical name OR by any regional alias.
+
+    Behaviour:
+      - Matches `foods.food_name` (ILIKE) OR
+        `food_regional_names.name_th` (ILIKE) — so Isan users typing
+        "ข้าวปุ้น" hit the canonical "ขนมจีนน้ำยา" row.
+      - Returns each food with `display_name` set to the caller's
+        regional primary alias when available, else the canonical name.
+      - Boosts results that match the user's region to the top.
+    """
+    q = (q or "").strip()
+    if not q:
+        return []
+    pattern = f"%{q}%"
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        region = _resolve_user_region(cur, user_id) if user_id else None
+        cur.execute(
+            """
+            SELECT f.*,
+                   COALESCE(frn_user.name_th, f.food_name) AS display_name,
+                   frn_user.name_th  AS regional_name,
+                   CASE WHEN frn_match.region = %s::thai_region THEN 1 ELSE 0 END
+                       AS match_user_region
+            FROM foods f
+            LEFT JOIN food_regional_names frn_user
+                   ON frn_user.food_id = f.food_id
+                  AND frn_user.region = %s::thai_region
+                  AND frn_user.is_primary
+                  AND frn_user.deleted_at IS NULL
+            LEFT JOIN food_regional_names frn_match
+                   ON frn_match.food_id = f.food_id
+                  AND frn_match.deleted_at IS NULL
+                  AND frn_match.name_th ILIKE %s
+            WHERE f.deleted_at IS NULL
+              AND (
+                    f.food_name ILIKE %s
+                 OR frn_match.variant_id IS NOT NULL
+              )
+            GROUP BY f.food_id, frn_user.name_th, frn_match.region
+            ORDER BY match_user_region DESC, f.food_name ASC
+            LIMIT %s
+            """,
+            (region, region, pattern, pattern, limit),
+        )
+        return cur.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.get("/foods/{food_id}/regional-names")
+def list_food_regional_names(food_id: int):
+    """All approved regional aliases for a single food (read-only)."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT variant_id, region::text AS region, name_th, is_primary,
+                   created_at, updated_at
+            FROM food_regional_names
+            WHERE food_id = %s AND deleted_at IS NULL
+            ORDER BY region, is_primary DESC, name_th
+            """,
+            (food_id,),
+        )
+        return cur.fetchall()
+    finally:
+        if conn:
+            conn.close()
+
+
+@router.post("/foods/{food_id}/regional-names")
+def submit_regional_name(food_id: int, payload: RegionalNameSubmission):
+    """User submits a regional alias for a food → goes to admin review queue."""
+    name = payload.name_th.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name_th ห้ามว่าง")
+    if payload.popularity is not None and not (1 <= payload.popularity <= 5):
+        raise HTTPException(status_code=400, detail="popularity ต้องอยู่ระหว่าง 1-5")
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT 1 FROM foods WHERE food_id = %s AND deleted_at IS NULL", (food_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="ไม่พบเมนูนี้")
+        cur.execute(
+            """
+            INSERT INTO food_regional_name_submissions
+                (food_id, region, name_th, popularity, user_id)
+            VALUES (%s, %s::thai_region, %s, %s, %s)
+            RETURNING submission_id
+            """,
+            (food_id, payload.region.value, name, payload.popularity, payload.user_id),
+        )
+        new_id = cur.fetchone()["submission_id"]
+        conn.commit()
+        return {
+            "message": "ส่งชื่อท้องถิ่นเรียบร้อย รอ admin ตรวจสอบ",
+            "submission_id": new_id,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:
@@ -143,7 +304,7 @@ def _shape_recipe_response(row: dict) -> dict:
 
 
 @router.get("/recipes/{food_id}")
-def get_recipe(food_id: int):
+def get_recipe(food_id: int, user_id: int | None = None):
     """Return a recipe for the given food_id.
 
     If no recipe row exists yet, lazily generate one via the LLM and cache
@@ -154,15 +315,23 @@ def get_recipe(food_id: int):
     conn = get_db_connection()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        region = _resolve_user_region(cur, user_id) if user_id else None
         cur.execute(
             """
             SELECT r.*, f.food_name, f.calories, f.protein, f.carbs, f.fat,
+                   COALESCE(frn.name_th, f.food_name) AS display_name,
+                   frn.name_th AS regional_name,
                    f.image_url as food_image_url
             FROM recipes r
             JOIN foods f ON r.food_id = f.food_id
+            LEFT JOIN food_regional_names frn
+                   ON frn.food_id = f.food_id
+                  AND frn.region = %s::thai_region
+                  AND frn.is_primary
+                  AND frn.deleted_at IS NULL
             WHERE r.food_id = %s AND r.deleted_at IS NULL
             """,
-            (food_id,),
+            (region, food_id),
         )
         row = cur.fetchone()
         if row:
@@ -234,6 +403,8 @@ def get_recipe(food_id: int):
         merged = {
             **dict(new_row),
             "food_name": food["food_name"],
+            "display_name": food["food_name"],
+            "regional_name": None,
             "calories": food["calories"],
             "protein": food["protein"],
             "carbs": food["carbs"],

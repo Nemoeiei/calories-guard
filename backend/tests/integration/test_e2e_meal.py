@@ -42,7 +42,7 @@ def client_as_user(test_user_id):
         app.dependency_overrides.pop(get_current_user, None)
 
 
-def test_meal_create_summary_delete_roundtrip(client_as_user):
+def test_meal_create_summary_delete_roundtrip(client_as_user, test_unit_id):
     client, uid = client_as_user
     today = date.today().isoformat()
 
@@ -54,7 +54,7 @@ def test_meal_create_summary_delete_roundtrip(client_as_user):
                 "food_id": None,
                 "food_name": "ข้าวผัดไข่",
                 "amount": 1,
-                "unit_id": 1,
+                "unit_id": test_unit_id,
                 "cal_per_unit": 500,
                 "protein_per_unit": 15,
                 "carbs_per_unit": 60,
@@ -64,7 +64,7 @@ def test_meal_create_summary_delete_roundtrip(client_as_user):
                 "food_id": None,
                 "food_name": "นมสด",
                 "amount": 1,
-                "unit_id": 1,
+                "unit_id": test_unit_id,
                 "cal_per_unit": 150,
                 "protein_per_unit": 8,
                 "carbs_per_unit": 12,

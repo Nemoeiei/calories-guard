@@ -12,6 +12,11 @@ import '../../widget/ai_meal_estimate_sheet.dart';
 import '../../services/error_reporter.dart';
 import '../recommend_food/recipe_detail_screen.dart';
 
+String _foodDisplayName(Map<String, dynamic> food) =>
+    food['display_name']?.toString().trim().isNotEmpty == true
+        ? food['display_name'].toString()
+        : food['food_name']?.toString() ?? '';
+
 // ─────────────────────────────────────────────
 //  Models
 // ─────────────────────────────────────────────
@@ -1294,6 +1299,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
   }
 
   void _showFoodDetail(Map<String, dynamic> food) {
+    final foodName = _foodDisplayName(food);
     final allergic = _isAllergic(food);
     final cal = (food['calories'] as num? ?? 0).toDouble();
     final protein = (food['protein'] as num? ?? 0).toDouble();
@@ -1342,7 +1348,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
             // ชื่ออาหาร + badge แพ้
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
-                child: Text(food['food_name'] ?? '',
+                child: Text(foodName,
                     style: const TextStyle(
                         fontSize: 18, fontWeight: FontWeight.w700)),
               ),
@@ -1442,7 +1448,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
                     ),
                     onPressed: () {
                       widget.onFoodAdded(LoggedFood(
-                        name: food['food_name'] ?? '',
+                        name: foodName,
                         calories: cal,
                         protein: protein,
                         carbs: carbs,
@@ -1507,7 +1513,11 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
   Future<void> _loadAllFoods() async {
     setState(() => _dbLoading = true);
     try {
-      final res = await ApiClient().get('/foods');
+      final userId = ref.read(userDataProvider).userId;
+      final res = await ApiClient().get(
+        '/foods',
+        queryParams: userId > 0 ? {'user_id': '$userId'} : null,
+      );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as List;
         setState(() => _dbResults = data.cast<Map<String, dynamic>>());
@@ -1530,7 +1540,10 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
     final q = _searchCtrl.text.toLowerCase();
     return _dbResults
         .where(
-            (f) => (f['food_name']?.toString().toLowerCase() ?? '').contains(q))
+            (f) =>
+                (f['food_name']?.toString().toLowerCase() ?? '').contains(q) ||
+                (f['display_name']?.toString().toLowerCase() ?? '').contains(q) ||
+                (f['regional_name']?.toString().toLowerCase() ?? '').contains(q))
         .toList();
   }
 
@@ -1561,7 +1574,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
           ]),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(
-              '"${food['food_name']}" มีส่วนประกอบที่คุณแจ้งว่าแพ้',
+              '"${_foodDisplayName(food)}" มีส่วนประกอบที่คุณแจ้งว่าแพ้',
               style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 8),
@@ -1799,7 +1812,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
                             ]),
                             title: Row(children: [
                               Expanded(
-                                child: Text(f['food_name'] ?? '',
+                                child: Text(_foodDisplayName(f),
                                     style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600)),

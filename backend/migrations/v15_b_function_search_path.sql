@@ -10,32 +10,37 @@
 
 BEGIN;
 
-ALTER FUNCTION cleangoal.fn_sync_water_to_daily()
-    SET search_path = cleangoal, pg_catalog;
-
-ALTER FUNCTION cleangoal.fn_sync_daily_summary()
-    SET search_path = cleangoal, pg_catalog;
-
-ALTER FUNCTION cleangoal.fn_create_verified_food_on_temp_insert()
-    SET search_path = cleangoal, pg_catalog;
-
-ALTER FUNCTION cleangoal.fn_temp_food_touch_updated_at()
-    SET search_path = cleangoal, pg_catalog;
-
-ALTER FUNCTION cleangoal.fn_verified_food_touch_updated_at()
-    SET search_path = cleangoal, pg_catalog;
-
-ALTER FUNCTION cleangoal.update_recipe_favorite_count()
-    SET search_path = cleangoal, pg_catalog;
-
-ALTER FUNCTION cleangoal.update_recipe_rating()
-    SET search_path = cleangoal, pg_catalog;
+DO $$
+DECLARE
+    fn regprocedure;
+BEGIN
+    FOR fn IN
+        SELECT to_regprocedure(name)
+        FROM (VALUES
+            ('cleangoal.fn_sync_water_to_daily()'),
+            ('cleangoal.fn_sync_daily_summary()'),
+            ('cleangoal.fn_create_verified_food_on_temp_insert()'),
+            ('cleangoal.fn_temp_food_touch_updated_at()'),
+            ('cleangoal.fn_verified_food_touch_updated_at()'),
+            ('cleangoal.update_recipe_favorite_count()'),
+            ('cleangoal.update_recipe_rating()')
+        ) AS f(name)
+        WHERE to_regprocedure(name) IS NOT NULL
+    LOOP
+        EXECUTE format('ALTER FUNCTION %s SET search_path = cleangoal, pg_catalog', fn);
+    END LOOP;
+END$$;
 
 -- public.handle_new_user is the Supabase Auth trigger that fires when a
 -- user signs up via gotrue. It needs to reach cleangoal.users, so include
 -- both schemas.
-ALTER FUNCTION public.handle_new_user()
-    SET search_path = cleangoal, public, pg_catalog;
+DO $$
+BEGIN
+    IF to_regprocedure('public.handle_new_user()') IS NOT NULL THEN
+        ALTER FUNCTION public.handle_new_user()
+            SET search_path = cleangoal, public, pg_catalog;
+    END IF;
+END$$;
 
 INSERT INTO cleangoal.schema_migrations(version) VALUES ('v15_b_function_search_path')
     ON CONFLICT (version) DO NOTHING;
