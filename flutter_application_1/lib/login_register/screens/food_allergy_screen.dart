@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 import '/providers/user_data_provider.dart';
 import 'activity_level_screen.dart';
 
@@ -57,9 +56,7 @@ class _FoodAllergyScreenState extends ConsumerState<FoodAllergyScreen> {
   Future<void> _loadFlags() async {
     setState(() { _isLoading = true; _errorMsg = null; });
     try {
-      final res = await http
-          .get(Uri.parse('${AppConstants.baseUrl}/allergy_flags'))
-          .timeout(const Duration(seconds: 10));
+      final res = await ApiClient().get('/allergy_flags');
 
       if (res.statusCode == 200) {
         final data = (jsonDecode(res.body) as List).cast<Map<String, dynamic>>();
@@ -68,9 +65,7 @@ class _FoodAllergyScreenState extends ConsumerState<FoodAllergyScreen> {
         final userId = ref.read(userDataProvider).userId;
         if (widget.isEditing && userId != 0) {
           // โหลด allergy ปัจจุบันของ user
-          final r2 = await http
-              .get(Uri.parse('${AppConstants.baseUrl}/users/$userId/allergies'))
-              .timeout(const Duration(seconds: 10));
+          final r2 = await ApiClient().get('/users/$userId/allergies');
           if (r2.statusCode == 200) {
             final d2 = jsonDecode(r2.body);
             final ids = (d2['flag_ids'] as List).cast<int>();
@@ -106,10 +101,9 @@ class _FoodAllergyScreenState extends ConsumerState<FoodAllergyScreen> {
 
     setState(() => _isSaving = true);
     try {
-      final res = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/users/$userId/allergies'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'flag_ids': _selectedIds.toList()}),
+      final res = await ApiClient().post(
+        '/users/$userId/allergies',
+        body: {'flag_ids': _selectedIds.toList()},
       );
       if (res.statusCode == 200) {
         ref.read(userDataProvider.notifier).setAllergies(_selectedIds.toList());

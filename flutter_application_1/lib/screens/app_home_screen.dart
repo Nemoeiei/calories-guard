@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_application_1/constants/constants.dart';
 import '../../providers/user_data_provider.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '/screens/profile/subprofile_screen/progress_screen.dart';
+import '../../services/api_client.dart';
 import '../../services/notification_helper.dart';
 import '../../services/lifecycle_service.dart';
 import '../../services/error_reporter.dart';
@@ -80,8 +79,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     if (userId == 0) return;
 
     try {
-      final url = Uri.parse('${AppConstants.baseUrl}/users/$userId');
-      final response = await http.get(url);
+      final response = await ApiClient().get('/users/$userId');
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
         ref.read(userDataProvider.notifier).setUserFromApi(data);
@@ -91,8 +89,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     }
 
     try {
-      final res = await http
-          .get(Uri.parse('${AppConstants.baseUrl}/users/$userId/allergies'));
+      final res = await ApiClient().get('/users/$userId/allergies');
       if (res.statusCode == 200) {
         final d = json.decode(res.body);
         final ids = (d['flag_ids'] as List).cast<int>();
@@ -109,11 +106,12 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
     final dateStr =
         "${forDate.year}-${forDate.month.toString().padLeft(2, '0')}-${forDate.day.toString().padLeft(2, '0')}";
-    final url = Uri.parse(
-        '${AppConstants.baseUrl}/daily_summary/$userId?date_record=$dateStr');
 
     try {
-      final response = await http.get(url);
+      final response = await ApiClient().get(
+        '/daily_summary/$userId',
+        queryParams: {'date_record': dateStr},
+      );
       if (response.statusCode == 200) {
         final summaryData = json.decode(utf8.decode(response.bodyBytes));
         Map<String, String> mealsMap = {};
@@ -144,10 +142,11 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     List<dynamic> items = [];
     Map<String, dynamic> summary = {};
     try {
-      final url =
-          '${AppConstants.baseUrl}/meals/$userId/detail?date_record=$dateStr&meal_type=$mealType';
-      debugPrint('🔍 Fetching meal detail: $url');
-      final res = await http.get(Uri.parse(url));
+      debugPrint('🔍 Fetching meal detail: /meals/$userId/detail?date_record=$dateStr&meal_type=$mealType');
+      final res = await ApiClient().get(
+        '/meals/$userId/detail',
+        queryParams: {'date_record': dateStr, 'meal_type': mealType},
+      );
       debugPrint('📦 Response ${res.statusCode}: ${res.body}');
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes));
@@ -438,9 +437,9 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
     );
 
     try {
-      final url = Uri.parse(
-          '${AppConstants.baseUrl}/meals/clear/$userId?date_record=$dateStr&meal_type=$mealType');
-      final response = await http.delete(url);
+      final response = await ApiClient().delete(
+        '/meals/clear/$userId?date_record=$dateStr&meal_type=$mealType',
+      );
 
       if (response.statusCode == 200) {
         if (mounted) {

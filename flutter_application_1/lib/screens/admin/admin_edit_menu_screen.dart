@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 import 'package:image_picker/image_picker.dart';
 
 class AdminEditMenuScreen extends StatefulWidget {
@@ -60,11 +59,11 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
     try {
       // 2. ถ้ามีการเลือกรูปใหม่ ให้อัปโหลดและเปลี่ยน URL
       if (_selectedImage != null) {
-        var request = http.MultipartRequest(
-            'POST', Uri.parse('${AppConstants.baseUrl}/upload-image/'));
-        request.files.add(
-            await http.MultipartFile.fromPath('file', _selectedImage!.path));
-        var streamRes = await request.send();
+        final streamRes = await ApiClient().uploadFile(
+          '/upload-image/',
+          fieldName: 'file',
+          filePath: _selectedImage!.path,
+        );
         if (streamRes.statusCode == 200) {
           var resData = await streamRes.stream.bytesToString();
           imageUrlToSave = jsonDecode(resData)['url']; // ได้ URL ใหม่
@@ -73,19 +72,16 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
 
       // 3. เรียก API PUT เพื่อแก้ไขข้อมูล
       final foodId = widget.foodData['food_id'];
-      final body = jsonEncode({
-        "food_name": _nameCtrl.text,
-        "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
-        "protein": double.tryParse(_proteinCtrl.text) ?? 0,
-        "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
-        "fat": double.tryParse(_fatCtrl.text) ?? 0,
-        "image_url": imageUrlToSave // ส่ง URL (เก่าหรือใหม่) ไป
-      });
-
-      final res = await http.put(
-        Uri.parse('${AppConstants.baseUrl}/foods/$foodId'),
-        headers: {"Content-Type": "application/json"},
-        body: body,
+      final res = await ApiClient().put(
+        '/foods/$foodId',
+        body: {
+          "food_name": _nameCtrl.text,
+          "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
+          "protein": double.tryParse(_proteinCtrl.text) ?? 0,
+          "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
+          "fat": double.tryParse(_fatCtrl.text) ?? 0,
+          "image_url": imageUrlToSave // ส่ง URL (เก่าหรือใหม่) ไป
+        },
       );
 
       if (res.statusCode == 200) {

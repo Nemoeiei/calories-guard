@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 import 'admin_edit_menu_screen.dart';
 
 class AdminFoodListScreen extends StatefulWidget {
@@ -33,7 +32,7 @@ class _AdminFoodListScreenState extends State<AdminFoodListScreen> {
 
   Future<void> _fetchFoods() async {
     try {
-      final res = await http.get(Uri.parse('${AppConstants.baseUrl}/foods'));
+      final res = await ApiClient().get('/foods');
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes));
         setState(() {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 import '../../../providers/user_data_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../login_register/screens/welcome_screen.dart';
@@ -23,8 +22,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
   Future<void> _deleteAccount() async {
     final userId = ref.read(userDataProvider).userId;
     try {
-      final response =
-          await http.delete(Uri.parse('${AppConstants.baseUrl}/users/$userId'));
+      final response = await ApiClient().delete('/users/$userId');
       if (response.statusCode == 200) {
         ref.read(userDataProvider.notifier).resetDailyFood();
         if (mounted) {

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 import '/providers/user_data_provider.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
@@ -27,18 +26,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     setState(() => _isUploadingAvatar = true);
     try {
       final userId = ref.read(userDataProvider).userId;
-      final bytes = await picked.readAsBytes();
       final ext = picked.name.split('.').last.toLowerCase();
-      final url = Uri.parse('${AppConstants.baseUrl}/users/$userId/avatar');
 
-      final request = http.MultipartRequest('POST', url)
-        ..files.add(http.MultipartFile.fromBytes(
-          'file',
-          bytes,
-          filename: 'avatar.$ext',
-        ));
-
-      final streamed = await request.send();
+      final streamed = await ApiClient().uploadFile(
+        '/users/$userId/avatar',
+        fieldName: 'file',
+        filePath: picked.path,
+        fileName: 'avatar.$ext',
+      );
       final body = await streamed.stream.bytesToString();
 
       if (streamed.statusCode == 200) {
@@ -72,12 +67,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   Future<void> _updateUserData(Map<String, dynamic> updateData) async {
     final userId = ref.read(userDataProvider).userId;
-    final url = Uri.parse('${AppConstants.baseUrl}/users/$userId');
     try {
-      final response = await http.put(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(updateData),
+      final response = await ApiClient().put(
+        '/users/$userId',
+        body: updateData,
       );
       if (response.statusCode == 200) {
         final user = ref.read(userDataProvider);

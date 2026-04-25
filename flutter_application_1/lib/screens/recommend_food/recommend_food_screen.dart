@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 import '/providers/user_data_provider.dart';
 import '../macro/macro_detail_screen.dart';
 
@@ -41,7 +40,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
   // ────────────────────────────────────────────
   Future<void> _fetchAllFood() async {
     try {
-      final res = await http.get(Uri.parse('${AppConstants.baseUrl}/foods'));
+      final res = await ApiClient().get('/foods');
       if (res.statusCode == 200) {
         final List<dynamic> data = jsonDecode(res.body);
         final all = data.cast<Map<String, dynamic>>();
@@ -1006,17 +1005,16 @@ class _SuggestFoodSheetState extends State<_SuggestFoodSheet> {
     }
     setState(() => _submitting = true);
     try {
-      final res = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/foods/auto-add'),
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final res = await ApiClient().post(
+        '/foods/auto-add',
+        body: {
           'food_name': name,
           'calories': double.tryParse(_calCtrl.text.trim()) ?? 0,
           'protein': double.tryParse(_proteinCtrl.text.trim()) ?? 0,
           'carbs': double.tryParse(_carbsCtrl.text.trim()) ?? 0,
           'fat': double.tryParse(_fatCtrl.text.trim()) ?? 0,
           'user_id': widget.userId,
-        }),
+        },
       );
       if (!mounted) return;
       if (res.statusCode == 200) {

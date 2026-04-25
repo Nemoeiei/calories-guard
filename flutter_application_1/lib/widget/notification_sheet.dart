@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import '../constants/constants.dart';
 import '../providers/user_data_provider.dart';
+import '../services/api_client.dart';
 import '../services/error_reporter.dart';
 
 // ── Provider: unread count ────────────────────────────────────────────────────
@@ -61,9 +60,7 @@ class _NotificationBellState extends ConsumerState<NotificationBell> {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
     try {
-      final res = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/notifications/$userId/unread_count'),
-      ).timeout(const Duration(seconds: 5));
+      final res = await ApiClient().get('/notifications/$userId/unread_count');
       if (res.statusCode == 200 && mounted) {
         final data = jsonDecode(res.body);
         ref.read(unreadCountProvider.notifier).state =
@@ -151,9 +148,7 @@ class _NotificationSheetState extends ConsumerState<NotificationSheet> {
     });
     final userId = ref.read(userDataProvider).userId;
     try {
-      final res = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/notifications/$userId'),
-      ).timeout(const Duration(seconds: 10));
+      final res = await ApiClient().get('/notifications/$userId');
       if (res.statusCode == 200) {
         final list = (jsonDecode(res.body) as List)
             .map((j) => AppNotification.fromJson(j as Map<String, dynamic>))
@@ -171,9 +166,7 @@ class _NotificationSheetState extends ConsumerState<NotificationSheet> {
   Future<void> _markAllRead() async {
     final userId = ref.read(userDataProvider).userId;
     try {
-      await http.put(
-        Uri.parse('${AppConstants.baseUrl}/notifications/$userId/read_all'),
-      ).timeout(const Duration(seconds: 5));
+      await ApiClient().put('/notifications/$userId/read_all');
       setState(() {
         for (final n in _notifications) {
           n.isRead = true;

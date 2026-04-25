@@ -3,9 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 import '/providers/user_data_provider.dart';
 import '../../services/health_service.dart';
 import '../../services/notification_helper.dart';
@@ -150,8 +149,10 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
     if (mounted) setState(() => _waterGlasses = 0);
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
     try {
-      final res = await http.get(Uri.parse(
-          '${AppConstants.baseUrl}/water_logs/$userId?date_record=$dateStr'));
+      final res = await ApiClient().get(
+        '/water_logs/$userId',
+        queryParams: {'date_record': dateStr},
+      );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final ml = (data['amount_ml'] as num?)?.toInt() ?? 0;
@@ -172,13 +173,12 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
     try {
-      await http.post(
-        Uri.parse('${AppConstants.baseUrl}/water_logs/$userId'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      await ApiClient().post(
+        '/water_logs/$userId',
+        body: {
           'amount_ml': _waterGlasses * 250,
           'date_record': DateFormat('yyyy-MM-dd').format(_selectedDate),
-        }),
+        },
       );
     } catch (e, st) {
       ErrorReporter.report('record.save_water_log', e, st);
@@ -191,8 +191,10 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
     if (mounted) setState(() => _isLoadingData = true);
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
     try {
-      final res = await http.get(Uri.parse(
-          '${AppConstants.baseUrl}/daily_logs/$userId?date_query=$dateStr'));
+      final res = await ApiClient().get(
+        '/daily_logs/$userId',
+        queryParams: {'date_query': dateStr},
+      );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
 
@@ -1151,13 +1153,10 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
       // 1. ลบข้อมูลเก่าของมื้อนี้ก่อน (เหมือนโค้ดที่ใช้งานได้)
-      final clearUrl = Uri.parse('${AppConstants.baseUrl}/meals/clear/$userId')
-          .replace(queryParameters: {
-        'date_record': dateStr,
-        'meal_type': mealType,
-      });
-      debugPrint('🗑️ DELETE: $clearUrl');
-      final delRes = await http.delete(clearUrl);
+      debugPrint('🗑️ DELETE: /meals/clear/$userId?date_record=$dateStr&meal_type=$mealType');
+      final delRes = await ApiClient().delete(
+        '/meals/clear/$userId?date_record=$dateStr&meal_type=$mealType',
+      );
       debugPrint('🗑️ DELETE Response: ${delRes.statusCode}');
 
       // 2. บันทึกข้อมูลใหม่ทั้งมื้อ (ถ้ามีอาหาร)
@@ -1176,14 +1175,13 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
             .toList();
 
         debugPrint('💾 POST: ${items.length} items');
-        final postRes = await http.post(
-          Uri.parse('${AppConstants.baseUrl}/meals/$userId'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
+        final postRes = await ApiClient().post(
+          '/meals/$userId',
+          body: {
             'date': dateStr,
             'meal_type': mealType,
             'items': items,
-          }),
+          },
         );
         debugPrint('💾 POST Response: ${postRes.statusCode}');
       } else {
@@ -1285,7 +1283,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
 
   Future<void> _loadUnits() async {
     try {
-      final res = await http.get(Uri.parse('${AppConstants.baseUrl}/units'));
+      final res = await ApiClient().get('/units');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as List;
         if (mounted) setState(() => _units = data.cast<Map<String, dynamic>>());
@@ -1509,7 +1507,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
   Future<void> _loadAllFoods() async {
     setState(() => _dbLoading = true);
     try {
-      final res = await http.get(Uri.parse('${AppConstants.baseUrl}/foods'));
+      final res = await ApiClient().get('/foods');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as List;
         setState(() => _dbResults = data.cast<Map<String, dynamic>>());
@@ -2005,17 +2003,16 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
       final userData = ref.read(userDataProvider);
       final userId = userData.userId;
 
-      final res = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/foods/auto-add'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final res = await ApiClient().post(
+        '/foods/auto-add',
+        body: {
           'user_id': userId,
           'food_name': food.name,
           'calories': food.calories,
           'protein': food.protein,
           'carbs': food.carbs,
           'fat': food.fat,
-        }),
+        },
       );
 
       if (res.statusCode != 200) {

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io'; // จำเป็นสำหรับการจัดการไฟล์
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 import 'package:image_picker/image_picker.dart';
 
 class AdminAddMenuScreen extends StatefulWidget {
@@ -62,12 +62,11 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
     try {
       // 1. ถ้ามีการเลือกรูป ให้อัปโหลดไปที่ API /upload-image/ ก่อน
       if (_selectedImage != null) {
-        var request = http.MultipartRequest(
-            'POST', Uri.parse('${AppConstants.baseUrl}/upload-image/'));
-        request.files.add(
-            await http.MultipartFile.fromPath('file', _selectedImage!.path));
-
-        var streamRes = await request.send();
+        final streamRes = await ApiClient().uploadFile(
+          '/upload-image/',
+          fieldName: 'file',
+          filePath: _selectedImage!.path,
+        );
         if (streamRes.statusCode == 200) {
           var responseData = await streamRes.stream.bytesToString();
           var json = jsonDecode(responseData);
@@ -81,35 +80,29 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
       if (isApproval) {
         // 2A. โหมดอนุมัติเมนูด่วน (temp_food → verified_food + foods)
         final tfId = widget.requestData!['tf_id'];
-        final body = jsonEncode({
-          "admin_id": 1, // TODO: ใช้ admin_id จริงหลัง Phase 2 (auth)
-          "food_name": widget.initialMenuName,
-          "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
-          "protein": double.tryParse(_proteinCtrl.text) ?? 0,
-          "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
-          "fat": double.tryParse(_fatCtrl.text) ?? 0,
-        });
-
-        res = await http.post(
-          Uri.parse('${AppConstants.baseUrl}/admin/temp-foods/$tfId/approve'),
-          headers: {"Content-Type": "application/json"},
-          body: body,
+        res = await ApiClient().post(
+          '/admin/temp-foods/$tfId/approve',
+          body: {
+            "admin_id": 1, // TODO: ใช้ admin_id จริงหลัง Phase 2 (auth)
+            "food_name": widget.initialMenuName,
+            "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
+            "protein": double.tryParse(_proteinCtrl.text) ?? 0,
+            "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
+            "fat": double.tryParse(_fatCtrl.text) ?? 0,
+          },
         );
       } else {
         // 2B. โหมดสร้างเมนูใหม่ (Create Food)
-        final body = jsonEncode({
-          "food_name": widget.initialMenuName ?? "เมนูใหม่",
-          "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
-          "protein": double.tryParse(_proteinCtrl.text) ?? 0,
-          "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
-          "fat": double.tryParse(_fatCtrl.text) ?? 0,
-          "image_url": imageUrl
-        });
-
-        res = await http.post(
-          Uri.parse('${AppConstants.baseUrl}/foods'),
-          headers: {"Content-Type": "application/json"},
-          body: body,
+        res = await ApiClient().post(
+          '/foods',
+          body: {
+            "food_name": widget.initialMenuName ?? "เมนูใหม่",
+            "calories": double.tryParse(_caloriesCtrl.text) ?? 0,
+            "protein": double.tryParse(_proteinCtrl.text) ?? 0,
+            "carbs": double.tryParse(_carbsCtrl.text) ?? 0,
+            "fat": double.tryParse(_fatCtrl.text) ?? 0,
+            "image_url": imageUrl
+          },
         );
       }
 

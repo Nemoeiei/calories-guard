@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 import '/providers/user_data_provider.dart';
 import '/services/error_reporter.dart';
 
@@ -51,9 +50,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   // ────────────────────────────────────────────
   Future<void> _fetchRecipe() async {
     try {
-      final res = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/recipes/${widget.foodId}'),
-      );
+      final res = await ApiClient().get('/recipes/${widget.foodId}');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
@@ -78,9 +75,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     if (userId == 0) return;
     setState(() => _favLoading = true);
     try {
-      final res = await http.post(Uri.parse(
-        '${AppConstants.baseUrl}/recipes/${widget.foodId}/favorite/$userId',
-      ));
+      final res = await ApiClient().post(
+        '/recipes/${widget.foodId}/favorite/$userId',
+      );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() => _isFav = data['is_favorite'] == true);
@@ -1141,15 +1138,13 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                       : () async {
                           setSheet(() => isSaving = true);
                           try {
-                            final res = await http.post(
-                              Uri.parse(
-                                  '${AppConstants.baseUrl}/recipes/${widget.foodId}/review'),
-                              headers: {'Content-Type': 'application/json'},
-                              body: jsonEncode({
+                            final res = await ApiClient().post(
+                              '/recipes/${widget.foodId}/review',
+                              body: {
                                 'user_id': userId,
                                 'rating': selectedRating,
                                 'comment': commentCtrl.text.trim(),
-                              }),
+                              },
                             );
                             if (res.statusCode == 200 && mounted) {
                               Navigator.pop(ctx);

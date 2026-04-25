@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:http/http.dart' as http;
-
-import 'package:flutter_application_1/constants/constants.dart';
+import 'package:flutter_application_1/services/api_client.dart';
 
 import 'package:fl_chart/fl_chart.dart';
 
@@ -91,16 +89,16 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
     if (userId == 0) return;
 
-    var url = Uri.parse('${AppConstants.baseUrl}/daily_logs/$userId/weekly');
-
+    final queryParams = <String, String>{};
     if (weekStart != null) {
-      final q = DateFormat('yyyy-MM-dd').format(weekStart);
-
-      url = url.replace(queryParameters: {'week_start': q});
+      queryParams['week_start'] = DateFormat('yyyy-MM-dd').format(weekStart);
     }
 
     try {
-      final response = await http.get(url);
+      final response = await ApiClient().get(
+        '/daily_logs/$userId/weekly',
+        queryParams: queryParams.isEmpty ? null : queryParams,
+      );
 
       if (response.statusCode == 200) {
         setState(() {
@@ -121,11 +119,14 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
     // URL นี้ควร return list ของ { "date": "YYYY-MM-DD", "calories": 1500 }
 
-    final url = Uri.parse(
-        '${AppConstants.baseUrl}/daily_logs/$userId/calendar?month=${_currentMonth.month}&year=${_currentMonth.year}');
-
     try {
-      final response = await http.get(url);
+      final response = await ApiClient().get(
+        '/daily_logs/$userId/calendar',
+        queryParams: {
+          'month': '${_currentMonth.month}',
+          'year': '${_currentMonth.year}',
+        },
+      );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -152,8 +153,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
     try {
-      final res = await http.get(
-          Uri.parse('${AppConstants.baseUrl}/users/$userId/weight_logs'));
+      final res = await ApiClient().get('/users/$userId/weight_logs');
       if (res.statusCode == 200) {
         final data = json.decode(res.body) as List;
         setState(() {
@@ -170,8 +170,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     final userId = ref.read(userDataProvider).userId;
     if (userId == 0) return;
     try {
-      final res = await http.get(
-          Uri.parse('${AppConstants.baseUrl}/users/$userId/goal_progress'));
+      final res = await ApiClient().get('/users/$userId/goal_progress');
       if (res.statusCode == 200) {
         setState(() {
           _goalProgress = Map<String, dynamic>.from(json.decode(res.body));
@@ -189,15 +188,15 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
 
-    final url = Uri.parse(
-        '\${AppConstants.baseUrl}/daily_logs/$userId?date_query=$dateStr');
-
     showDialog(
         context: context,
         builder: (c) => const Center(child: CircularProgressIndicator()));
 
     try {
-      final response = await http.get(url);
+      final response = await ApiClient().get(
+        '/daily_logs/$userId',
+        queryParams: {'date_query': dateStr},
+      );
 
       Navigator.pop(context);
 
@@ -247,9 +246,10 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     List<Map<String, dynamic>> mealItems = [];
     try {
       for (final mealType in ['breakfast', 'lunch', 'dinner', 'snack']) {
-        final res = await http.get(Uri.parse(
-          '${AppConstants.baseUrl}/meals/$userId/detail?date_record=$dateStr&meal_type=$mealType',
-        ));
+        final res = await ApiClient().get(
+          '/meals/$userId/detail',
+          queryParams: {'date_record': dateStr, 'meal_type': mealType},
+        );
         if (res.statusCode == 200) {
           final body = json.decode(res.body);
           final items = (body['items'] as List?) ?? [];
