@@ -1,285 +1,419 @@
-# System Architecture — Calories Guard
+# System Architecture - Calories Guard
 
-_Snapshot: 2026-04-19, branch `claude/jolly-wu` (post-v14)._
-_Target deployment: Railway (backend container) + Supabase (Postgres/Auth/Storage) + Firebase App Distribution (APK)._
+วันที่จัดทำ: 2026-04-24
+สถานะ schema: Supabase `cleangoal` post-v19
+สถานะระบบ: Flutter Mobile + React Admin Web + FastAPI Backend + Supabase + LLM Provider
 
----
+เอกสารนี้อธิบายสถาปัตยกรรมระบบ Calories Guard แบบ end-to-end สำหรับใช้ประกอบรายงาน, ER Diagram, Data Dictionary และ deployment handoff
 
-## 1. High-level Component Diagram
+## 1. Architecture Overview
+
+Calories Guard เป็นระบบติดตามแคลอรี่และสุขภาพ แบ่งเป็น 5 ชั้นหลัก
+
+| Layer | Technology | หน้าที่หลัก |
+|---|---|---|
+| Client Mobile | Flutter (`flutter_application_1/`) | ผู้ใช้ login, บันทึกอาหาร/น้ำ/น้ำหนัก, ดู progress, recipe และ AI coach |
+| Admin Web | React + Vite + Tailwind (`admin-web/`) | Admin ตรวจอาหารใหม่ จัดการ foods, users และ requests |
+| Backend API | FastAPI + Gunicorn/Uvicorn (`backend/`) | Business logic, auth guard, DB orchestration และ AI orchestration |
+| Data Platform | Supabase Auth/Postgres/Storage | Authentication, PostgreSQL schema `cleangoal`, bucket `food-images` |
+| AI/Observability/Ops | Gemini/DeepSeek/local, Sentry, GitHub Actions, Railway | AI analysis, monitoring และ deploy automation |
+
+ระบบออกแบบให้ backend เป็นศูนย์กลางของ business orchestration ส่วน Supabase ทำหน้าที่ identity, data และ storage โดย client ไม่เขียนข้อมูล user-owned tables โดยตรงผ่าน PostgREST
+
+## 2. High-Level Component Diagram
 
 ```mermaid
 flowchart TB
-    %% ===================== CLIENTS =====================
-    subgraph Clients["Clients"]
-      direction TB
-      MobileApp["Flutter mobile app<br/><i>com.caloriesguard.app</i><br/>Android / iOS"]
-      AdminWeb["Admin web (Vite + React)<br/><i>admin-web/</i>"]
+    subgraph ClientLayer[Client Layer]
+      Mobile[Flutter Mobile App<br/>Android/iOS<br/>com.caloriesguard.app]
+      AdminWeb[Admin Web<br/>Vite + React + Tailwind]
     end
 
-    %% ===================== EDGE / HOSTING =============
-    subgraph Edge["Edge / Hosting"]
-      direction TB
-      Railway["Railway service<br/>(Docker container, /health probe)"]
+    subgraph EdgeLayer[Hosting / Edge]
+      CF[Cloudflare Pages<br/>Admin Web Hosting]
+      Railway[Railway<br/>Backend Docker Service]
     end
 
-    %% ===================== BACKEND =====================
-    subgraph Backend["FastAPI backend (backend/app)"]
-      direction TB
-      Main["main.py<br/>create_app() factory"]
-      CORS["CORS middleware<br/>(ALLOWED_ORIGINS env)"]
-      AuthDep["app/core/security.py<br/>Supabase JWT verify"]
-      subgraph Routers["app/routers/*"]
-        direction TB
-        R_auth["auth.py"]
-        R_users["users.py"]
-        R_foods["foods.py"]
-        R_meals["meals.py"]
-        R_admin["admin.py"]
-        R_water["water.py"]
-        R_weight["weight.py"]
-        R_health["health.py"]
-        R_insights["insights.py"]
-        R_chat["chat.py"]
-        R_notif["notifications.py"]
-        R_social["social.py"]
-      end
-      subgraph Services["app/services/*"]
-        direction TB
-        S_nutrition["nutrition_service.py<br/>TDEE · macros"]
-        S_email["email_service.py<br/>SMTP"]
-      end
-      ChatAgent["chatbot_agent.py<br/>+ ai_models/ multi-agent"]
-      Storage["supabase_storage.py<br/>(signed URLs)"]
+    subgraph BackendLayer[FastAPI Backend]
+      Main[main.py<br/>FastAPI app + middleware]
+      AuthDep[auth/dependencies.py<br/>Supabase JWT verification]
+      Routers[app/routers/*<br/>auth/users/meals/foods/admin/chat/health/etc.]
+      Services[app/services/*<br/>nutrition/email/helpers]
+      AIOrch[chatbot_agent.py + ai_models/*<br/>LLM orchestration]
+      DBConn[database.py<br/>DATABASE_URL + search_path]
     end
 
-    %% ===================== SUPABASE ====================
-    subgraph Supabase["Supabase (zawlghlnzgftlxcoipuf)"]
-      direction TB
-      SBAuth["Auth<br/>(email + OAuth providers)"]
-      SBDB["Postgres 17 · schema<br/><b>cleangoal</b><br/>35 tables, 8 enums<br/>RLS on user-owned tables"]
-      SBStorage["Storage bucket<br/><b>food-images</b>"]
-      SBPooler["Connection pooler<br/>(pgbouncer 6543)"]
+    subgraph SupabaseLayer[Supabase Project zawlghlnzgftlxcoipuf]
+      SBAuth[Supabase Auth<br/>Email/OAuth/JWT]
+      SBDB[(Postgres<br/>schema cleangoal<br/>40 tables + RLS 40/40)]
+      SBStorage[Storage Bucket<br/>food-images]
+      Pooler[Session Pooler / Direct DB]
     end
 
-    %% ===================== EXTERNAL ====================
-    subgraph External["External services"]
-      direction TB
-      Gemini["Google Gemini API<br/>(food macros + AI coach)"]
-      Sentry["Sentry<br/>(errors + traces)"]
-      Uptime["UptimeRobot<br/>GET /health"]
-      SMTP["SMTP provider<br/>(verification emails)"]
-      FAD["Firebase App Distribution<br/>(APK delivery)"]
+    subgraph ExternalLayer[External Services]
+      LLM[LLM Provider<br/>Gemini / DeepSeek / Local]
+      SMTP[SMTP Provider<br/>Optional email fallback]
     end
 
-    %% ===================== CI/CD =======================
-    subgraph CICD["CI / CD"]
-      direction TB
-      GH["GitHub Actions<br/>.github/workflows/ci.yml<br/>(ruff · pytest · flutter analyze/test)"]
-      RailwayDeploy["Railway auto-deploy<br/>(on merge to main)"]
+    subgraph CICD[CI/CD]
+      GitHub[GitHub Repository]
+      Actions[GitHub Actions<br/>ci/deploy/synthetic]
     end
 
-    %% ===================== FLOWS =======================
-    MobileApp -- "HTTPS + Bearer JWT" --> Railway
-    AdminWeb  -- "HTTPS + Bearer JWT" --> Railway
-    Railway --> Main --> CORS --> AuthDep --> Routers
+    Mobile -->|Supabase SDK auth| SBAuth
+    AdminWeb -->|Supabase SDK auth| SBAuth
+    Mobile -->|HTTPS REST + JWT| Railway
+    AdminWeb -->|HTTPS REST + JWT| Railway
+    CF --> AdminWeb
+    Railway --> Main --> AuthDep --> Routers
     Routers --> Services
-    R_chat --> ChatAgent
-    R_foods --> ChatAgent
-    ChatAgent -- "Gemini 1.5/2.x" --> Gemini
-    Routers -- "psycopg2 + pooler" --> SBPooler --> SBDB
-    R_foods --> Storage
-    Storage --> SBStorage
-    MobileApp -- "auth (email/OTP, Google OAuth)" --> SBAuth
-    AdminWeb  -- "auth" --> SBAuth
-    SBAuth -- "signed JWT (HS256)" --> AuthDep
-    S_email --> SMTP
-    Main -- "sentry_sdk[fastapi]" --> Sentry
-    MobileApp -- "sentry_flutter" --> Sentry
-    Uptime -- "every 5m" --> Railway
-    GH --> RailwayDeploy --> Railway
-    FAD --> MobileApp
+    Routers --> AIOrch --> LLM
+    Routers --> DBConn --> Pooler --> SBDB
+    Routers --> SBStorage
+    Services --> SMTP
+    GitHub --> Actions --> Railway
 ```
 
-_Rationale for the layout: clients at the top, edge/ingress next, backend responsibilities expanded in the centre, persistence + side-effects on the right, dev pipeline at the bottom. This matches the layering that the codebase actually enforces (routers → services → DB / external API)._
+## 3. Client Architecture
 
----
+### 3.1 Flutter Mobile App
 
-## 2. Request lifecycle — a typical meal log
+ตำแหน่ง code: `flutter_application_1/`
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant U as User (Flutter)
-    participant API as FastAPI /meals
-    participant AUTH as Supabase Auth
-    participant DB as Supabase Postgres
-    participant G as Gemini
-    participant TRG as DB trigger<br/>trg_sync_water_to_daily
+flowchart TB
+    Screens[lib/screens/*]
+    Login[login_register/screens/*]
+    Providers[lib/providers/*]
+    Services[lib/services/*]
+    Widgets[lib/widget/*]
+    SupabaseSDK[supabase_flutter]
+    API[FastAPI Backend]
+    Platform[Android/iOS Platform APIs]
 
-    U->>AUTH: POST /auth/v1/token (email+password)
-    AUTH-->>U: access_token (JWT, exp≈1h)
-    U->>API: POST /meals {meal_type, items[]}<br/>Authorization: Bearer <jwt>
-    API->>API: verify JWT (HS256 · SUPABASE_JWT_SECRET)
-    API->>DB: INSERT meals (user_id, meal_time, meal_type)
-    API->>DB: INSERT detail_items (meal_id, food_id|food_name, macros)
-    DB-->>API: summary totals (trigger recomputes daily_summaries)
-    API-->>U: 201 {meal_id, totals}
-
-    Note over U,API: Later, user adds water
-    U->>API: POST /water/log {glasses}
-    API->>DB: INSERT water_logs
-    DB->>TRG: AFTER INSERT
-    TRG->>DB: UPSERT daily_summaries.water_glasses
-
-    Note over U,G: Unknown food flow
-    U->>API: POST /foods/auto-add {name}
-    API->>G: chat.completions(prompt: estimate macros)
-    G-->>API: {calories, protein, carbs, fat}
-    API->>DB: INSERT temp_food (awaiting admin)
-    API-->>U: 202 {tf_id, status: pending}
+    Login --> SupabaseSDK
+    Screens --> Providers
+    Screens --> Services
+    Widgets --> Screens
+    Services --> API
+    Services --> SupabaseSDK
+    Services --> Platform
 ```
 
----
+| Module | หน้าที่ |
+|---|---|
+| `main.dart` | bootstrap app และ initialize providers/services |
+| `login_register/screens/*` | onboarding, register, login และ health profile setup |
+| `screens/record/*` | บันทึกอาหารและ meal detail |
+| `screens/recommend_food/*` | recommended food และ recipe detail |
+| `screens/profile/*` | profile, progress และ settings |
+| `services/api_client.dart` | เรียก backend REST API และจัดการ headers/token |
+| `services/auth_service.dart` | เชื่อม Supabase Auth |
+| `services/error_reporter.dart` | centralized error reporting |
+| `services/health_service.dart` | Health Connect/Samsung Health integration |
 
-## 3. Infrastructure view (deployment)
+### 3.2 Admin Web
+
+ตำแหน่ง code: `admin-web/`
+
+| Module | หน้าที่ |
+|---|---|
+| `src/api/client.ts` | HTTP client ไป backend |
+| `src/context/AuthContext.tsx` | เก็บ session และ admin auth state |
+| `src/pages/Dashboard.tsx` | dashboard admin |
+| `src/pages/Foods.tsx` | จัดการรายการอาหาร |
+| `src/pages/FoodRequests.tsx` | ตรวจคำขออาหารและ temp food |
+| `src/pages/Users.tsx` | ดูรายชื่อผู้ใช้ |
+| `src/pages/Login.tsx` | login admin ผ่าน Supabase |
+
+Admin web ไม่ควรเขียน DB โดยตรง แต่เรียก backend admin endpoints เพื่อให้ enforce admin guard และ business rules ที่เดียวกัน
+
+## 4. Backend Architecture
+
+ตำแหน่ง code: `backend/`
+
+```mermaid
+flowchart TB
+    Main[main.py]
+    Middleware[CORS / API Version / Rate Limit / Exception Handling]
+    Auth[auth/dependencies.py]
+    Core[app/core/*]
+    Routers[app/routers/*]
+    Models[app/models/schemas.py]
+    Services[app/services/*]
+    AI[ai_models/* + chatbot_agent.py]
+    DB[database.py]
+
+    Main --> Middleware
+    Middleware --> Auth
+    Auth --> Routers
+    Routers --> Models
+    Routers --> Services
+    Routers --> AI
+    Routers --> DB
+    Services --> DB
+```
+
+### Router Responsibilities
+
+| Router | Endpoint scope | หน้าที่ |
+|---|---|---|
+| `auth.py` | auth helper endpoints | register/login helper, email availability และ Supabase integration support |
+| `users.py` | user profile | profile, PDPA export/delete และ user preferences |
+| `meals.py` | meal logging | create meal, daily/weekly summary, meal detail และ clear meal |
+| `foods.py` | food catalogue/recipe | list/create/update foods, auto-add temp food และ recipe lazy-fill |
+| `admin.py` | admin operations | list users, approve/reject temp food, food request review |
+| `chat.py` | AI endpoints | coach chat, multi-agent chat และ meal estimate |
+| `health.py` | units/health helpers | units, unit conversions และ health related endpoints |
+| `water.py` | water tracking | water log CRUD/sync |
+| `weight.py` | weight tracking | weight log CRUD/progress |
+| `insights.py` | analytics | insight/progress summaries |
+| `notifications.py` | notifications | list/read notifications |
+| `social.py` | recipe social | recipe reviews/favorites compatibility endpoints |
+
+### Core Backend Rules
+
+| Concern | Implementation |
+|---|---|
+| Auth | Supabase JWT verify in `auth/dependencies.py` |
+| Admin guard | `get_current_admin`, requires `role_id == 1` in JWT app_metadata |
+| Ownership | `check_ownership` for user-owned endpoints |
+| Rate limit | `slowapi`, especially chat and meal estimate |
+| API version | `X-Api-Version`, current `2026.04` |
+| DB schema | `SET search_path TO cleangoal, public` |
+| AI kill switch | `AI_ENABLED=false` disables AI endpoints |
+| Observability | Sentry init + transaction tagging |
+
+## 5. Data Architecture
+
+Database: Supabase PostgreSQL
+Schema: `cleangoal`
+Baseline: post v19
+Tables: 40 base tables + 1 view
+RLS: enabled 40/40 tables
+
+### 5.1 Domain Grouping
+
+| Domain | Tables |
+|---|---|
+| Identity/Auth | `roles`, `users`, `email_verification_codes`, `password_reset_codes` |
+| Food taxonomy | `dish_categories`, `dishes`, `foods`, `units`, `unit_conversions` |
+| Allergy/ingredients | `allergy_flags`, `food_allergy_flags`, `user_allergy_preferences`, `ingredients`, `food_ingredients` |
+| Meal tracking | `meals`, `detail_items`, `daily_summaries`, `water_logs`, `exercise_logs`, `weight_logs`, `user_meal_plans` |
+| Recipe/social | `recipes`, `recipe_ingredients`, `recipe_steps`, `recipe_tools`, `recipe_tips`, `recipe_reviews`, `recipe_favorites`, `user_favorites` |
+| Moderation | `temp_food`, `verified_food`, `food_requests`, `v_admin_temp_food_review` |
+| Content/notification | `health_contents`, `notifications` |
+| Ops/audit | `schema_migrations`, `recipe_reviews_orphan_archive`, `recipe_relation_orphan_archive`, `unit_conversion_orphan_archive` |
+
+### 5.2 Current ERD Core
+
+```mermaid
+erDiagram
+    roles ||--o{ users : has
+    users ||--o{ meals : owns
+    users ||--o{ daily_summaries : has
+    users ||--o{ water_logs : logs
+    users ||--o{ weight_logs : logs
+    users ||--o{ exercise_logs : logs
+    users ||--o{ notifications : receives
+    users ||--o{ temp_food : submits
+    users ||--o{ verified_food : verifies
+    users ||--o{ recipe_reviews : writes
+
+    dish_categories ||--o{ dishes : groups
+    dishes ||--o{ foods : classifies
+    units ||--o{ foods : serving_unit
+    units ||--o{ detail_items : item_unit
+    units ||--o{ unit_conversions : converts
+
+    foods ||--o{ recipes : has
+    foods ||--o{ detail_items : logged_as
+    foods ||--o{ user_favorites : favorited
+    foods ||--o{ food_allergy_flags : flagged
+    allergy_flags ||--o{ food_allergy_flags : labels
+    allergy_flags ||--o{ user_allergy_preferences : avoided_by
+
+    meals ||--o{ detail_items : contains
+    daily_summaries ||--o{ detail_items : summarizes
+    user_meal_plans ||--o{ detail_items : plans
+
+    recipes ||--o{ recipe_ingredients : includes
+    recipes ||--o{ recipe_steps : has
+    recipes ||--o{ recipe_tools : uses
+    recipes ||--o{ recipe_tips : has
+    recipes ||--o{ recipe_reviews : receives
+    recipes ||--o{ recipe_favorites : favorited
+
+    temp_food ||--o| verified_food : reviewed_as
+```
+
+### 5.3 Normalization Status
+
+| Item | Status |
+|---|---|
+| Food category | normalized เป็น `dish_categories` + `dishes` |
+| Serving unit | normalized เป็น `foods.serving_unit_id -> units.unit_id` |
+| Meal item unit | normalized เป็น `detail_items.unit_id -> units.unit_id` |
+| Recipe review | normalized เป็น `recipe_reviews.recipe_id` |
+| Recipe child tables | FK ครบไป `recipes` |
+| Unit conversions | FK ครบไป `units` |
+| Orphan legacy rows | archive แล้ว ไม่ลบเงียบ |
+
+Controlled denormalization ที่ตั้งใจเก็บไว้
+
+| Field/Table | เหตุผล |
+|---|---|
+| `daily_summaries` | aggregate cache สำหรับ progress/home screen |
+| `recipes.ingredients_json/tools_json/tips_json` | cache output จาก LLM |
+| `recipes.avg_rating/review_count/favorite_count` | social aggregate เพื่ออ่านเร็ว |
+| `foods.food_category/serving_unit` | legacy compatibility ระหว่าง transition ไป normalized FK |
+
+## 6. AI Architecture
+
+```mermaid
+flowchart TB
+    ChatRouter[app/routers/chat.py]
+    Coach[CoachingAgent]
+    Multi[NutritionMultiAgent]
+    DataAgent[DataOrchestratorAgent]
+    Analysis[NutritionAnalysisAgent]
+    Composer[ResponseComposerAgent]
+    Provider[llm_provider.py]
+    Gemini[Gemini]
+    DeepSeek[DeepSeek]
+    Local[Local HF Model]
+    DB[(Supabase Postgres)]
+
+    ChatRouter --> Coach
+    ChatRouter --> Multi
+    Multi --> DataAgent --> DB
+    Multi --> Analysis --> DB
+    Multi --> Composer --> Provider
+    Coach --> Provider
+    Provider --> Gemini
+    Provider --> DeepSeek
+    Provider --> Local
+```
+
+| Endpoint | Purpose | Protection |
+|---|---|---|
+| `POST /api/chat/coach` | คุยกับ AI coach | `AI_ENABLED`, sanitize, 30s timeout, 10/hour |
+| `POST /api/chat/multi` | 3-agent nutrition pipeline | scope guard, 30s timeout, 10/hour |
+| `POST /api/meals/estimate` | ประเมินอาหารจากข้อความไทย | sanitize, extraction, 30s timeout, 30/hour |
+| `GET /recipes/{food_id}` | lazy generate recipe ถ้ายังไม่มี cache | provider configured check, DB cache |
+
+## 7. Storage Architecture
+
+| Storage | Purpose | Access pattern |
+|---|---|---|
+| Supabase bucket `food-images` | รูปอาหารและรูปประกอบเมนู | backend ใช้ service role สำหรับ upload/signed URL |
+| `backend/static/images` | local/static image fallback | FastAPI StaticFiles mount |
+| External image URL | image_url ใน `foods`, `dishes`, `recipes` | client render ผ่าน URL |
+
+## 8. Security Architecture
+
+| Layer | Control |
+|---|---|
+| Transport | HTTPS ผ่าน Railway/Cloudflare/Supabase |
+| Identity | Supabase Auth JWT |
+| API auth | `HTTPBearer`, `SUPABASE_JWT_SECRET`, HS256 verify |
+| Authorization | `get_current_user`, `get_current_admin`, `check_ownership` |
+| DB security | RLS enabled 40/40, FK/unique/check constraints |
+| Rate limiting | slowapi บน chat/AI endpoints |
+| AI kill switch | `AI_ENABLED=false` |
+| Secrets | env vars บน Railway/Cloudflare, `.env` ไม่ควร commit |
+| File upload | mime whitelist และ size limit |
+| Observability | Sentry ไม่ส่ง PII โดยตั้ง `send_default_pii=False` |
+
+ข้อควรทำก่อน production: rotate Supabase DB password เพราะ password เคยถูกส่งใน chat
+
+## 9. Deployment Architecture
 
 ```mermaid
 flowchart LR
-    subgraph Dev["Dev workstation"]
-      VSCode["VS Code + Flutter SDK"]
-      Git["git push"]
-    end
+    Dev[Developer Workstation]
+    Repo[GitHub Repository]
+    CI[GitHub Actions]
+    Railway[Railway Backend Service]
+    CF[Cloudflare Pages Admin Web]
+    Supabase[Supabase Project]
+    MobileBuild[Flutter Build APK/IPA]
+    Testers[Closed Beta Testers]
 
-    Git -->|PR / merge main| GH[GitHub repo]
-    GH -->|webhook| Actions["GitHub Actions<br/>ruff · pytest · flutter test"]
-    Actions -->|pass| GHMain[(main branch)]
-    GHMain -->|deploy hook| RW[Railway]
-
-    subgraph RW["Railway — backend"]
-      direction TB
-      Dockerfile["backend/Dockerfile<br/>python:3.11-slim"]
-      Gunicorn["gunicorn + uvicorn workers"]
-      ENV["Env: DB_MODE=supabase<br/>SUPABASE_* · GEMINI_API_KEY<br/>ALLOWED_ORIGINS · SENTRY_DSN"]
-    end
-
-    subgraph SB["Supabase project zawlghlnzgftlxcoipuf"]
-      direction TB
-      SBPG["Postgres 17<br/>schema: cleangoal<br/>+ pgbouncer 6543"]
-      SBA["Auth (GoTrue)"]
-      SBS["Storage · bucket food-images"]
-    end
-
-    RW -- 443 HTTPS --> SBPG
-    RW -- REST --> SBA
-    RW -- REST --> SBS
-
-    RW --> Gemini[(Google Gemini API)]
-    RW --> Sentry[(Sentry)]
-    RW --> SMTP[(SMTP relay)]
-
-    subgraph MobileDist["Mobile distribution"]
-      direction TB
-      APK["flutter build apk<br/>--dart-define=API_BASE_URL"]
-      FAD["Firebase App Distribution"]
-    end
-    GHMain -->|manual build| APK --> FAD --> Testers((Beta testers))
-
-    subgraph AdminDist["Admin web"]
-      direction TB
-      Vercel["Vercel / Netlify<br/>admin-web/dist"]
-    end
-    GHMain --> Vercel
-
-    Testers -->|HTTPS| RW
-    Admin((Admin user)) --> Vercel --> RW
+    Dev -->|git push| Repo
+    Repo --> CI
+    CI -->|backend tests / checks| Railway
+    Repo -->|admin-web deploy| CF
+    Railway --> Supabase
+    Dev -->|flutter build| MobileBuild --> Testers
+    Testers -->|HTTPS API| Railway
 ```
 
----
+| Item | Value |
+|---|---|
+| Container | `backend/Dockerfile`, Python 3.11 slim |
+| Server | Gunicorn + Uvicorn workers |
+| Healthcheck | `/health` |
+| DB connection | `DATABASE_URL` to Supabase Postgres/pooler |
+| Required env | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `LLM_PROVIDER`, provider key |
+| Optional env | `SENTRY_DSN`, SMTP settings, `AI_ENABLED` |
 
-## 4. Flutter app — layered structure
+## 10. Observability Architecture
 
-```mermaid
-flowchart TB
-    subgraph UI["UI layer (lib/screens/*)"]
-      direction TB
-      LoginS["auth/login_screen"]
-      RecordS["record/record_food_screen"]
-      ProgressS["profile/.../progress_screen"]
-      AdminS["admin/*"]
-    end
+| Component | Tool | What is tracked |
+|---|---|---|
+| Backend API | Sentry SDK | exceptions, traces, tagged transactions |
+| Flutter app | Sentry Flutter | client-side errors |
+| Synthetic check | GitHub Actions cron | login/meal/summary smoke flow |
+| Railway | healthcheck/restart policy | container health |
+| Tests | pytest / Flutter build/analyze | regression before merge |
 
-    subgraph State["State/helpers"]
-      AuthCtx["providers/auth_provider"]
-      NotifHelp["services/notification_helper"]
-      LifeCycle["services/lifecycle_service"]
-    end
+## 11. Main Runtime Flows
 
-    subgraph Net["Network / data"]
-      APIClient["services/api_client.dart<br/>dio + interceptors<br/>(Authorization · timeout · 401→logout)"]
-      AuthSvc["services/auth_service.dart<br/>Supabase Flutter SDK"]
-      HealthSvc["services/health_service.dart"]
-    end
-
-    subgraph Platform["Platform"]
-      SecureStore["flutter_secure_storage<br/>(refresh token)"]
-      Firebase["firebase_core<br/>(App Distribution only)"]
-      SentryFl["sentry_flutter"]
-    end
-
-    UI --> State --> Net
-    Net --> APIClient --> Backend[(FastAPI /api)]
-    Net --> AuthSvc --> Supabase[(Supabase Auth)]
-    AuthSvc --> SecureStore
-    UI --> Platform
-    Platform --> SentryFl
-```
-
----
-
-## 5. Environments / config matrix
-
-| Concern | Local dev | Staging (Railway) | Production (Railway) |
+| Flow | Client | Backend | DB/External |
 |---|---|---|---|
-| `DB_MODE` | `local` (psycopg → localhost) | `supabase` | `supabase` |
-| `SUPABASE_URL` | dev branch URL | staging Supabase project | prod Supabase project |
-| `ALLOWED_ORIGINS` | `http://localhost:5173` | staging admin domain | prod admin domain |
-| `GEMINI_API_KEY` | dev key (rate-limited) | staging key | prod key |
-| `SENTRY_DSN` | empty (sentry disabled) | staging DSN | prod DSN |
-| `APP_ENV` | `dev` | `staging` | `production` |
-| `--dart-define=API_BASE_URL` | `http://10.0.2.2:8000` (emulator) | staging Railway URL | prod Railway URL |
+| Login/Register | Flutter/Admin | auth helper if needed | Supabase Auth + `users` |
+| Record meal | Flutter | `meals.py` | `meals`, `detail_items`, `daily_summaries`, `notifications` |
+| AI estimate | Flutter | `chat.py` | `foods`, `temp_food`, LLM provider |
+| Recipe detail | Flutter | `foods.py` | `recipes`, `foods`, LLM provider |
+| Recipe review | Flutter | `social.py` | `recipe_reviews`, `recipes`, `users` |
+| Admin approve food | Admin Web | `admin.py` | `temp_food`, `verified_food`, `foods` |
+| Progress | Flutter | `meals.py`, `water.py`, `weight.py` | `daily_summaries`, `water_logs`, `weight_logs` |
+| Notification | Flutter | `notifications.py` | `notifications` |
 
----
+## 12. Environment Matrix
 
-## 6. Security posture (current)
-
-- **Transport**: Railway fronts TLS 1.2+; backend sees `X-Forwarded-Proto: https`.
-- **AuthN**: Supabase issues JWT (HS256 · `SUPABASE_JWT_SECRET`). Backend verifies signature + `exp`, maps `sub` → `cleangoal.users.user_id`.
-- **AuthZ**: Route-level dependency `get_current_user()` / `get_current_admin()` (role_id == 1). RLS on user-owned tables acts as a second line — anon/authenticated keys cannot read those tables directly.
-- **Rate limiting**: `slowapi` — `/login` 5/15min/IP, `/chat/*` 10/hour/user, `/upload-image` 10/min/user.
-- **Upload validation**: 5 MB cap, mime whitelist (`image/jpeg|png|webp`).
-- **Secrets**: Never in repo — Railway env vars + `flutter_secure_storage` on device. `.env.example` only documents keys.
-- **Monitoring**: Sentry captures exceptions in both backend and Flutter client; UptimeRobot pings `/health`.
-
----
-
-## 7. Data flow summary
-
-| Source | Sink | Transport | Notes |
+| Concern | Local | Staging | Production |
 |---|---|---|---|
-| Flutter app | FastAPI | HTTPS REST + Bearer JWT | Central `api_client.dart` handles 401→logout |
-| FastAPI | Supabase Postgres | psycopg2 over pgbouncer (6543) | Pooled, SSL required |
-| FastAPI | Gemini | HTTPS REST | 30s timeout + 1 retry |
-| FastAPI | Supabase Storage | REST (service role) | Signed URLs returned to client |
-| Flutter | Supabase Auth | HTTPS (GoTrue) | Email/OTP, Google OAuth |
-| Backend / Flutter | Sentry | HTTPS | Errors + 10% traces |
-| UptimeRobot | Railway | HTTPS `GET /health` | 5-minute interval |
+| Backend host | localhost/Railway dev | Railway staging | Railway production |
+| Database | Supabase project or local dev DB | Supabase staging | Supabase production |
+| Admin web | Vite localhost | Cloudflare Pages staging | Cloudflare Pages production |
+| Mobile API base | dart-define local/staging | staging URL | production URL |
+| AI provider | Gemini/DeepSeek/local | Gemini/DeepSeek staging key | Gemini production key |
+| Sentry | optional/off | staging project | production project |
+| Deploy | manual | auto on main/branch policy | manual workflow dispatch |
 
----
+## 13. Current Architecture Decisions
 
-## 8. Related docs
+| Decision | Reason |
+|---|---|
+| Backend-only DB writes | คุม business logic และ authorization ที่ FastAPI |
+| Supabase Auth as identity provider | ลดภาระ password/session management |
+| JSONB recipe cache | LLM output กึ่งโครงสร้าง และไม่ต้อง normalize ทุก field ในช่วง beta |
+| `dish_categories -> dishes -> foods` | ลดการซ้ำของ category text และช่วย ERD/data dictionary ชัดขึ้น |
+| Archive orphan rows | รักษาข้อมูล migration audit ไม่ลบเงียบ |
+| No background queue yet | scope beta ยังรับ sync AI call ได้ แต่มี timeout/kill-switch |
+| No Redis cache yet | ใช้ DB/cache field เท่าที่จำเป็นก่อน production hardening |
 
-- `docs/ER_DIAGRAM.md` — full 35-table schema
-- `docs/DATA_DICTIONARY.md` — table-by-table column descriptions
-- `docs/DB_V14_NORMALIZE_PROPOSAL.md` — v14 rationale + rollback
-- `docs/DEPLOYMENT.md` — step-by-step Railway + Supabase setup
-- `docs/DEVELOPMENT.md` — local dev onboarding
+## 14. Related Documentation
+
+| Doc | Purpose |
+|---|---|
+| `docs/DATA_DICTIONARY.md` | Data Dictionary ภาษาไทย field-by-field |
+| `docs/ORCHESTRATION.md` | ลำดับ orchestration ของ request/AI/deploy |
+| `docs/SUPABASE_3NF_AUDIT_2026_04_24.md` | ผล audit normalization post-v19 |
+| `docs/SUPABASE_DATA_DICTIONARY_LIVE_2026_04_24.md` | snapshot column/type/key จาก live DB |
+| `docs/STATUS.md` | สถานะงาน done/todo ล่าสุด |
+| `docs/PRODUCTION_READINESS.md` | checklist production readiness |
+| `docs/PRE_DEPLOY_TESTS.md` | test plan ก่อน deploy |
+
