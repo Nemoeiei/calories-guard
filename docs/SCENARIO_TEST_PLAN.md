@@ -32,7 +32,7 @@ Follow-up issue:
 | SCN-004 | User submits regional name to admin approval | P0 | Crowdsource flow |
 | SCN-005 | Admin reviews both queues | P0 | Admin operations |
 | SCN-006 | Meal edit/delete recalculates summary | P0 | Data correctness |
-| SCN-007 | DeepSeek outage / AI disabled | P0 | Graceful failure |
+| SCN-007 | Ollama outage / AI disabled | P0 | Graceful failure |
 | SCN-008 | PDPA export and soft delete | P0 | Privacy/legal |
 | SCN-009 | Cross-platform web/PWA smoke | P1 | Compatibility |
 | SCN-010 | Security and cross-user access | P1 | Data leakage |
@@ -114,8 +114,8 @@ WHERE frn.name_th = 'ข้าวปุ้น';
 | Field | Value |
 |---|---|
 | Priority | P0 |
-| Actors | User, DeepSeek, Admin |
-| Preconditions | `AI_ENABLED=true`, `LLM_PROVIDER=deepseek`, admin account exists |
+| Actors | User, Ollama DeepSeek model, Admin |
+| Preconditions | `AI_ENABLED=true`, `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, admin account exists |
 | Test Data | Unknown food-like name, e.g. `โรตีชีสภูเขาไฟ` |
 
 Steps:
@@ -129,7 +129,7 @@ Steps:
 8. Return to user app and search the approved food.
 
 Expected:
-- DeepSeek extracts unknown food name.
+- Ollama DeepSeek model extracts unknown food name.
 - Backend returns estimated calories/macros.
 - One pending row appears in `temp_food`.
 - Admin can approve.
@@ -221,7 +221,7 @@ Expected:
 - No stale macro totals.
 - No duplicate rows after network retry.
 
-## SCN-007 — DeepSeek Outage / AI Disabled
+## SCN-007 — Ollama Outage / AI Disabled
 
 | Field | Value |
 |---|---|
@@ -232,7 +232,7 @@ Steps:
 1. On staging, set `AI_ENABLED=false`.
 2. Call chat and meal estimate.
 3. Restore `AI_ENABLED=true`.
-4. Temporarily use invalid `DEEPSEEK_API_KEY` on staging.
+4. Temporarily point `OLLAMA_BASE_URL` to an unavailable local/staging URL.
 5. Call AI endpoints again.
 
 Expected:

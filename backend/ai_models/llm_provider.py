@@ -5,9 +5,11 @@ The rest of the codebase should never import `google.generativeai` or the
 OpenAI/DeepSeek SDK directly — it should go through `generate()` in this
 module, which routes to the right backend based on LLM_PROVIDER.
 
-Supported providers (selected via env `LLM_PROVIDER`, default: `deepseek`):
+Supported providers (selected via env `LLM_PROVIDER`, default: `ollama`):
 
-  deepseek   — DeepSeek hosted API (OpenAI-compatible; base_url=api.deepseek.com)
+  ollama     — local/self-hosted Ollama HTTP API. Use this for DeepSeek models
+               pulled into Ollama, e.g. `ollama pull deepseek-r1:1.5b`.
+  deepseek   — DeepSeek hosted API (legacy option; requires API key)
   gemini     — Google Gemini via google-generativeai (legacy option)
   local      — self-hosted DeepSeek-R1-Distill via transformers+torch
                (heavy; only meant for dev boxes / when you've fine-tuned an
@@ -15,9 +17,13 @@ Supported providers (selected via env `LLM_PROVIDER`, default: `deepseek`):
 
 Env vars:
 
-  LLM_PROVIDER          = deepseek | local | gemini     (default: deepseek)
-  DEEPSEEK_API_KEY      = <key>                         (for deepseek)
-  DEEPSEEK_MODEL        = deepseek-chat                 (optional override)
+  LLM_PROVIDER          = ollama | local | deepseek | gemini
+                                                        (default: ollama)
+  OLLAMA_BASE_URL       = http://127.0.0.1:11434        (for ollama)
+  OLLAMA_MODEL          = deepseek-r1:1.5b              (for ollama)
+  OLLAMA_TIMEOUT        = 60                            (seconds)
+  DEEPSEEK_API_KEY      = <key>                         (legacy deepseek)
+  DEEPSEEK_MODEL        = deepseek-chat                 (legacy deepseek)
   GEMINI_API_KEY        = <key>                         (legacy gemini option)
   GEMINI_MODEL          = gemini-2.5-flash              (optional override)
   LOCAL_MODEL_PATH      = deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
@@ -43,12 +49,14 @@ from __future__ import annotations
 import os
 from typing import Optional
 
+import requests
+
 # Module-level cache for the local model so we don't reload weights per call.
 _local_cache: dict = {}
 
 
 def _get_provider() -> str:
-    return (os.getenv("LLM_PROVIDER") or "deepseek").strip().lower()
+    return (os.getenv("LLM_PROVIDER") or "ollama").strip().lower()
 
 
 def _gemini_generate(system: str, user: str, model_name: Optional[str] = None) -> str:
@@ -97,6 +105,37 @@ def _deepseek_generate(system: str, user: str, model_name: Optional[str] = None)
         max_tokens=1024,
     )
     return resp.choices[0].message.content or ""
+
+
+def _ollama_generate(system: str, user: str, model_name: Optional[str] = None) -> str:
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    model = model_name or os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b")
+    timeout = float(os.getenv("OLLAMA_TIMEOUT", "60") or 60)
+    if not model:
+        raise RuntimeError("OLLAMA_MODEL is not set")
+
+    response = requests.post(
+        f"{base_url}/api/chat",
+        json={
+            "model": model,
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "options": {
+                "temperature": 0.7,
+            },
+        },
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    message = payload.get("message") or {}
+    content = message.get("content")
+    if not content:
+        raise RuntimeError("Ollama returned an empty response")
+    return str(content)
 
 
 def _local_generate(system: str, user: str, model_name: Optional[str] = None) -> str:
@@ -182,6 +221,8 @@ def generate(system: str, user: str, model_name: Optional[str] = None) -> str:
     surface a user-friendly error.
     """
     provider = _get_provider()
+    if provider == "ollama":
+        return _ollama_generate(system, user, model_name)
     if provider == "gemini":
         return _gemini_generate(system, user, model_name)
     if provider == "deepseek":
@@ -194,6 +235,8 @@ def generate(system: str, user: str, model_name: Optional[str] = None) -> str:
 def is_configured() -> bool:
     """Return True if the currently-selected provider has a usable API key."""
     provider = _get_provider()
+    if provider == "ollama":
+        return bool(os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b"))
     if provider == "gemini":
         return bool(os.getenv("GEMINI_API_KEY"))
     if provider == "deepseek":

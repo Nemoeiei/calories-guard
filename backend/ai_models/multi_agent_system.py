@@ -31,7 +31,8 @@ from ai_models.food_extraction import extract_foods as _tok_extract_foods
 from ai_models.llm_provider import generate as llm_generate, is_configured as llm_is_configured
 
 # Backend is selected by LLM_PROVIDER. All generation goes through
-# ai_models.llm_provider so the app can run on DeepSeek hosted or local model.
+# ai_models.llm_provider so the app can run on Ollama, legacy hosted providers,
+# or a direct local transformers model.
 load_dotenv()
 
 
@@ -586,10 +587,10 @@ class NutritionAnalysisAgent:
 # ═══════════════════════════════════════════════════════════════════════════════
 # AGENT 3 │ ResponseComposerAgent
 # Responsibility: สร้างคำตอบภาษาไทยที่อ่านง่ายจากผลลัพธ์ของ agents 1+2
-#   - Primary: configured LLM provider (DeepSeek hosted by default)
-#   - Fallback: rule-based template (ถ้าไม่มี API key หรือ error)
+#   - Primary: configured LLM provider (Ollama by default)
+#   - Fallback: rule-based template (ถ้า provider unavailable หรือ error)
 #
-# [PoC Note] Future: promote Local LLM once quality/latency pass gates.
+# [PoC Note] Keep legacy hosted providers as emergency fallback options.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ResponseComposerAgent:
@@ -655,7 +656,7 @@ class ResponseComposerAgent:
 
         system_prompt = "\n".join(system_parts)
 
-        # ── LLM call (DeepSeek / local / legacy Gemini, selected by LLM_PROVIDER)
+        # ── LLM call (Ollama / local / legacy hosted, selected by LLM_PROVIDER)
         if llm_is_configured():
             try:
                 return llm_generate(system_prompt, f"คำถาม/ข้อความ: {msg}")

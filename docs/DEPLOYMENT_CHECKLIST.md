@@ -71,7 +71,9 @@
 - [ ] `SUPABASE_JWT_SECRET=...` (จาก Supabase → Settings → API → JWT Secret)
 
 **AI**
-- [ ] `GEMINI_API_KEY=...`
+- [ ] `LLM_PROVIDER=ollama`
+- [ ] `OLLAMA_BASE_URL=...`
+- [ ] `OLLAMA_MODEL=...`
 
 **CORS**
 - [ ] `ALLOWED_ORIGINS=https://caloriesguard.com,https://staging.caloriesguard.com`
@@ -297,7 +299,7 @@ Day 5 (Polish):
 | Cloudflare | Free (DNS + Pages) | $0 |
 | Sentry | Developer (5K errors) | $0 |
 | UptimeRobot | Free (50 monitors) | $0 |
-| Gemini API | Pay-as-you-go (~$0.001/request) | ~$5-20 |
+| Ollama host | Self-hosted CPU/GPU/RAM cost | depends on server |
 | Firebase App Distribution | Free | $0 |
 | Domain | caloriesguard.com | ~$10/year |
 | **รวม** | | **~$10-40/เดือน** |

@@ -8,7 +8,7 @@
 
 ## 1. System Overview (สั้น)
 
-3 ชั้น — มือถือ (Flutter) + admin web (React) + backend (FastAPI บน Railway) + Supabase (Auth/Postgres/Storage) + LLM (Gemini/DeepSeek/local swap ผ่าน `LLM_PROVIDER` env)
+3 ชั้น — มือถือ (Flutter) + admin web (React) + backend (FastAPI บน Railway) + Supabase (Auth/Postgres/Storage) + LLM (Ollama/local/legacy hosted swap ผ่าน `LLM_PROVIDER` env)
 
 - Mobile: `flutter_application_1/` — Riverpod + supabase_flutter
 - Backend: `backend/main.py` + `backend/app/routers/*` (โมดูล) · Gunicorn + Uvicorn 2 workers · Docker บน Railway
@@ -37,7 +37,7 @@
 - [x] API versioning + `X-Api-Version` header + client mismatch detection (commit `dda11a95`)
 - [x] AI kill-switch `AI_ENABLED=false` (commit `79d80cb6`)
 - [x] PDPA data export + soft-delete endpoints (commit `468ba67c`)
-- [x] LLM provider abstraction — Gemini / DeepSeek / local swap (commit `ed09f7ca`)
+- [x] LLM provider abstraction — Ollama / local / legacy hosted swap (commit `ed09f7ca`)
 - [x] Recipe endpoint — LLM lazy-fill + JSONB cache (commit `f743a951`) **[ดู §4: schema duplication]**
 - [x] Rate limiting — slowapi 10/hr chat, 30/hr meal estimate
 - [x] `DATABASE_URL` + pool; psycopg2 + `search_path = cleangoal, public`
@@ -117,8 +117,8 @@
 
 ## 4. Known Issues / Tech Debt
 
-- **`LLM_PROVIDER=local`** — ใช้ transformers + LoRA adapter, ใหญ่ (~1.5B params) → Railway container อาจ OOM; ปัจจุบัน default = `gemini`
-- **ไม่มี background queue** (Celery/RQ) — AI calls sync + 30s timeout; ถ้า Gemini ช้า/down, user เห็น error ตรงๆ
+- **`LLM_PROVIDER=ollama`** — ใช้ Ollama server แยกจาก backend; ต้องให้ backend reach `OLLAMA_BASE_URL` ได้
+- **ไม่มี background queue** (Celery/RQ) — AI calls sync + timeout; ถ้า Ollama ช้า/down, user เห็น error ตรงๆ
 - **ไม่มี Redis cache** — `recipes` JSONB คือ cache เดียว; `/foods`, `/users/me`, `/meals/*` ไม่มี layer cache
 - **Recipe favorite naming** — endpoint `/recipes/{food_id}/favorite` ยังใช้ `user_favorites(food_id)` ตาม mobile API เดิม; `recipe_favorites` ถูก mark เป็น legacy ใน v17
 - **Legacy env vars** `DB_HOST`/`DB_PORT`/`DB_NAME` ใน config ยังอยู่แต่ไม่ใช้ (เก็บไว้ backward compat) — ลบทิ้งเมื่อมั่นใจ
@@ -136,9 +136,9 @@ SUPABASE_URL=<https://xxx.supabase.co>
 SUPABASE_ANON_KEY=<anon>
 SUPABASE_JWT_SECRET=<HS256 secret>
 SUPABASE_SERVICE_ROLE_KEY=<service role>  # สำหรับ storage uploads
-LLM_PROVIDER=gemini                        # gemini | deepseek | local
-GEMINI_API_KEY=<key>
-GEMINI_MODEL=gemini-2.5-flash              # default
+LLM_PROVIDER=ollama                        # ollama | local | deepseek | gemini
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=deepseek-r1:1.5b
 AI_ENABLED=true                            # kill-switch
 SENTRY_DSN=<dsn>                           # optional
 SENTRY_TRACES_SAMPLE_RATE=0.1              # default

@@ -7,7 +7,7 @@
 > - Admin app: React/Vite `admin-web`
 > - Backend: FastAPI
 > - Database/Auth/Storage: Supabase schema `cleangoal`
-> - AI: DeepSeek hosted by default via `LLM_PROVIDER=deepseek`; local LLM is research/fallback mode
+> - AI: local/self-hosted Ollama DeepSeek model by default via `LLM_PROVIDER=ollama`; hosted providers are legacy fallback modes
 
 ## Release Gates
 
@@ -42,7 +42,7 @@ gitleaks detect --source .
 
 | Test Type | What It Means For Calories Guard | Current / Required Coverage |
 |---|---|---|
-| Unit Tests | Pure functions and local logic | Nutrition formulas, Thai food extraction, DeepSeek JSON parser, region enum, Flutter model parsing |
+| Unit Tests | Pure functions and local logic | Nutrition formulas, Thai food extraction, LLM JSON parser, region enum, Flutter model parsing |
 | Integration Tests | Multiple modules with DB/API | Meal logging, daily summary trigger, AI unknown food to `temp_food`, admin approve, regional name approve |
 | Contract Tests | API shape stays stable for frontend | `/foods`, `/foods/search`, `/api/meals/estimate`, `/admin/temp-foods`, `/admin/regional-name-submissions` |
 | E2E Tests | Browser/app UI to backend to DB | Flutter web user flow, admin web approval flow |
@@ -65,11 +65,11 @@ gitleaks detect --source .
 | Penetration Tests (basic) | Manual abuse attempts | admin bypass, SQLi, XSS in food names, upload abuse |
 | Secrets Scan | No secrets committed | `.env`, docs, notebooks, static bundles |
 | Dependency Vulnerability Scan | Known CVEs | `pip-audit`, `npm audit`, Flutter dependency review |
-| License Compliance | Legal use of dependencies/model/assets | npm/pip/pub, DeepSeek terms, icons/assets/fonts |
+| License Compliance | Legal use of dependencies/model/assets | npm/pip/pub, Ollama model license, icons/assets/fonts |
 | Configuration Validation | Env and deploy config correct | backend env, admin `VITE_API_BASE_URL`, Flutter `--dart-define` |
 | Backup & Recovery Tests | Backup can be restored | `pg_dump`, restore to local/staging, verify data |
 | Disaster Recovery Tests | Recover from major failure | restore DB, rollback deploy, disable AI |
-| Chaos Engineering | Controlled failure injection | DeepSeek down, DB timeout, bad env on staging |
+| Chaos Engineering | Controlled failure injection | Ollama down, DB timeout, bad env on staging |
 | Compatibility Tests | Devices/browsers/OS | Chrome, Edge, Safari iOS, Android emulator/device |
 | Accessibility Tests | Users can navigate/read | keyboard, contrast, labels, text scaling |
 | Localization Tests | Thai/English and regional Thai | language fallback, Thai date/number, local food names |
@@ -81,12 +81,12 @@ gitleaks detect --source .
 | Rate Limiting Tests | Abuse is throttled | chat 10/hr, meal estimate 30/hr, upload/admin |
 | Idempotency Tests | Retries are safe | AI queue no duplicate, approve no duplicate, migrations rerun |
 | Race / Concurrency Tests | Simultaneous writes are safe | double approve, duplicate regional submissions, meal retry |
-| Idle / Timeout Tests | Expired sessions and slow services | token expiry, DeepSeek timeout, network timeout |
+| Idle / Timeout Tests | Expired sessions and slow services | token expiry, Ollama timeout, network timeout |
 | Logging / Monitoring | Events visible | Sentry, logs, AI latency, admin actions |
 | Alert Trigger Tests | Alerts actually fire | 5xx, DB errors, AI failures |
 | Audit Trail Tests | Admin/user actions recorded | `verified_by`, `approved_by`, `reviewed_by`, timestamps |
 | GDPR / PDPA Tests | Privacy requirements | export, delete, cross-user block, privacy docs |
-| Third-Party Mock Tests | External services mocked in CI | DeepSeek, Supabase, Storage, email, Sentry |
+| Third-Party Mock Tests | External services mocked in CI | Ollama, Supabase, Storage, email, Sentry |
 
 ## Production Critical Paths
 
@@ -107,7 +107,7 @@ gitleaks detect --source .
 |---|---|
 | Backend DB | `DIRECT_DATABASE_URL` or `DATABASE_URL` |
 | Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` |
-| AI | `AI_ENABLED=true`, `LLM_PROVIDER=deepseek`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL=deepseek-chat` |
+| AI | `AI_ENABLED=true`, `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT` |
 | CORS | `ALLOWED_ORIGINS=https://admin...,https://app...` |
 | Admin Web | `VITE_API_BASE_URL=https://api...` |
 | Flutter | `--dart-define=API_BASE_URL=https://api...`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` |

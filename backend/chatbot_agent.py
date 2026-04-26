@@ -178,7 +178,7 @@ class CoachingAgent:
         if not llm_is_configured():
             # Fallback if the selected provider has no API key configured.
             trend_val = weight_trend.get('trend', 'ยังระบุไม่ได้เนื่องจากข้อมูลไม่ครบ')
-            provider = os.getenv('LLM_PROVIDER', 'deepseek')
+            provider = os.getenv('LLM_PROVIDER', 'ollama')
             return (
                 f"[System: LLM provider '{provider}' not configured. Mock Response]\n"
                 f"จากข้อมูลของคุณ แนวโน้มตอนนี้น้ำหนัก {trend_val} ครับ! "

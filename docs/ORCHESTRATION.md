@@ -16,7 +16,7 @@ flowchart TB
     Auth[Supabase Auth]
     DB[(Supabase Postgres<br/>schema cleangoal)]
     Storage[Supabase Storage<br/>food-images]
-    AI[LLM Provider<br/>Gemini / DeepSeek / Local]
+    AI[LLM Provider<br/>Ollama / Local / Legacy Hosted]
     Sentry[Sentry APM/Error]
     CI[GitHub Actions]
     Railway[Railway Deploy]
@@ -40,7 +40,7 @@ flowchart TB
     Railway --> API
 ```
 
-แนวคิดหลักคือ backend เป็น orchestration hub ของ business logic ส่วน Supabase รับผิดชอบ identity, transactional data และ file storage ส่วน AI provider ถูกซ่อนหลัง `llm_provider.py` เพื่อให้สลับ Gemini, DeepSeek หรือ local model ได้โดยไม่ต้องแก้ router หลัก
+แนวคิดหลักคือ backend เป็น orchestration hub ของ business logic ส่วน Supabase รับผิดชอบ identity, transactional data และ file storage ส่วน AI provider ถูกซ่อนหลัง `llm_provider.py` เพื่อให้ใช้ Ollama เป็นหลัก และยังสลับไป local transformers หรือ legacy hosted provider ได้โดยไม่ต้องแก้ router หลัก
 
 ## 2. Request Orchestration มาตรฐาน
 
@@ -185,7 +185,7 @@ sequenceDiagram
     participant A2 as NutritionAnalysis
     participant A3 as ResponseComposer
     participant DB as Supabase Postgres
-    participant LLM as Gemini/DeepSeek/Local
+    participant LLM as Ollama/Local/Legacy Hosted
 
     User->>API: message + user_id + optional lat/lng
     API->>Scope: reject off-topic questions

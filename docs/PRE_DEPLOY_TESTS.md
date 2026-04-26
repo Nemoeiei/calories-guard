@@ -14,7 +14,7 @@
 | Supabase project | |
 | Flutter build | |
 | Admin web URL | |
-| LLM provider | DeepSeek / local / other |
+| LLM provider | Ollama / local / legacy hosted |
 
 ## 1. Automated Gates
 
@@ -71,8 +71,8 @@
 | Check | Expected | Result | Notes |
 |---|---|---|---|
 | `AI_ENABLED=false` | Chat and meal estimate return disabled response/status | | |
-| LLM provider env | `LLM_PROVIDER=deepseek`, `DEEPSEEK_API_KEY` set; no Gemini key required | | |
-| Chat in scope | DeepSeek gives nutrition/health answer, no policy-breaking content | | |
+| LLM provider env | `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`; no DeepSeek/Gemini key required | | |
+| Chat in scope | Ollama DeepSeek model gives nutrition/health answer, no policy-breaking content | | |
 | Chat out of scope | Politely refuses or redirects to app scope | | |
 | Meal estimate existing food | Returns DB-backed calories/macros without creating duplicate temp food | | |
 | Meal estimate regional alias | Recognizes approved regional aliases from `food_regional_names` | | |
@@ -103,7 +103,7 @@
 | Supabase security advisor | No ERROR-level public RLS findings | | |
 | RLS self-owned tables | User A cannot read/write User B data via Supabase client | | |
 | Service role key | Not present in Flutter/admin-web bundles or public logs | | |
-| DeepSeek API key | Backend env only; not present in Flutter/admin-web bundles or public logs | | |
+| Hosted LLM API key | Not required for Ollama mode; no DeepSeek/Gemini key present in frontend bundles or public logs | | |
 | CORS | Only configured origins allowed in staging/prod | | |
 | Rate limit chat | More than 10/hr/IP is limited | | |
 | Rate limit meal estimate | More than 30/hr/IP is limited | | |

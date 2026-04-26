@@ -13,7 +13,7 @@ and DNS/TLS issues but won't notice:
 - Supabase auth being down while the API process is fine.
 - A migration that dropped a required column (meal insert 500s).
 - A rate-limit config change that blocks all writes.
-- Gemini/Sentry outages that only manifest during chat.
+- Ollama/Sentry outages that only manifest during chat.
 
 The synthetic probe logs in as a dedicated test user, records a meal,
 checks it appears in the daily summary, and deletes it. If any step fails,
@@ -99,13 +99,13 @@ a slow-but-working API, raise `TIMEOUT` in `synthetic_check.py` — don't
 start adding retries, because retries mask real latency regressions that
 the probe is supposed to surface.
 
-If Gemini is flaky and that's causing `chat.coach` to drag on the synthetic
+If Ollama is flaky and that's causing `chat.coach` to drag on the synthetic
 login path, it shouldn't — the probe does not call `/api/chat/*`. We
 deliberately kept chat out of the critical probe because:
 
 1. It's rate-limited to 10/hr, so running every 10 min would eat half the
    user-facing quota.
-2. Gemini outages already have their own alert (#14 monitoring doc).
+2. Ollama outages already have their own alert (#14 monitoring doc).
 
 ---
 

@@ -63,18 +63,20 @@ if _HAS_PSETTINGS:
 
         # AI (optional — coach falls back to canned responses if missing)
         #
-        # The actual LLM backend is selected by llm_provider (deepseek | local
-        # | gemini). Only the key for the selected provider needs to be set;
-        # others are ignored. See ai_models/llm_provider.py for the full
-        # routing logic.
+        # The actual LLM backend is selected by llm_provider. Production uses
+        # Ollama with a local DeepSeek model by default; hosted providers are
+        # kept only as legacy fallback options.
         gemini_api_key: str = ""
         gemini_model: str = "gemini-2.5-flash"
         deepseek_api_key: str = ""
         deepseek_base_url: str = "https://api.deepseek.com"
         deepseek_model: str = "deepseek-chat"
+        ollama_base_url: str = "http://127.0.0.1:11434"
+        ollama_model: str = "deepseek-r1:1.5b"
+        ollama_timeout: int = 60
         local_model_path: str = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
         local_adapter_path: str = ""
-        llm_provider: str = "deepseek"
+        llm_provider: str = "ollama"
         # Kill-switch: set AI_ENABLED=false in Railway to disable AI
         # endpoints (chat + food auto-add) without a redeploy. Used when
         # the provider is rate-limiting, when we're over budget, or during

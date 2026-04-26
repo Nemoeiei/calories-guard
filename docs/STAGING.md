@@ -92,7 +92,9 @@ from `main`. Then set env vars (copy from prod, swap the Supabase ones):
 | `SUPABASE_SERVICE_ROLE_KEY` | staging service role key |
 | `SUPABASE_PROJECT_URL` | same as SUPABASE_URL (legacy alias) |
 | `ALLOWED_ORIGINS` | `https://staging.calories-guard.example,http://localhost:*` |
-| `GEMINI_API_KEY` | ok to share with prod (same Gemini project is fine) |
+| `LLM_PROVIDER` | `ollama` |
+| `OLLAMA_BASE_URL` | staging Ollama endpoint reachable by backend |
+| `OLLAMA_MODEL` | same model tag as prod unless testing a candidate |
 | `AI_ENABLED` | `true` |
 | `SENTRY_DSN` | staging Sentry project DSN (separate from prod) |
 | `SMTP_*` | ok to share with prod OR use a Mailtrap sandbox |

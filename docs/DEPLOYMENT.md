@@ -46,7 +46,9 @@ Target: **Railway** (backend container) + **Supabase** (DB + Auth + Storage).
    | `SUPABASE_ANON_KEY` | from Supabase |
    | `SUPABASE_JWT_SECRET` | from Supabase |
    | `SUPABASE_PROJECT_URL` | same as SUPABASE_URL |
-   | `GEMINI_API_KEY` | from Google AI Studio |
+   | `LLM_PROVIDER` | `ollama` |
+   | `OLLAMA_BASE_URL` | URL reachable from backend, for example `http://127.0.0.1:11434` |
+   | `OLLAMA_MODEL` | Ollama model tag, for example `deepseek-r1:1.5b` |
    | `SMTP_*` | (optional) |
    | `APP_ENV` | `production` |
    | `SENTRY_DSN` | (optional) |

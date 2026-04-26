@@ -11,7 +11,7 @@ Local setup for backend (FastAPI), Flutter app, and admin-web.
 - **Node 18+** (for `admin-web/`)
 - **Docker Desktop** (optional — easiest Postgres)
 - A **Supabase project** (free tier works) — provides Auth, Storage, optional Postgres
-- A **Gemini API key** from Google AI Studio (optional — coach falls back to canned answers)
+- A local/self-hosted **Ollama** server with the selected DeepSeek model pulled (optional — coach falls back to canned answers if AI is disabled/unavailable)
 
 ---
 
@@ -130,7 +130,7 @@ backend/
     routers/            12 domain routers — add new endpoints here
     services/           business logic (nutrition, email)
   auth/dependencies.py  Supabase JWT verification
-  ai_models/            Gemini multi-agent pipeline
+  ai_models/            LLM provider pipeline (Ollama/local/legacy hosted)
   migrations/           SQL migrations v1..v13
   tests/                pytest suite
 flutter_application_1/

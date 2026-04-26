@@ -33,7 +33,7 @@ dashboard can slice failure rate and p95 by op:
 |---|---|---|
 | `auth.login` | `backend/app/routers/auth.py::login` | Login success rate is table-stakes for any session app. |
 | `meal.create` | `backend/app/routers/meals.py::add_meal` | The core user journey. A regression here wastes every other feature. |
-| `chat.coach`, `chat.multi` | `backend/app/routers/chat.py` | Gemini is flaky + expensive. Failure rate + p95 tell us when to flip AI_ENABLED=false. |
+| `chat.coach`, `chat.multi` | `backend/app/routers/chat.py` | Ollama can be slow or unavailable. Failure rate + p95 tell us when to flip AI_ENABLED=false. |
 
 Helper lives in `backend/app/core/observability.py` — call sites look
 like:
@@ -99,7 +99,7 @@ tune after a week of data.
 |---|---|---|
 | Login failure spike | `auth.login` failure_rate > 10% over 10 min | `#oncall` Slack |
 | Meal create p95 regression | `meal.create` p95 > 2s over 30 min | `#oncall` |
-| Gemini outage | `chat.coach` OR `chat.multi` failure_rate > 30% over 15 min | `#oncall`, also triggers `AI_ENABLED=false` runbook below |
+| Ollama outage | `chat.coach` OR `chat.multi` failure_rate > 30% over 15 min | `#oncall`, also triggers `AI_ENABLED=false` runbook below |
 | Uptime drop | UptimeRobot 2 consecutive failures | email + SMS |
 
 ## Runbook: AI outage
@@ -108,7 +108,7 @@ tune after a week of data.
 2. Railway → prod service → env vars → set `AI_ENABLED=false` → restart.
 3. Clients get 503 and display the "AI unavailable" banner (see
    `lib/services/api_client.dart` 503 handling — TODO if not wired).
-4. Keep monitoring the Gemini status page / rate-limit counters.
+4. Keep monitoring Ollama process health, CPU/GPU/RAM, and request latency.
 5. Flip `AI_ENABLED` back to `true` once failure rate < 5% for 30 min.
 
 ## Runbook: DB latency spike
