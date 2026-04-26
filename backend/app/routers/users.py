@@ -43,7 +43,6 @@ _EXPORT_TABLES = [
     ("user_favorites", "user_id"),
     ("user_meal_plans", "user_id"),
     ("temp_food", "user_id"),
-    ("food_requests", "user_id"),
 ]
 
 
