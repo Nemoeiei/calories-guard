@@ -74,3 +74,10 @@ project_structure.txt
 
 # Local HTML/architecture drafts (root-level only, not kotlin package)
 /CaloriesGuard/
+
+# LoRA fine-tune artifacts (large; share via git-LFS or release artifacts)
+notebooks/calories_guard_adapter/
+notebooks/calories_guard_adapter_best/
+notebooks/_run_outputs/
+notebooks/_run_full.log
+notebooks/out/

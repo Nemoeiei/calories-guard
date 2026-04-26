@@ -23,6 +23,17 @@ Env vars:
   LOCAL_MODEL_PATH      = deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
                                                         (HF id or local path)
   LOCAL_ADAPTER_PATH    = <path-to-LoRA-adapter>        (optional, for `local`)
+  LOCAL_LOAD_IN_4BIT    = 1                             (optional, fits the 1.5B
+                                                        base on a 4 GiB GPU —
+                                                        same nf4+bf16 setup the
+                                                        notebook uses for training)
+  LOCAL_MAX_NEW_TOKENS  = 256                           (optional, cap output
+                                                        length — 1024 was the
+                                                        training setting but
+                                                        wastes time on short Q&A)
+  LOCAL_REPETITION_PEN  = 1.3                           (optional, ≥1.0 — small
+                                                        fine-tunes tend to loop;
+                                                        1.2-1.4 helps a lot)
 
 The generate() function is blocking on purpose — the chat router already
 runs it in a thread pool with a 30s timeout (see app/routers/chat.py).
@@ -108,18 +119,29 @@ def _local_generate(system: str, user: str, model_name: Optional[str] = None) ->
     )
     adapter_path = os.getenv("LOCAL_ADAPTER_PATH", "")
 
-    cached = _local_cache.get((base_path, adapter_path))
+    load_4bit = os.getenv("LOCAL_LOAD_IN_4BIT", "").strip().lower() in ("1", "true", "yes")
+    cached = _local_cache.get((base_path, adapter_path, load_4bit))
     if cached is None:
         tokenizer = AutoTokenizer.from_pretrained(base_path, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(
-            base_path, trust_remote_code=True, device_map="auto"
-        )
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        kwargs: dict = {"trust_remote_code": True, "device_map": "auto"}
+        if load_4bit:
+            import torch
+            from transformers import BitsAndBytesConfig
+            kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+            )
+        model = AutoModelForCausalLM.from_pretrained(base_path, **kwargs)
         if adapter_path:
             from peft import PeftModel  # lazy import
             model = PeftModel.from_pretrained(model, adapter_path)
         model.eval()
         cached = (tokenizer, model)
-        _local_cache[(base_path, adapter_path)] = cached
+        _local_cache[(base_path, adapter_path, load_4bit)] = cached
 
     tokenizer, model = cached
     # Use the tokenizer's chat template — DeepSeek-R1 models need it to wrap
@@ -133,14 +155,18 @@ def _local_generate(system: str, user: str, model_name: Optional[str] = None) ->
     )
     import torch
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    max_new = int(os.getenv("LOCAL_MAX_NEW_TOKENS", "256") or 256)
+    rep_pen = float(os.getenv("LOCAL_REPETITION_PEN", "1.3") or 1.3)
     with torch.no_grad():
         out = model.generate(
             **inputs,
-            max_new_tokens=1024,
+            max_new_tokens=max_new,
             do_sample=True,
             temperature=0.7,
             top_p=0.9,
+            repetition_penalty=rep_pen,
             pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
         )
     # Strip the prompt prefix.
     gen = out[0][inputs["input_ids"].shape[1]:]
