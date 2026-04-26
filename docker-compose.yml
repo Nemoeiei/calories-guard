@@ -21,22 +21,41 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      ollama:
+        condition: service_started
     environment:
       DB_MODE: local
+      DIRECT_DATABASE_URL: "${DIRECT_DATABASE_URL:-postgresql://caloriesguard:dev_password@db:5432/caloriesguard_dev}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://caloriesguard:dev_password@db:5432/caloriesguard_dev}"
       DB_HOST: db
       DB_PORT: "5432"
       DB_NAME: caloriesguard_dev
       DB_USER: caloriesguard
       DB_PASSWORD: dev_password
-      ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173"
+      ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+      ALLOWED_ORIGINS_RAW: "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+      AI_ENABLED: "${AI_ENABLED:-true}"
+      LLM_PROVIDER: "${LLM_PROVIDER:-ollama}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://ollama:11434}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-deepseek-r1:1.5b}"
+      OLLAMA_TIMEOUT: "${OLLAMA_TIMEOUT:-60}"
       # These must be provided via .env or docker-compose --env-file for
-      # Supabase Auth and Gemini features to work:
+      # Supabase Auth/Storage features to work:
       SUPABASE_JWT_SECRET: "${SUPABASE_JWT_SECRET:-dev-secret-not-for-prod}"
       SUPABASE_URL: "${SUPABASE_URL:-}"
       SUPABASE_ANON_KEY: "${SUPABASE_ANON_KEY:-}"
-      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      SUPABASE_SERVICE_ROLE_KEY: "${SUPABASE_SERVICE_ROLE_KEY:-}"
+      SUPABASE_PROJECT_URL: "${SUPABASE_PROJECT_URL:-${SUPABASE_URL:-}}"
     ports:
       - "8000:8000"
 
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+
 volumes:
   db_data:
+  ollama_data:
