@@ -80,4 +80,14 @@ notebooks/calories_guard_adapter/
 notebooks/calories_guard_adapter_best/
 notebooks/_run_outputs/
 notebooks/_run_full.log
+notebooks/_exec.log
 notebooks/out/
+
+# Editor / IDE local config
+.cursor/
+.claude/scheduled_tasks.lock
+
+# Build artifacts and one-off scratch
+flutter_application_1/build_error.txt
+_schema_inventory.md
+backup_before_v22_v24.dump
