@@ -5,12 +5,12 @@ Multi-Agent AI Nutrition System — Calories Guard
 
   Agent 1 │ DataOrchestratorAgent   — ดึง user profile, logs, goals จาก DB
   Agent 2 │ NutritionAnalysisAgent  — วิเคราะห์อาหาร + กิจกรรม (DB lookup + MET table)
-  Agent 3 │ ResponseComposerAgent   — ประมวลผลเป็นภาษาไทยที่อ่านง่ายผ่าน Gemini
+  Agent 3 │ ResponseComposerAgent   — ประมวลผลเป็นภาษาไทยที่อ่านง่ายผ่าน LLM provider
 
 Future (PoC planned):
   - TFT (Temporal Fusion Transformer) for macro time-series prediction
   - GNN + vector DB for semantic activity matching
-  - Local LLM (Ollama) as fallback composer
+  - Local LLM as fallback composer
 """
 
 import os
@@ -30,11 +30,9 @@ from dotenv import load_dotenv
 from ai_models.food_extraction import extract_foods as _tok_extract_foods
 from ai_models.llm_provider import generate as llm_generate, is_configured as llm_is_configured
 
-# Backend is selected by LLM_PROVIDER. We keep a couple of legacy constants
-# exported for any call-site still probing them, but all generation now goes
-# through ai_models.llm_provider.
+# Backend is selected by LLM_PROVIDER. All generation goes through
+# ai_models.llm_provider so the app can run on DeepSeek hosted or local model.
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # kept for back-compat probes
 
 
 # ─── Scope Guard ─────────────────────────────────────────────────────────────
@@ -221,7 +219,7 @@ class DataOrchestratorAgent:
 #   - DB lookup สำหรับอาหารที่มีในระบบ
 #   - TF-IDF cosine similarity สำหรับจับคู่กิจกรรม (PoC ของ vector search)
 #   - MET-based calorie calculation
-#   - Gemini fallback สำหรับประมาณโภชนาการที่ไม่มีใน DB
+#   - LLM fallback สำหรับประมาณโภชนาการที่ไม่มีใน DB
 #
 # [PoC Note] Future: replace TF-IDF with sentence-transformers embedding
 #            + FAISS vector store for semantic activity matching (GNN-style)
@@ -320,29 +318,90 @@ class NutritionAnalysisAgent:
         """
         Pull food mentions out of free Thai text.
 
-        Uses pythainlp word segmentation + DB-backed dictionary of known food
-        names (see ai_models/food_extraction.py). Returns a list of dicts:
-            [{"name": ..., "quantity": float|None, "source": "dict|regex"}]
+        Uses pythainlp word segmentation + DB-backed dictionary of known
+        canonical/regional names. If no dictionary hit is found, the selected
+        LLM provider may extract unknown foods so they can be estimated and
+        queued for admin review.
         """
         db_names = self._load_food_dictionary()
         mentions = _tok_extract_foods(text, db_food_names=db_names, limit=5)
-        return mentions
+        if mentions:
+            return mentions
+        return self._extract_foods_llm(text)
 
     def _load_food_dictionary(self) -> list:
-        """Pull all non-deleted food names from DB to power the tokenizer match."""
+        """Pull canonical and approved regional names for tokenizer matching."""
         conn = get_db_connection()
         if not conn:
             return []
         try:
             cur = conn.cursor()
             cur.execute(
-                "SELECT food_name FROM foods WHERE deleted_at IS NULL LIMIT 5000"
+                """
+                SELECT name
+                FROM (
+                    SELECT food_name AS name
+                    FROM foods
+                    WHERE deleted_at IS NULL
+                    UNION
+                    SELECT frn.name_th AS name
+                    FROM food_regional_names frn
+                    JOIN foods f ON f.food_id = frn.food_id
+                    WHERE frn.deleted_at IS NULL
+                      AND f.deleted_at IS NULL
+                ) names
+                WHERE name IS NOT NULL AND BTRIM(name) <> ''
+                LIMIT 10000
+                """
             )
             return [r[0] for r in cur.fetchall() if r[0]]
         except Exception:
             return []
         finally:
             conn.close()
+
+    def _extract_foods_llm(self, text: str) -> list:
+        """Ask the configured LLM to extract unknown foods from free text."""
+        if not llm_is_configured():
+            return []
+        try:
+            system = (
+                "คุณเป็นตัวแยกชื่ออาหารภาษาไทย ตอบ JSON เท่านั้น ไม่มี markdown "
+                "ดึงเฉพาะรายการอาหารหรือเครื่องดื่มที่ผู้ใช้บอกว่ากินจริง "
+                "ถ้าไม่พบอาหารให้ตอบ {\"items\":[]}"
+            )
+            user = (
+                f"ข้อความ: {text}\n"
+                "ตอบรูปแบบนี้เท่านั้น: "
+                "{\"items\":[{\"name\":\"ชื่ออาหาร\",\"quantity\":1}]}"
+            )
+            raw = llm_generate(system, user)
+            raw = re.sub(r"```(?:json)?", "", raw).strip("`").strip()
+            data = json.loads(raw)
+            items = data.get("items") if isinstance(data, dict) else data
+            if not isinstance(items, list):
+                return []
+            result = []
+            seen = set()
+            for item in items[:5]:
+                if isinstance(item, str):
+                    name, qty = item.strip(), 1.0
+                elif isinstance(item, dict):
+                    name = str(item.get("name") or "").strip()
+                    qty = item.get("quantity") or 1.0
+                else:
+                    continue
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                try:
+                    qty = float(qty)
+                except (TypeError, ValueError):
+                    qty = 1.0
+                result.append({"name": name, "quantity": qty, "source": "llm_extract"})
+            return result
+        except Exception:
+            return []
 
     def _analyze_foods(self, food_mentions: list, allergies: list, user_id: int = None) -> dict:
         """
@@ -363,7 +422,7 @@ class NutritionAnalysisAgent:
                 name = item
                 qty = 1.0
 
-            info = self._lookup_food_db(name) or self._estimate_food_gemini(name, user_id)
+            info = self._lookup_food_db(name) or self._estimate_food_llm(name, user_id)
             if not info:
                 continue
 
@@ -392,19 +451,38 @@ class NutritionAnalysisAgent:
         conn = get_db_connection()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                SELECT food_name, calories, protein, fat, carbs
-                FROM foods WHERE food_name ILIKE %s LIMIT 1
-            """, (f"%{food_name}%",))
+            cur.execute(
+                """
+                SELECT f.food_id, f.food_name, f.calories, f.protein, f.fat, f.carbs,
+                       frn.name_th AS matched_regional_name
+                FROM foods f
+                LEFT JOIN food_regional_names frn
+                       ON frn.food_id = f.food_id
+                      AND frn.deleted_at IS NULL
+                      AND frn.name_th ILIKE %s
+                WHERE f.deleted_at IS NULL
+                  AND (f.food_name ILIKE %s OR frn.variant_id IS NOT NULL)
+                ORDER BY
+                    CASE
+                      WHEN f.food_name = %s THEN 0
+                      WHEN frn.name_th = %s THEN 1
+                      ELSE 2
+                    END,
+                    f.food_name
+                LIMIT 1
+                """,
+                (f"%{food_name}%", f"%{food_name}%", food_name, food_name),
+            )
             row = cur.fetchone()
             if row:
                 return {
                     "name": row["food_name"],
+                    "matched_name": row.get("matched_regional_name") or food_name,
                     "calories": float(row["calories"] or 0),
                     "protein": float(row["protein"] or 0),
                     "carbs": float(row["carbs"] or 0),
                     "fat": float(row["fat"] or 0),
-                    "source": "db",
+                    "source": "db_regional" if row.get("matched_regional_name") else "db",
                 }
         except Exception:
             pass
@@ -412,9 +490,8 @@ class NutritionAnalysisAgent:
             if conn: conn.close()
         return None
 
-    def _estimate_food_gemini(self, name: str, user_id: int = None) -> Optional[dict]:
-        # Historical name — the actual backend is LLM_PROVIDER-driven (Gemini,
-        # DeepSeek, or local). Kept as-is so callers don't break.
+    def _estimate_food_llm(self, name: str, user_id: int = None) -> Optional[dict]:
+        """Estimate unknown food nutrition via selected LLM and queue admin review."""
         if not llm_is_configured():
             return None
         try:
@@ -434,7 +511,7 @@ class NutritionAnalysisAgent:
                 "protein": float(d.get("protein", 0)),
                 "carbs": float(d.get("carbs", 0)),
                 "fat": float(d.get("fat", 0)),
-                "source": "gemini_estimate",
+                "source": "llm_estimate",
             }
 
             # Auto-add to temp_food for admin review
@@ -443,6 +520,9 @@ class NutritionAnalysisAgent:
             return result
         except Exception:
             return None
+
+    # Backward-compatible alias for old tests/imports.
+    _estimate_food_gemini = _estimate_food_llm
 
     def _auto_add_temp_food(self, food_name: str, nutrition: dict, user_id: int = None):
         """Insert estimated food into temp_food so admin can review and approve."""
@@ -500,17 +580,16 @@ class NutritionAnalysisAgent:
     # allow Optional import inside class scope
     from typing import Optional as _Optional
     _lookup_food_db.__annotations__["return"] = "Optional[dict]"
-    _estimate_food_gemini.__annotations__["return"] = "Optional[dict]"
+    _estimate_food_llm.__annotations__["return"] = "Optional[dict]"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AGENT 3 │ ResponseComposerAgent
 # Responsibility: สร้างคำตอบภาษาไทยที่อ่านง่ายจากผลลัพธ์ของ agents 1+2
-#   - Primary: Gemini 2.5 Flash
+#   - Primary: configured LLM provider (DeepSeek hosted by default)
 #   - Fallback: rule-based template (ถ้าไม่มี API key หรือ error)
 #
-# [PoC Note] Future: swap Gemini → Local LLM via Ollama (e.g., typhoon-7b-thai)
-#            เมื่อ infrastructure พร้อมและ model ดีพอ
+# [PoC Note] Future: promote Local LLM once quality/latency pass gates.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ResponseComposerAgent:
@@ -524,7 +603,7 @@ class ResponseComposerAgent:
         today = ctx.get("today_intake", {})
         balance = analysis.get("calorie_balance", {})
 
-        # ── System context for Gemini ────────────────────────────────────────
+        # ── System context for the configured LLM ────────────────────────────
         system_parts = [
             "คุณคือ 'โค้ชแคลเซียม' ผู้ช่วยโภชนาการของ Calories Guard",
             "พูดภาษาไทย เป็นมิตร กระชับ ให้กำลังใจ ไม่ใช้ศัพท์เทคนิคเกินไป",
@@ -576,7 +655,7 @@ class ResponseComposerAgent:
 
         system_prompt = "\n".join(system_parts)
 
-        # ── LLM call (Gemini / DeepSeek / local, selected by LLM_PROVIDER) ───
+        # ── LLM call (DeepSeek / local / legacy Gemini, selected by LLM_PROVIDER)
         if llm_is_configured():
             try:
                 return llm_generate(system_prompt, f"คำถาม/ข้อความ: {msg}")
@@ -586,7 +665,7 @@ class ResponseComposerAgent:
         return self._rule_based(balance, food_info, act_info, profile)
 
     def _rule_based(self, balance, food_info, act_info, profile) -> str:
-        """Fallback เมื่อไม่มี Gemini API key หรือ error"""
+        """Fallback เมื่อไม่มี provider key หรือ LLM error"""
         lines = []
         consumed = balance.get("consumed", 0)
         remaining = balance.get("remaining", 0)

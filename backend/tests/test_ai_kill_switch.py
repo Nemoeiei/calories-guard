@@ -3,7 +3,7 @@ AI kill-switch behaviour.
 
 Covers #15: when AI_ENABLED is false, the three AI-backed endpoints
 (chat/coach, meals/estimate, chat/multi) must 503 before touching
-Gemini, so operators can cut traffic during an incident without a
+the configured LLM provider, so operators can cut traffic during an incident without a
 redeploy.
 
 We patch the module-level AI_ENABLED flag rather than the env var

@@ -5,21 +5,21 @@ The rest of the codebase should never import `google.generativeai` or the
 OpenAI/DeepSeek SDK directly — it should go through `generate()` in this
 module, which routes to the right backend based on LLM_PROVIDER.
 
-Supported providers (selected via env `LLM_PROVIDER`, default: `gemini`):
+Supported providers (selected via env `LLM_PROVIDER`, default: `deepseek`):
 
-  gemini     — Google Gemini via google-generativeai (existing, default)
   deepseek   — DeepSeek hosted API (OpenAI-compatible; base_url=api.deepseek.com)
+  gemini     — Google Gemini via google-generativeai (legacy option)
   local      — self-hosted DeepSeek-R1-Distill via transformers+torch
                (heavy; only meant for dev boxes / when you've fine-tuned an
                 adapter with notebooks/deepseek_finetune.ipynb)
 
 Env vars:
 
-  LLM_PROVIDER          = gemini | deepseek | local     (default: gemini)
-  GEMINI_API_KEY        = <key>                         (for gemini)
-  GEMINI_MODEL          = gemini-2.5-flash              (optional override)
+  LLM_PROVIDER          = deepseek | local | gemini     (default: deepseek)
   DEEPSEEK_API_KEY      = <key>                         (for deepseek)
   DEEPSEEK_MODEL        = deepseek-chat                 (optional override)
+  GEMINI_API_KEY        = <key>                         (legacy gemini option)
+  GEMINI_MODEL          = gemini-2.5-flash              (optional override)
   LOCAL_MODEL_PATH      = deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
                                                         (HF id or local path)
   LOCAL_ADAPTER_PATH    = <path-to-LoRA-adapter>        (optional, for `local`)
@@ -48,7 +48,7 @@ _local_cache: dict = {}
 
 
 def _get_provider() -> str:
-    return (os.getenv("LLM_PROVIDER") or "gemini").strip().lower()
+    return (os.getenv("LLM_PROVIDER") or "deepseek").strip().lower()
 
 
 def _gemini_generate(system: str, user: str, model_name: Optional[str] = None) -> str:

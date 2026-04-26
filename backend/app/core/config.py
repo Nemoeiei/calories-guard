@@ -3,7 +3,7 @@ Centralized configuration with pydantic-settings.
 
 Fail-fast behavior:
 - Missing env vars for required settings raise at startup, not at first request.
-- Optional settings (Gemini, Sentry, SMTP) are tolerated in dev but logged.
+- Optional settings (DeepSeek, Sentry, SMTP) are tolerated in dev but logged.
 
 Usage:
     from app.core.config import settings
@@ -63,8 +63,8 @@ if _HAS_PSETTINGS:
 
         # AI (optional — coach falls back to canned responses if missing)
         #
-        # The actual LLM backend is selected by llm_provider (gemini | deepseek
-        # | local). Only the key for the selected provider needs to be set;
+        # The actual LLM backend is selected by llm_provider (deepseek | local
+        # | gemini). Only the key for the selected provider needs to be set;
         # others are ignored. See ai_models/llm_provider.py for the full
         # routing logic.
         gemini_api_key: str = ""
@@ -74,7 +74,7 @@ if _HAS_PSETTINGS:
         deepseek_model: str = "deepseek-chat"
         local_model_path: str = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
         local_adapter_path: str = ""
-        llm_provider: str = "gemini"
+        llm_provider: str = "deepseek"
         # Kill-switch: set AI_ENABLED=false in Railway to disable AI
         # endpoints (chat + food auto-add) without a redeploy. Used when
         # the provider is rate-limiting, when we're over budget, or during

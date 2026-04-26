@@ -26,7 +26,7 @@ phase.
 ## 2. What the service is — and isn't
 
 Calories Guard lets you log meals, water, exercise, and weight, and
-generates coaching suggestions using Google Gemini. It is:
+generates coaching suggestions using the configured LLM provider. It is:
 
 - A tracking and educational tool.
 - **Not** a medical device.
@@ -71,7 +71,7 @@ You agree **not** to:
   backend enforces per-endpoint rate limits (`slowapi`); abuse may
   result in IP or account block.
 - Send the AI coach prompts intended to extract system prompts, harm
-  other users, or generate content that violates Google's Gemini use
+  other users, or generate content that violates the AI provider's use
   policy.
 - Upload images that contain illegal content, CSAM, or other people's
   PII.
@@ -84,7 +84,7 @@ without prior notice.
 ## 5. AI coach — fair-use
 
 Chat endpoints are rate-limited (10 requests/hour per user). This cap
-exists because Gemini has real costs and quotas; if you need a higher
+exists because AI providers have real costs and quotas; if you need a higher
 limit for a research partnership, contact us.
 
 The AI coach may refuse to answer topics outside nutrition, fitness, or

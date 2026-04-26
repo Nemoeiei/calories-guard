@@ -3,7 +3,7 @@ Chat endpoints for AI Coach + 3-agent nutrition pipeline.
 
 Hardening:
 - Input sanitization (trim, strip control chars, cap at 2000 chars)
-- 30s timeout so a wedged Gemini call doesn't tie up a worker
+- 30s timeout so a wedged LLM call doesn't tie up a worker
 - Rate limit: 10 requests/hour per remote IP
 """
 import re
@@ -95,7 +95,7 @@ def estimate_meal_from_text(request: Request, payload: MealEstimateRequest):
 
     Food extraction uses pythainlp word segmentation + DB-backed dictionary,
     falling back to regex if pythainlp is unavailable. Unknown foods that
-    Gemini estimates get auto-inserted into temp_food for admin review
+    LLM estimates get auto-inserted into temp_food for admin review
     (see NutritionAnalysisAgent._auto_add_temp_food).
 
     The client typically follows this with POST /meals/{user_id} to persist.
@@ -127,7 +127,7 @@ def estimate_meal_from_text(request: Request, payload: MealEstimateRequest):
 def chat_multi_agent(request: Request, payload: ChatMessage):
     """
     3-Agent AI pipeline:
-      Agent1 (DataOrchestrator) -> Agent2 (NutritionAnalysis) -> Agent3 (ResponseComposer/Gemini)
+      Agent1 (DataOrchestrator) -> Agent2 (NutritionAnalysis) -> Agent3 (ResponseComposer/LLM)
     """
     _require_ai_enabled()
     msg = _sanitize_message(payload.message)

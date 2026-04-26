@@ -15,7 +15,7 @@ def _row(**kwargs):
 
 
 def test_export_returns_attachment_and_expected_keys(app_client):
-    # 12 table queries + the initial users SELECT = 13 fetches; patch the
+    # Child table queries + the initial users SELECT; patch the
     # connection factory used inside users.py.
     mock_conn = MagicMock()
     mock_cur = MagicMock()
@@ -42,7 +42,7 @@ def test_export_returns_attachment_and_expected_keys(app_client):
         "meals", "daily_summaries", "detail_items", "weight_logs",
         "water_logs", "exercise_logs", "notifications",
         "user_allergy_preferences", "user_favorites", "user_meal_plans",
-        "temp_food", "food_requests",
+        "temp_food", "food_regional_name_submissions",
     ):
         assert key in body, f"missing export key: {key}"
 

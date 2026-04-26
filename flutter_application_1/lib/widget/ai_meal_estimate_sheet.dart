@@ -6,7 +6,7 @@ import '../services/api_client.dart';
 ///   "มื้อเช้ากินข้าวผัดกะเพรา 1 จาน ต้มยำกุ้ง ครึ่งถ้วย"
 ///
 /// AI (backend /api/meals/estimate → pythainlp + DB-backed dictionary +
-/// optional Gemini estimate สำหรับเมนูที่ไม่มีในฐานข้อมูล) จะ
+/// optional LLM estimate สำหรับเมนูที่ไม่มีในฐานข้อมูล) จะ
 /// คืนรายการอาหาร + โภชนาการ. ถ้าเมนูไหนยังไม่มีในฐานข้อมูล backend จะ
 /// auto-add ไปยัง temp_food ให้ admin ตรวจสอบแยกต่างหาก
 ///

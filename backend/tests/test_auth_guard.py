@@ -20,7 +20,7 @@ PROTECTED_ENDPOINTS = [
     ("GET", "/admin/users"),
     ("GET", "/admin/temp-foods/pending-count"),
     ("GET", "/admin/foods/similar?name=test"),
-    ("GET", "/admin/food-requests"),
+    ("GET", "/admin/regional-name-submissions"),
 ]
 
 

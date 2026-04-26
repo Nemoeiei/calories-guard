@@ -16,9 +16,11 @@ ADMIN_ENDPOINTS = [
     ("GET", "/admin/temp-foods"),
     ("GET", "/admin/temp-foods/pending-count"),
     ("GET", "/admin/foods/similar?name=test"),
-    ("GET", "/admin/food-requests"),
+    ("GET", "/admin/regional-name-submissions"),
     ("POST", "/admin/temp-foods/1/approve"),
     ("DELETE", "/admin/temp-foods/1"),
+    ("POST", "/admin/regional-name-submissions/1/approve"),
+    ("POST", "/admin/regional-name-submissions/1/reject"),
 ]
 
 

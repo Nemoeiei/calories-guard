@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   UtensilsCrossed,
   ClipboardList,
+  Languages,
   Users,
   LogOut,
   Leaf,
@@ -17,6 +18,7 @@ const nav = [
   { to: '/',              label: 'Dashboard',       icon: LayoutDashboard, end: true },
   { to: '/foods',         label: 'จัดการอาหาร',     icon: UtensilsCrossed, end: false },
   { to: '/food-requests', label: 'คำขอเพิ่มเมนู',   icon: ClipboardList,   end: false },
+  { to: '/regional-names', label: 'ชื่อท้องถิ่น',    icon: Languages,       end: false },
   { to: '/users',         label: 'ผู้ใช้งาน',        icon: Users,           end: false },
 ]
 
@@ -24,10 +26,22 @@ export default function Layout() {
   const { auth, logout } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const [pendingCount, setPendingCount] = useState(0)
+  const [pendingCount, setPendingCount] = useState({ tempFoods: 0, regionalNames: 0 })
 
   useEffect(() => {
-    const fetch = () => api.getPendingCount().then(r => setPendingCount(r.count)).catch(() => {})
+    const fetch = () => {
+      Promise.all([
+        api.getPendingCount(),
+        api.getRegionalNameSubmissions('pending'),
+      ])
+        .then(([temp, regional]) => {
+          setPendingCount({
+            tempFoods: temp.count,
+            regionalNames: regional.length,
+          })
+        })
+        .catch(() => {})
+    }
     fetch()
     const id = setInterval(fetch, 30_000)
     return () => clearInterval(id)
@@ -73,9 +87,14 @@ export default function Layout() {
           >
             <Icon size={18} />
             <span className="flex-1">{label}</span>
-            {to === '/food-requests' && pendingCount > 0 && (
+            {to === '/food-requests' && pendingCount.tempFoods > 0 && (
               <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">
-                {pendingCount > 99 ? '99+' : pendingCount}
+                {pendingCount.tempFoods > 99 ? '99+' : pendingCount.tempFoods}
+              </span>
+            )}
+            {to === '/regional-names' && pendingCount.regionalNames > 0 && (
+              <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">
+                {pendingCount.regionalNames > 99 ? '99+' : pendingCount.regionalNames}
               </span>
             )}
           </NavLink>

@@ -70,12 +70,22 @@ export const api = {
   rejectTempFood: (tfId: number) =>
     req<any>(`/admin/temp-foods/${tfId}`, { method: 'DELETE' }),
 
-  // ── Food Requests (legacy) ────────────────────────
-  getFoodRequests: () => req<any[]>('/admin/food-requests'),
-  reviewFoodRequest: (id: number, adminId: number, status: 'approved' | 'rejected', data?: object) =>
-    req<any>(`/admin/food-requests/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ admin_id: adminId, status, ...data }),
+  // ── Regional name submissions ─────────────────────
+  getRegionalNameSubmissions: (status = 'pending') =>
+    req<any[]>(`/admin/regional-name-submissions?status=${status}`),
+  approveRegionalNameSubmission: (
+    submissionId: number,
+    adminId: number,
+    data: { is_primary?: boolean; popularity?: number | null },
+  ) =>
+    req<any>(`/admin/regional-name-submissions/${submissionId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ admin_id: adminId, ...data }),
+    }),
+  rejectRegionalNameSubmission: (submissionId: number, adminId: number) =>
+    req<any>(`/admin/regional-name-submissions/${submissionId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ admin_id: adminId }),
     }),
 
   // ── Users ─────────────────────────────────────────

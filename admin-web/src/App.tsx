@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Foods from './pages/Foods'
 import FoodRequests from './pages/FoodRequests'
+import RegionalNames from './pages/RegionalNames'
 import Users from './pages/Users'
 
 function Guard({ children }: { children: ReactNode }) {
@@ -35,6 +36,7 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="foods" element={<Foods />} />
         <Route path="food-requests" element={<FoodRequests />} />
+        <Route path="regional-names" element={<RegionalNames />} />
         <Route path="users" element={<Users />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

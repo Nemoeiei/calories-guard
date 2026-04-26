@@ -54,7 +54,7 @@ advertising ID.
 | Processor | Role | Region | What they see |
 |---|---|---|---|
 | **Supabase** | Database, auth, file storage | US-East (primary) | Everything in §2.1 |
-| **Google Gemini API** | AI coaching & nutrition estimation | Google Cloud | Your chat prompts + meal text. **No email, no profile** — we pass only the message body. |
+| **DeepSeek API or configured LLM provider** | AI coaching & nutrition estimation | Provider region depends on deployment settings | Your chat prompts + meal text. **No email, no profile** — we pass only the message body. |
 | **Firebase Cloud Messaging** | Meal-time push notifications | Google Cloud | Device FCM token |
 | **Sentry** | Error & performance monitoring | EU/US | Stack traces, user ID hash, endpoint. **We set `sendDefaultPii = false`.** |
 | **Railway** | Backend hosting | US-West | Runtime logs (no PII by policy; see `docs/MONITORING.md`) |

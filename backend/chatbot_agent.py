@@ -7,7 +7,7 @@ from ai_models.food_analyzer import FoodAnalyzer
 from ai_models.llm_provider import generate as llm_generate, is_configured as llm_is_configured
 from dotenv import load_dotenv
 
-# The actual LLM backend (Gemini / DeepSeek / local) is selected by the
+# The actual LLM backend (DeepSeek / local / legacy Gemini) is selected by the
 # LLM_PROVIDER env var and isolated inside ai_models.llm_provider. This file
 # no longer knows or cares which vendor is on the other end.
 load_dotenv()
@@ -178,7 +178,7 @@ class CoachingAgent:
         if not llm_is_configured():
             # Fallback if the selected provider has no API key configured.
             trend_val = weight_trend.get('trend', 'ยังระบุไม่ได้เนื่องจากข้อมูลไม่ครบ')
-            provider = os.getenv('LLM_PROVIDER', 'gemini')
+            provider = os.getenv('LLM_PROVIDER', 'deepseek')
             return (
                 f"[System: LLM provider '{provider}' not configured. Mock Response]\n"
                 f"จากข้อมูลของคุณ แนวโน้มตอนนี้น้ำหนัก {trend_val} ครับ! "

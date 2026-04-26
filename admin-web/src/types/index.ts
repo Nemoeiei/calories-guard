@@ -41,15 +41,20 @@ export interface TempFood {
   verified_at: string | null
 }
 
-export interface FoodRequest {
-  request_id: number
-  food_name: string
-  status: string
-  calories: number | null
-  protein: number | null
-  carbs: number | null
-  fat: number | null
-  ingredients_json: string | null
+export type ThaiRegion = 'central' | 'northern' | 'northeastern' | 'southern'
+export type SubmissionStatus = 'pending' | 'approved' | 'rejected'
+
+export interface RegionalNameSubmission {
+  submission_id: number
+  food_id: number
   created_at: string
+  food_name: string
+  region: ThaiRegion
+  name_th: string
+  popularity: number | null
+  user_id: number
   requester_name: string
+  status: SubmissionStatus
+  reviewed_by: number | null
+  reviewed_at: string | null
 }

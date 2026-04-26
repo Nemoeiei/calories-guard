@@ -14,6 +14,7 @@
 | Supabase project | |
 | Flutter build | |
 | Admin web URL | |
+| LLM provider | DeepSeek / local / other |
 
 ## 1. Automated Gates
 
@@ -21,6 +22,7 @@
 |---|---|---|---|
 | Backend unit tests | `cd backend && python -m pytest -q` | | |
 | Flutter static analysis | `cd flutter_application_1 && flutter analyze` | | |
+| Flutter widget/unit tests | `cd flutter_application_1 && flutter test` | | |
 | Admin web build | `cd admin-web && npm run build` | | |
 | Deploy workflow staging job | GitHub Actions `Deploy -> staging` | | |
 | Synthetic E2E probe | GitHub Actions `synthetic-every-10-min` or manual run | | |
@@ -54,9 +56,12 @@
 | Check | Expected | Result | Notes |
 |---|---|---|---|
 | Search existing Thai food | Relevant foods appear, macros visible | | |
+| Search regional alias | Query such as `ข้าวปุ้น` returns canonical food with regional display name | | |
+| Region preference display | User region changes food cards/recipe detail display names where regional primary exists | | |
 | Add food to breakfast | Meal row created, daily summary updates | | |
 | Add food to lunch/dinner/snack | Correct meal slot and totals | | |
 | Quick-add unknown food | Creates `temp_food`/approval item, user sees confirmation | | |
+| AI estimate unknown food | Unknown menu text is extracted, estimated, and queued in `temp_food` for admin review | | |
 | Edit or delete meal item | Totals recalculate correctly | | |
 | Progress screen weekly card | Goal and totals render without overflow | | |
 | Network failure during meal save | User sees recoverable error, no duplicate writes | | |
@@ -66,9 +71,12 @@
 | Check | Expected | Result | Notes |
 |---|---|---|---|
 | `AI_ENABLED=false` | Chat and meal estimate return disabled response/status | | |
-| Chat in scope | Gives nutrition/health answer, no policy-breaking content | | |
+| LLM provider env | `LLM_PROVIDER=deepseek`, `DEEPSEEK_API_KEY` set; no Gemini key required | | |
+| Chat in scope | DeepSeek gives nutrition/health answer, no policy-breaking content | | |
 | Chat out of scope | Politely refuses or redirects to app scope | | |
-| Meal estimate endpoint | Returns calories/macros or clear retryable error | | |
+| Meal estimate existing food | Returns DB-backed calories/macros without creating duplicate temp food | | |
+| Meal estimate regional alias | Recognizes approved regional aliases from `food_regional_names` | | |
+| Meal estimate unknown food | Returns LLM estimate and creates/keeps one pending `temp_food` row | | |
 | Recipe first load | `GET /recipes/{food_id}` generates/caches recipe if missing | | |
 | Recipe second load | Uses cached DB row, no second LLM call expected | | |
 | LLM provider error | User gets graceful 502/503 path, Sentry captures signal | | |
@@ -82,6 +90,10 @@
 | Food requests list | Pending `temp_food` items visible | | |
 | Approve request | Creates/updates verified food and marks request reviewed | | |
 | Reject request | Request status changes, no verified food created | | |
+| Regional names list | Pending `food_regional_name_submissions` items visible | | |
+| Approve regional name | Creates/updates `food_regional_names`, optional primary/popularity saved | | |
+| Reject regional name | Submission changes to rejected and approved aliases remain unchanged | | |
+| Admin web deep link | Refreshing `/regional-names`, `/foods`, `/users` does not 404 | | |
 | Food edit | Food fields persist and appear in mobile/API | | |
 
 ## 7. Security
@@ -91,6 +103,7 @@
 | Supabase security advisor | No ERROR-level public RLS findings | | |
 | RLS self-owned tables | User A cannot read/write User B data via Supabase client | | |
 | Service role key | Not present in Flutter/admin-web bundles or public logs | | |
+| DeepSeek API key | Backend env only; not present in Flutter/admin-web bundles or public logs | | |
 | CORS | Only configured origins allowed in staging/prod | | |
 | Rate limit chat | More than 10/hr/IP is limited | | |
 | Rate limit meal estimate | More than 30/hr/IP is limited | | |
@@ -115,8 +128,10 @@
 | Android emulator, latest stable | | | |
 | Physical Android, API 30+ | | | |
 | Samsung device with Health Connect/Samsung Health | | | |
-| iOS simulator | | | |
-| Physical iOS device | | | |
+| Flutter web desktop Chrome | PWA loads, login, food search, meal estimate work | | |
+| Flutter web iPhone Safari | PWA loads, Add to Home Screen flow documented | | |
+| iOS simulator | Optional until Apple build pipeline exists | | |
+| Physical iOS device | Optional via Flutter web/PWA until Apple Developer account exists | | |
 
 ## 10. Samsung Health Real-Device Checks
 
@@ -139,7 +154,7 @@ Run only on staging. See `backend/scripts/loadtest/README.md`.
 |---|---|---|---|---|
 | Foods search | `k6 run backend/scripts/loadtest/foods.js` | p95 < 500 ms, errors < 1% | | |
 | Meal loop | `k6 run backend/scripts/loadtest/meals.js` | p95 < 500 ms, no 5xx | | |
-| Chat | `k6 run backend/scripts/loadtest/chat.js` | p95 < 3000 ms, rate limits respected | | |
+| Chat | `k6 run backend/scripts/loadtest/chat.js` | p95 target depends on LLM provider; rate limits respected | | |
 | Railway metrics | Dashboard | No restarts, CPU/memory acceptable | | |
 | Supabase metrics | Dashboard | Pool not saturated, no migration locks | | |
 

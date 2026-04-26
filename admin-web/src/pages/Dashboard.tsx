@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { UtensilsCrossed, ClipboardList, CheckCircle, Clock } from 'lucide-react'
+import { UtensilsCrossed, ClipboardList, Languages, Clock } from 'lucide-react'
 import { api } from '../api/client'
-import type { Food, TempFood, FoodRequest } from '../types'
+import type { Food, RegionalNameSubmission, TempFood } from '../types'
 
 interface StatCardProps {
   icon: React.ReactNode
@@ -27,12 +27,14 @@ function StatCard({ icon, label, value, color, bg }: StatCardProps) {
   )
 }
 
-function RecentRow({ item, type }: { item: TempFood | FoodRequest; type: 'temp' | 'request' }) {
+function RecentRow({ item }: { item: TempFood }) {
   const name = item.food_name
-  const requester = 'requester_name' in item ? item.requester_name : '—'
-  const date = new Date(
-    'submitted_at' in item ? (item.submitted_at ?? '') : (item.created_at ?? '')
-  ).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })
+  const requester = item.requester_name ?? '—'
+  const date = new Date(item.submitted_at ?? '').toLocaleDateString('th-TH', {
+    day: '2-digit',
+    month: 'short',
+    year: '2-digit',
+  })
 
   return (
     <tr className="border-b border-gray-50 hover:bg-gray-50 transition">
@@ -40,12 +42,8 @@ function RecentRow({ item, type }: { item: TempFood | FoodRequest; type: 'temp' 
       <td className="py-3 px-4 text-sm text-gray-500">{requester}</td>
       <td className="py-3 px-4 text-sm text-gray-400">{date}</td>
       <td className="py-3 px-4">
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-          type === 'temp'
-            ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-            : 'bg-blue-50 text-blue-700 border border-blue-200'
-        }`}>
-          {type === 'temp' ? 'temp-food' : 'food-request'}
+        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">
+          temp-food
         </span>
       </td>
     </tr>
@@ -55,25 +53,26 @@ function RecentRow({ item, type }: { item: TempFood | FoodRequest; type: 'temp' 
 export default function Dashboard() {
   const [foods, setFoods] = useState<Food[]>([])
   const [tempFoods, setTempFoods] = useState<TempFood[]>([])
-  const [requests, setRequests] = useState<FoodRequest[]>([])
+  const [regionalNames, setRegionalNames] = useState<RegionalNameSubmission[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([api.getFoods(), api.getTempFoods('pending'), api.getFoodRequests()])
-      .then(([f, t, r]) => {
+    Promise.all([
+      api.getFoods(),
+      api.getTempFoods('pending'),
+      api.getRegionalNameSubmissions('pending'),
+    ])
+      .then(([f, t, regional]) => {
         setFoods(f as Food[])
         setTempFoods(t as TempFood[])
-        setRequests(r as FoodRequest[])
+        setRegionalNames(regional as RegionalNameSubmission[])
       })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
 
-  const pendingTotal = tempFoods.length + requests.length
-  const recentItems = [
-    ...tempFoods.slice(0, 3).map(t => ({ item: t as TempFood | FoodRequest, type: 'temp' as const })),
-    ...requests.slice(0, 3).map(r => ({ item: r as TempFood | FoodRequest, type: 'request' as const })),
-  ].slice(0, 5)
+  const pendingTotal = tempFoods.length + regionalNames.length
+  const recentItems = tempFoods.slice(0, 5)
 
   if (loading) {
     return (
@@ -114,9 +113,9 @@ export default function Dashboard() {
           bg="bg-yellow-50"
         />
         <StatCard
-          icon={<CheckCircle size={22} />}
-          label="Food Requests"
-          value={requests.length}
+          icon={<Languages size={22} />}
+          label="ชื่อท้องถิ่นรอตรวจ"
+          value={regionalNames.length}
           color="text-blue-600"
           bg="bg-blue-50"
         />
@@ -141,8 +140,8 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {recentItems.map((r, i) => (
-                  <RecentRow key={i} item={r.item} type={r.type} />
+                {recentItems.map((item, i) => (
+                  <RecentRow key={i} item={item} />
                 ))}
               </tbody>
             </table>

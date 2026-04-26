@@ -43,6 +43,12 @@ def test_fallback_dictionary_without_db():
     assert any(r["name"] == "ส้มตำ" for r in result)
 
 
+def test_regional_alias_can_be_dictionary_match():
+    text = "มื้อเที่ยงกินข้าวปุ้น 1 จาน"
+    result = extract_foods(text, db_food_names=["ขนมจีนน้ำยา", "ข้าวปุ้น"])
+    assert any(r["name"] == "ข้าวปุ้น" and r["quantity"] == 1.0 for r in result)
+
+
 def test_limit_respected():
     text = "ข้าวผัด ต้มยำ ผัดไทย ส้มตำ ลาบ"
     result = extract_foods(text, limit=2)
