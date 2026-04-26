@@ -11,9 +11,9 @@ class RestaurantMapScreen extends StatefulWidget {
   final double remainingCalories;
 
   const RestaurantMapScreen({
-    Key? key,
+    super.key,
     required this.remainingCalories,
-  }) : super(key: key);
+  });
 
   @override
   State<RestaurantMapScreen> createState() => _RestaurantMapScreenState();
@@ -22,7 +22,6 @@ class RestaurantMapScreen extends StatefulWidget {
 class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
   static const Color _green = Color(0xFF628141);
   static const Color _greenL = Color(0xFFE8EFCF);
-  static const Color _greenM = Color(0xFFAFD198);
   static const Color _orange = Color(0xFFD76A3C);
   static const Color _orangeL = Color(0xFFFFF3E0);
   static const Color _blue = Color(0xFF1565C0);
@@ -295,6 +294,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
       zoomControlsEnabled: false,
       onMapCreated: (controller) {
         _mapController = controller;
+        // ignore: deprecated_member_use
         controller.setMapStyle('''
         [
           {
@@ -339,7 +339,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: _green.withOpacity(0.1),
+              color: _green.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -433,7 +433,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
                 });
               },
               backgroundColor: Colors.white,
-              selectedColor: _orange.withOpacity(0.2),
+              selectedColor: _orange.withValues(alpha: 0.2),
               labelStyle: TextStyle(
                 color: isSelected ? _orange : Colors.black54,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -469,7 +469,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
-                color: _green.withOpacity(0.15),
+                color: _green.withValues(alpha: 0.15),
                 blurRadius: 16,
                 offset: const Offset(0, -4),
               ),
@@ -501,7 +501,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
                     const Spacer(),
                     Text(
                       'เหลือ ${widget.remainingCalories.toStringAsFixed(0)} kcal',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         color: _orange,
                         fontWeight: FontWeight.bold,
@@ -551,7 +551,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: _green.withOpacity(0.08),
+              color: _green.withValues(alpha: 0.08),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -597,7 +597,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.star, size: 16, color: _orange),
+                      const Icon(Icons.star, size: 16, color: _orange),
                       const SizedBox(width: 4),
                       Text(
                         restaurant['rating'].toStringAsFixed(1),
@@ -607,7 +607,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Icon(Icons.location_on, size: 16, color: _blue),
+                      const Icon(Icons.location_on, size: 16, color: _blue),
                       const SizedBox(width: 4),
                       Text(
                         '${(restaurant['distance'] / 1000).toStringAsFixed(1)} km',
@@ -659,7 +659,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
-              color: _green.withOpacity(0.2),
+              color: _green.withValues(alpha: 0.2),
               blurRadius: 20,
               offset: const Offset(0, -4),
             ),
@@ -749,7 +749,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
                       decoration: BoxDecoration(
                         color: _orangeL,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _orange.withOpacity(0.3)),
+                        border: Border.all(color: _orange.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -809,8 +809,8 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
                             onPressed: () {
                               // View menu
                             },
-                            icon: Icon(Icons.restaurant_menu, color: _green),
-                            label: Text(
+                            icon: const Icon(Icons.restaurant_menu, color: _green),
+                            label: const Text(
                               'ดูเมนู',
                               style: TextStyle(
                                 fontSize: 16,
@@ -819,7 +819,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
                               ),
                             ),
                             style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: _green, width: 2),
+                              side: const BorderSide(color: _green, width: 2),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -844,7 +844,7 @@ class _RestaurantMapScreenState extends State<RestaurantMapScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

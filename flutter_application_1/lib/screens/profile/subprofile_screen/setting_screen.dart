@@ -299,7 +299,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? color.withOpacity(0.08) : Colors.grey.shade50,
+          color: selected ? color.withValues(alpha: 0.08) : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? color : Colors.grey.shade200,
@@ -311,7 +311,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 20),
@@ -392,10 +392,10 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: _green.withOpacity(0.10),
+              color: _green.withValues(alpha: 0.10),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.location_on_outlined, color: _green, size: 20),
+            child: const Icon(Icons.location_on_outlined, color: _green, size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -476,7 +476,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       shape: BoxShape.circle),
                   child: const Icon(Icons.arrow_back_ios_new_rounded,
                       color: Colors.white, size: 18),
@@ -673,7 +673,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 14,
                 offset: const Offset(0, 4))
           ],
@@ -779,7 +779,7 @@ class _SettingScreenState extends ConsumerState<SettingScreen> {
                 color: Colors.black87)),
         trailing: Switch(
           value: _isNotificationOn,
-          activeColor: _green,
+          activeThumbColor: _green,
           onChanged: (val) => setState(() => _isNotificationOn = val),
         ),
       ),

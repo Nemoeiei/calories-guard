@@ -180,7 +180,7 @@ class ProfileScreen extends ConsumerWidget {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   shape: BoxShape.circle),
               child: const Icon(Icons.arrow_back_ios_new_rounded,
                   color: Colors.white, size: 18),
@@ -207,7 +207,7 @@ class ProfileScreen extends ConsumerWidget {
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               border: Border.all(color: Colors.white, width: 2.5),
               image: DecorationImage(
                   image: (userData.avatarUrl != null &&
@@ -231,15 +231,15 @@ class ProfileScreen extends ConsumerWidget {
               Text(
                   'อายุ ${userData.age} ปี  •  สูง ${userData.height.toInt()} ซม.',
                   style: TextStyle(
-                      fontSize: 13, color: Colors.white.withOpacity(0.8))),
+                      fontSize: 13, color: Colors.white.withValues(alpha: 0.8))),
               const SizedBox(height: 10),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(goalIcon, size: 14, color: Colors.white),
@@ -265,7 +265,7 @@ class ProfileScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 16,
               offset: const Offset(0, 4))
         ],
@@ -327,7 +327,7 @@ class ProfileScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 14,
               offset: const Offset(0, 4))
         ],

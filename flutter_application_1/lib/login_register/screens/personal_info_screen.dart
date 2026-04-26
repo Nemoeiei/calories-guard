@@ -202,7 +202,7 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
+                          color: Colors.black.withValues(alpha: 0.25),
                           blurRadius: 4,
                           offset: const Offset(0, 4),
                         ),
@@ -229,18 +229,18 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
   }
 
   Widget _buildBirthDateRow() {
-    final label = 'วันเกิด*';
+    const label = 'วันเกิด*';
     final displayText = _selectedDate == null
         ? 'วว/ดด/ปปปป'
         : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}';
     final isPlaceholder = _selectedDate == null;
     return Row(
       children: [
-        SizedBox(
+        const SizedBox(
           width: 100,
           child: Text(
             label,
-            style: const TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w500, color: Colors.black),
+            style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w500, color: Colors.black),
           ),
         ),
         const SizedBox(width: 12),

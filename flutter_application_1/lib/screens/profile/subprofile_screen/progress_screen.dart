@@ -33,14 +33,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
   int? _selectedChartDayIndex;
 
-  /// แท็บโภชนาการ: แมโครที่เลือกเน้น (0=โปรตีน, 1=คาร์บ, 2=ไขมัน), null=ไม่เน้น
-
-  int? _selectedNutritionMacroIndex;
-
-  /// แท็บโภชนาการ: วันที่เลือก (0–6) เพื่อแสดงค่ากินรายวัน; null = ไม่แสดงกล่อง
-
-  int? _selectedNutritionDayIndex;
-
   List<dynamic> _weeklyData = [];
   List<Map<String, dynamic>> _calendarData = [];
   List<Map<String, dynamic>> _weightLogs = [];
@@ -198,15 +190,15 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         queryParams: {'date_query': dateStr},
       );
 
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
-        _buildDayDetailSheet(date, data);
+        if (mounted) _buildDayDetailSheet(date, data);
       }
     } catch (e) {
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
     }
   }
 
@@ -409,7 +401,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                                     borderRadius: BorderRadius.circular(14),
                                     border: Border.all(color: const Color(0xFFE8EFCF)),
                                     boxShadow: [
-                                      BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0,2))
+                                      BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0,2))
                                     ],
                                   ),
                                   child: Row(
@@ -470,7 +462,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                                     ],
                                   ),
                                 );
-                              }).toList(),
+                              }),
                             ],
                           );
                         }).toList(),
@@ -503,7 +495,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
   Widget _miniMacroChip(String text, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+    decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
     child: Text(text, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color, fontFamily: 'Inter')),
   );
 
@@ -666,10 +658,11 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
         DateTime? docDate;
 
-        if (dateVal is DateTime)
+        if (dateVal is DateTime) {
           docDate = dateVal;
-        else if (dateVal != null)
+        } else if (dateVal != null) {
           docDate = DateTime.tryParse(dateVal.toString());
+        }
 
         if (docDate != null && isSameDay(docDate, d)) {
           cal = (map['calories'] as num?)?.toDouble() ?? 0;
@@ -747,7 +740,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 5)
                             ]),
                         child: const Icon(Icons.arrow_back_ios_new,
@@ -848,7 +841,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 2),
                                     decoration: BoxDecoration(
-                                        color: bmiColor.withOpacity(0.2),
+                                        color: bmiColor.withValues(alpha: 0.2),
                                         borderRadius: BorderRadius.circular(5)),
                                     child: Text(bmiStatus,
                                         style: TextStyle(
@@ -874,8 +867,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
                                   if (position < 0) position = 0;
 
-                                  if (position > width - 10)
+                                  if (position > width - 10) {
                                     position = width - 10;
+                                  }
 
                                   return Stack(
                                     clipBehavior: Clip.none,
@@ -1009,186 +1003,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     );
   }
 
-  // --- Widgets ---
-
-  Widget _buildDayNutritionBox(Map<String, dynamic> dayData, double targetP,
-      double targetC, double targetF, int dayIndex) {
-    final hasData = dayData['hasData'] == true;
-
-    final p = hasData ? (dayData['protein'] as num?)?.toDouble() ?? 0 : 0.0;
-
-    final c = hasData ? (dayData['carbs'] as num?)?.toDouble() ?? 0 : 0.0;
-
-    final f = hasData ? (dayData['fat'] as num?)?.toDouble() ?? 0 : 0.0;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black87,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE8EFCF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 4),
-          Text('โปรตีน ${p.toInt()}/${targetP.toInt()}',
-              style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF628141),
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Inter')),
-          Text('คาร์โบไฮเดรต ${c.toInt()}/${targetC.toInt()}',
-              style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFFFFB800),
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Inter')),
-          Text('ไขมัน ${f.toInt()}/${targetF.toInt()}',
-              style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFFD76A3C),
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Inter')),
-        ],
-      ),
-    );
-  }
-
-  Widget _macroLegendChip(Color color, String label, bool selected) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          final idx = label == 'โปรตีน' ? 0 : (label == 'คาร์บ' ? 1 : 2);
-
-          _selectedNutritionMacroIndex =
-              _selectedNutritionMacroIndex == idx ? null : idx;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected ? color : color.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color, width: selected ? 2 : 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-                width: 8,
-                height: 8,
-                decoration:
-                    BoxDecoration(color: color, shape: BoxShape.circle)),
-            const SizedBox(width: 6),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? Colors.white : color,
-                    fontFamily: 'Inter')),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWeekPill(DateTime weekMonday, int weekNum) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(40),
-        border: Border.all(color: const Color(0xFFE8EFCF)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 2))
-        ],
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () {
-              setState(() {
-                _chartWeekOffset--;
-
-                _selectedChartDayIndex = null;
-
-                _selectedNutritionMacroIndex = null;
-
-                _selectedNutritionDayIndex = null;
-
-                _fetchWeeklyData(weekStart: _getChartWeekMonday());
-              });
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFF628141),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Text('สัปดาห์ที่ $weekNum',
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                        fontFamily: 'Inter')),
-                const SizedBox(height: 2),
-                Text(_getWeekRangeText(weekMonday),
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey[600],
-                        fontFamily: 'Inter')),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: _chartWeekOffset >= 0
-                ? null
-                : () {
-                    setState(() {
-                      _chartWeekOffset++;
-
-                      _selectedChartDayIndex = null;
-
-                      _selectedNutritionMacroIndex = null;
-
-                      _selectedNutritionDayIndex = null;
-
-                      _fetchWeeklyData(weekStart: _getChartWeekMonday());
-                    });
-                  },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            style: IconButton.styleFrom(
-              backgroundColor: _chartWeekOffset >= 0
-                  ? Colors.grey.shade300
-                  : const Color(0xFF628141),
-              foregroundColor:
-                  _chartWeekOffset >= 0 ? Colors.grey.shade600 : Colors.white,
-              disabledBackgroundColor: Colors.grey.shade300,
-              disabledForegroundColor: Colors.grey.shade600,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildWeeklyChartSection(double targetCal, UserData userData) {
     final weekMonday = _getChartWeekMonday();
 
@@ -1215,7 +1029,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               border: Border.all(color: const Color(0xFFE8EFCF)),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 12,
                     offset: const Offset(0, 2))
               ],
@@ -1229,10 +1043,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                       _chartWeekOffset--;
 
                       _selectedChartDayIndex = null;
-
-                      _selectedNutritionMacroIndex = null;
-
-                      _selectedNutritionDayIndex = null;
 
                       _fetchWeeklyData(weekStart: _getChartWeekMonday());
                     });
@@ -1276,10 +1086,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
                             _selectedChartDayIndex = null;
 
-                            _selectedNutritionMacroIndex = null;
-
-                            _selectedNutritionDayIndex = null;
-
                             _fetchWeeklyData(weekStart: _getChartWeekMonday());
                           });
                         },
@@ -1316,7 +1122,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               border: Border.all(color: const Color(0xFFE8EFCF)),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 16,
                     offset: const Offset(0, 4))
               ],
@@ -1359,7 +1165,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                         color: const Color(0xFFE8EFCF),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: const Color(0xFF628141).withOpacity(0.3)),
+                            color: const Color(0xFF628141).withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1498,7 +1304,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
       statusText = 'ยังอยู่ในเป้า';
     }
 
-    String _fmt(int n) => _formatNumber(n);
+    String fmt(int n) => _formatNumber(n);
 
     return Column(children: [
       // ── การ์ดหลัก: เป้าแคลสัปดาห์ เต็มความกว้าง อ่านง่าย ──────────────────
@@ -1511,7 +1317,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           border: Border.all(color: const Color(0xFFE8EFCF)),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 12,
                 offset: const Offset(0, 2))
           ],
@@ -1523,7 +1329,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.12),
+                color: statusColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(Icons.local_fire_department,
@@ -1544,7 +1350,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.12),
+                color: statusColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -1563,7 +1369,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             text: TextSpan(
               children: [
                 TextSpan(
-                  text: _fmt(totalCal),
+                  text: fmt(totalCal),
                   style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
@@ -1572,7 +1378,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                       fontFamily: 'Inter'),
                 ),
                 TextSpan(
-                  text: '  / ${_fmt(weeklyTarget)} kcal',
+                  text: '  / ${fmt(weeklyTarget)} kcal',
                   style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -1600,8 +1406,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          redOver.withOpacity(0.9),
-                          redOver.withOpacity(0.6),
+                          redOver.withValues(alpha: 0.9),
+                          redOver.withValues(alpha: 0.6),
                         ],
                       ),
                     ),
@@ -1637,7 +1443,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               Expanded(
                 child: _statChip(
                     label: remaining >= 0 ? 'เหลือในสัปดาห์' : 'เกินไป',
-                    value: _fmt(remaining.abs()),
+                    value: fmt(remaining.abs()),
                     unit: 'kcal',
                     color: remaining >= 0 ? greenOk : redOver),
               ),
@@ -1648,7 +1454,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                     label: isCurrentWeek
                         ? 'เฉลี่ย ($daysElapsed วัน)'
                         : 'เฉลี่ยต่อวัน',
-                    value: _fmt(avgPerDay),
+                    value: fmt(avgPerDay),
                     unit: 'kcal/วัน',
                     color: Colors.black87),
               ),
@@ -1660,8 +1466,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                         ? 'งบ $daysRemaining วันที่เหลือ'
                         : 'เป้ารายวัน',
                     value: isCurrentWeek && daysRemaining > 0
-                        ? _fmt(budgetPerRemainingDay)
-                        : _fmt(targetCal.toInt()),
+                        ? fmt(budgetPerRemainingDay)
+                        : fmt(targetCal.toInt()),
                     unit: 'kcal/วัน',
                     color: isCurrentWeek && daysRemaining > 0 && remaining > 0
                         ? blueNeutral
@@ -1675,7 +1481,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
       // ── การ์ดเสริม: วันที่ทานตามเป้า (คงเดิมแต่ย่อลง) ──────────────────
       _statCardWithBar(
         icon: Icons.gps_fixed,
-        iconBg: greenOk.withOpacity(0.12),
+        iconBg: greenOk.withValues(alpha: 0.12),
         iconColor: greenOk,
         value: '$daysMet/7',
         unit: 'วัน',
@@ -1752,7 +1558,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         border: Border.all(color: const Color(0xFFE8EFCF)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 2))
         ],
@@ -1883,15 +1689,15 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           Container(
             width: 38, height: 38,
             decoration: BoxDecoration(
-                color: goalColor.withOpacity(0.12),
+                color: goalColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12)),
             child: Icon(goalIcon, size: 20, color: goalColor),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('ความคืบหน้าเป้าหมาย',
-                  style: const TextStyle(
+              const Text('ความคืบหน้าเป้าหมาย',
+                  style: TextStyle(
                       fontSize: 15, fontWeight: FontWeight.bold)),
               Text(goalLabel,
                   style: TextStyle(fontSize: 12, color: goalColor,
@@ -1969,7 +1775,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-            color: color.withOpacity(0.07),
+            color: color.withValues(alpha: 0.07),
             borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
           Icon(icon, size: 18, color: color),
@@ -2117,7 +1923,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                   ),
                   belowBarData: BarAreaData(
                     show: true,
-                    color: const Color(0xFF628141).withOpacity(0.08),
+                    color: const Color(0xFF628141).withValues(alpha: 0.08),
                   ),
                 ),
                 // Target weight dashed line
@@ -2345,7 +2151,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     for (final d in data) {
       if (d['hasData'] == true &&
           (d['calories'] as num).toDouble() > 0 &&
-          (d['calories'] as num).toDouble() <= targetCal) onTarget++;
+          (d['calories'] as num).toDouble() <= targetCal) {
+        onTarget++;
+      }
     }
 
     return ((onTarget / 7) * 100).round();
@@ -2375,7 +2183,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     for (final d in data) {
       if (d['hasData'] == true &&
           (d['calories'] as num).toDouble() > 0 &&
-          (d['calories'] as num).toDouble() <= targetCal) count++;
+          (d['calories'] as num).toDouble() <= targetCal) {
+        count++;
+      }
     }
 
     return count;
@@ -2415,8 +2225,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
 
     final y = weekMonday.year + 543;
 
-    if (weekMonday.month == sunday.month)
+    if (weekMonday.month == sunday.month) {
       return '${weekMonday.day}–${sunday.day} $m $y';
+    }
 
     final m2 = months[sunday.month - 1];
 
@@ -2499,11 +2310,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           setState(() {
             _selectedTabIndex = index;
 
-            if (index != 1) {
-              _selectedNutritionMacroIndex = null;
-
-              _selectedNutritionDayIndex = null;
-            }
           });
 
           if (index == 1) _fetchWeeklyData(weekStart: _getChartWeekMonday());
@@ -2587,7 +2393,9 @@ class _WeeklyBarChart extends StatelessWidget {
           touchCallback: (event, response) {
             if (response == null ||
                 response.spot == null ||
-                onBarTapped == null) return;
+                onBarTapped == null) {
+              return;
+            }
 
             final groupIndex = response.spot!.touchedBarGroupIndex;
 
@@ -2688,7 +2496,7 @@ class _WeeklyBarChart extends StatelessWidget {
           horizontalLines: [
             HorizontalLine(
               y: targetCal,
-              color: Colors.orange.withOpacity(0.7),
+              color: Colors.orange.withValues(alpha: 0.7),
               strokeWidth: 2,
               dashArray: [5, 5],
               label: HorizontalLineLabel(
@@ -2726,7 +2534,7 @@ class _WeeklyBarChart extends StatelessWidget {
 
           final isSelected = selectedBarIndex == index;
 
-          final barColor = isSelected ? color : color.withOpacity(0.35);
+          final barColor = isSelected ? color : color.withValues(alpha: 0.35);
 
           return BarChartGroupData(
             x: index,
@@ -2756,281 +2564,3 @@ class _WeeklyBarChart extends StatelessWidget {
   }
 }
 
-/// กราฟรวม 3 แมโคร (โปรตีน/คาร์บ/ไขมัน) 7 วัน แท่งกลุ่ม + เส้นเป้า + แตะเน้น
-
-class _CombinedMacroChart extends StatelessWidget {
-  final List<Map<String, dynamic>> weekData;
-
-  final double targetProtein;
-
-  final double targetCarbs;
-
-  final double targetFat;
-
-  final int? selectedMacroIndex;
-
-  /// (dayIndex 0-6, macroIndex 0-2)
-
-  final void Function(int dayIndex, int macroIndex) onTapped;
-
-  const _CombinedMacroChart({
-    required this.weekData,
-    required this.targetProtein,
-    required this.targetCarbs,
-    required this.targetFat,
-    required this.selectedMacroIndex,
-    required this.onTapped,
-  });
-
-  static const List<String> _dayLabels = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
-
-  static const Color _colorProtein = Color(0xFF628141);
-
-  static const Color _colorCarbs = Color(0xFFFFB800);
-
-  static const Color _colorFat = Color(0xFFD76A3C);
-
-  @override
-  Widget build(BuildContext context) {
-    if (weekData.length != 7) {
-      return const SizedBox(
-          height: 220,
-          child: Center(
-              child:
-                  Text('กำลังโหลด...', style: TextStyle(color: Colors.grey))));
-    }
-
-    double maxVal = 0;
-
-    for (final d in weekData) {
-      if (d['hasData'] == true) {
-        final p = (d['protein'] as num?)?.toDouble() ?? 0;
-
-        final c = (d['carbs'] as num?)?.toDouble() ?? 0;
-
-        final f = (d['fat'] as num?)?.toDouble() ?? 0;
-
-        if (p > maxVal) maxVal = p;
-
-        if (c > maxVal) maxVal = c;
-
-        if (f > maxVal) maxVal = f;
-      }
-    }
-
-    final targets = [targetProtein, targetCarbs, targetFat];
-
-    for (final t in targets) {
-      if (t > maxVal) maxVal = t;
-    }
-
-    double maxY = (maxVal * 1.2).clamp(20, double.infinity);
-
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceBetween,
-        maxY: maxY,
-        minY: 0,
-        groupsSpace: 8,
-        barTouchData: BarTouchData(
-          enabled: true,
-          touchCallback: (event, response) {
-            final spot = response?.spot;
-
-            if (spot == null) return;
-
-            final dayIndex = spot.touchedBarGroupIndex;
-
-            final macroIndex = spot.touchedRodDataIndex;
-
-            if (dayIndex >= 0 &&
-                dayIndex < 7 &&
-                macroIndex >= 0 &&
-                macroIndex <= 2) onTapped(dayIndex, macroIndex);
-          },
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => Colors.black87,
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              final d = weekData[group.x];
-
-              final hasData = d['hasData'] == true;
-
-              final labels = ['โปรตีน', 'คาร์บ', 'ไขมัน'];
-
-              final values = [
-                (d['protein'] as num?)?.toDouble() ?? 0,
-                (d['carbs'] as num?)?.toDouble() ?? 0,
-                (d['fat'] as num?)?.toDouble() ?? 0,
-              ];
-
-              final v = rodIndex < values.length ? values[rodIndex] : 0.0;
-
-              final text = hasData
-                  ? '${_dayLabels[group.x]} ${labels[rodIndex]}: ${v.toInt()} g'
-                  : '${_dayLabels[group.x]} ${labels[rodIndex]}: —';
-
-              return BarTooltipItem(
-                  text,
-                  const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11));
-            },
-          ),
-        ),
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          show: true,
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 22,
-              getTitlesWidget: (value, meta) {
-                final i = value.toInt();
-
-                if (i >= 0 && i < _dayLabels.length) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(_dayLabels[i],
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[600])),
-                  );
-                }
-
-                return const Text('');
-              },
-            ),
-          ),
-        ),
-        extraLinesData: ExtraLinesData(
-          horizontalLines: [
-            HorizontalLine(
-              y: targetProtein,
-              color: _colorProtein.withOpacity(0.7),
-              strokeWidth: 1.5,
-              dashArray: [4, 4],
-              label: HorizontalLineLabel(
-                  show: true,
-                  style: TextStyle(
-                      fontSize: 9,
-                      color: _colorProtein,
-                      fontWeight: FontWeight.w600),
-                  alignment: Alignment.topRight,
-                  padding: const EdgeInsets.only(right: 4),
-                  labelResolver: (_) => 'โปรตีน'),
-            ),
-            HorizontalLine(
-              y: targetCarbs,
-              color: _colorCarbs.withOpacity(0.7),
-              strokeWidth: 1.5,
-              dashArray: [4, 4],
-              label: HorizontalLineLabel(
-                  show: true,
-                  style: TextStyle(
-                      fontSize: 9,
-                      color: _colorCarbs,
-                      fontWeight: FontWeight.w600),
-                  alignment: Alignment.topRight,
-                  padding: const EdgeInsets.only(right: 4),
-                  labelResolver: (_) => 'คาร์บ'),
-            ),
-            HorizontalLine(
-              y: targetFat,
-              color: _colorFat.withOpacity(0.7),
-              strokeWidth: 1.5,
-              dashArray: [4, 4],
-              label: HorizontalLineLabel(
-                  show: true,
-                  style: TextStyle(
-                      fontSize: 9,
-                      color: _colorFat,
-                      fontWeight: FontWeight.w600),
-                  alignment: Alignment.topRight,
-                  padding: const EdgeInsets.only(right: 4),
-                  labelResolver: (_) => 'ไขมัน'),
-            ),
-          ],
-        ),
-        barGroups: weekData.asMap().entries.map((entry) {
-          int dayIndex = entry.key;
-
-          final d = entry.value;
-
-          final hasData = d['hasData'] == true;
-
-          final p = hasData
-              ? ((d['protein'] as num?)?.toDouble() ?? 0)
-              : (targetProtein * 0.05);
-
-          final c = hasData
-              ? ((d['carbs'] as num?)?.toDouble() ?? 0)
-              : (targetCarbs * 0.05);
-
-          final f = hasData
-              ? ((d['fat'] as num?)?.toDouble() ?? 0)
-              : (targetFat * 0.05);
-
-          Color colorP = _colorProtein;
-
-          Color colorC = _colorCarbs;
-
-          Color colorF = _colorFat;
-
-          if (selectedMacroIndex != null) {
-            if (selectedMacroIndex != 0)
-              colorP = _colorProtein.withOpacity(0.35);
-
-            if (selectedMacroIndex != 1) colorC = _colorCarbs.withOpacity(0.35);
-
-            if (selectedMacroIndex != 2) colorF = _colorFat.withOpacity(0.35);
-          }
-
-          if (!hasData) {
-            colorP = Colors.grey;
-
-            colorC = Colors.grey;
-
-            colorF = Colors.grey;
-          }
-
-          return BarChartGroupData(
-            x: dayIndex,
-            barRods: [
-              BarChartRodData(
-                  toY: p,
-                  color: colorP,
-                  width: 14,
-                  borderRadius: BorderRadius.circular(4),
-                  backDrawRodData: BackgroundBarChartRodData(
-                      show: true, toY: maxY, color: const Color(0xFFF5F5F5))),
-              BarChartRodData(
-                  toY: c,
-                  color: colorC,
-                  width: 14,
-                  borderRadius: BorderRadius.circular(4),
-                  backDrawRodData: BackgroundBarChartRodData(
-                      show: true, toY: maxY, color: const Color(0xFFF5F5F5))),
-              BarChartRodData(
-                  toY: f,
-                  color: colorF,
-                  width: 14,
-                  borderRadius: BorderRadius.circular(4),
-                  backDrawRodData: BackgroundBarChartRodData(
-                      show: true, toY: maxY, color: const Color(0xFFF5F5F5))),
-            ],
-            showingTooltipIndicators: [],
-          );
-        }).toList(),
-      ),
-    );
-  }
-}

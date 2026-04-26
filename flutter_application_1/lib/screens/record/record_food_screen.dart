@@ -106,7 +106,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
   int _waterGlasses = 0;
   static const _waterGoal = 8;
   late List<MealSlot> _meals;
-  List<Activity> _activities = [];
+  final List<Activity> _activities = [];
   late AnimationController _waterAnim;
   bool _isSaving = false;
   bool _isLoadingData = false;
@@ -161,8 +161,9 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final ml = (data['amount_ml'] as num?)?.toInt() ?? 0;
-        if (mounted)
+        if (mounted) {
           setState(() => _waterGlasses = (ml / 250).round().clamp(0, 20));
+        }
       }
     } catch (e, st) {
       ErrorReporter.report('record.fetch_water_log', e, st);
@@ -250,17 +251,8 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
   double get _totalCalIn => _meals.fold(0, (s, m) => s + m.totalCalories);
   double get _totalCalBurned =>
       _activities.fold(0, (s, a) => s + a.caloriesBurned);
-  double get _totalProtein => _meals.fold(0, (s, m) => s + m.totalProtein);
-  double get _totalCarbs => _meals.fold(0, (s, m) => s + m.totalCarbs);
-  double get _totalFat => _meals.fold(0, (s, m) => s + m.totalFat);
-
   @override
   Widget build(BuildContext context) {
-    final userData = ref.watch(userDataProvider);
-    final targetCal = userData.targetCalories.toDouble();
-    final netCal = _totalCalIn - _totalCalBurned;
-    final remaining = targetCal - netCal;
-
     return Scaffold(
       backgroundColor: _bg,
       body: Column(children: [
@@ -372,132 +364,19 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
     );
   }
 
-  Widget _buildCalorieSummary(
-      double target, double net, double remaining, UserData userData) {
-    final pct = target > 0 ? (net / target).clamp(0.0, 1.0) : 0.0;
-    final isOver = net > target;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.07),
-              blurRadius: 16,
-              offset: const Offset(0, 4))
-        ],
-      ),
-      child: Column(children: [
-        Row(children: [
-          SizedBox(
-            width: 100,
-            height: 100,
-            child: Stack(alignment: Alignment.center, children: [
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: CircularProgressIndicator(
-                  value: pct,
-                  strokeWidth: 10,
-                  backgroundColor: _greenL,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(isOver ? _orange : _green),
-                ),
-              ),
-              Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('${net.toInt()}',
-                    style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black87,
-                        height: 1)),
-                const Text('kcal',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
-              ]),
-            ]),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-              child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _calRow('🎯 เป้าหมาย', '${target.toInt()} kcal', Colors.black87),
-              _calRow('🍽️ กินแล้ว', '${_totalCalIn.toInt()} kcal', _green),
-              _calRow('🏃 เผาผลาญ', '${_totalCalBurned.toInt()} kcal', _orange),
-              const Divider(height: 12),
-              _calRow(
-                isOver ? '⚠️ เกินเป้า' : '✅ เหลืออีก',
-                '${remaining.abs().toInt()} kcal',
-                isOver ? _orange : _blue,
-                isBold: true,
-              ),
-            ],
-          )),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _calRow(String label, String val, Color color, {bool isBold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(children: [
-        Text(label,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-        const Spacer(),
-        Text(val,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
-                color: color,
-                fontFamily: 'Inter')),
-      ]),
-    );
-  }
-
-  Widget _macroBar(String label, double val, double target, Color color) {
-    final pct = target > 0 ? (val / target).clamp(0.0, 1.0) : 0.0;
-    return Expanded(
-        child: Column(children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
-        Text('${val.toInt()}g',
-            style: TextStyle(
-                fontSize: 10, color: color, fontWeight: FontWeight.w700)),
-      ]),
-      const SizedBox(height: 4),
-      ClipRRect(
-        borderRadius: BorderRadius.circular(99),
-        child: LinearProgressIndicator(
-          value: pct,
-          minHeight: 7,
-          backgroundColor: color.withOpacity(0.15),
-          valueColor: AlwaysStoppedAnimation<Color>(color),
-        ),
-      ),
-      Text('/${target.toInt()}g',
-          style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
-    ]));
-  }
-
   Widget _buildWaterTracker() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-            colors: [const Color(0xFF1565C0), const Color(0xFF1976D2)],
+        gradient: const LinearGradient(
+            colors: [Color(0xFF1565C0), Color(0xFF1976D2)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: _blue.withOpacity(0.3),
+              color: _blue.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 4))
         ],
@@ -558,7 +437,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
                           decoration: BoxDecoration(
                             color: i < _waterGlasses
                                 ? Colors.white
-                                : Colors.white.withOpacity(0.2),
+                                : Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Center(
@@ -581,7 +460,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
         width: 30,
         height: 30,
         decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(8)),
         child: Icon(icon, color: Colors.white, size: 18),
       ),
@@ -596,7 +475,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 12,
               offset: const Offset(0, 3))
         ],
@@ -656,7 +535,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
                     width: 24,
                     height: 24,
                     decoration:
-                        BoxDecoration(color: _greenL, shape: BoxShape.circle),
+                        const BoxDecoration(color: _greenL, shape: BoxShape.circle),
                     child: const Icon(Icons.add, size: 16, color: _green),
                   ),
                   const SizedBox(width: 8),
@@ -675,10 +554,10 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
             onTap: () => _showAiEstimateSheet(meal),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              child: Row(children: [
-                const Icon(Icons.auto_awesome, size: 16, color: _green),
-                const SizedBox(width: 6),
-                const Text('AI',
+              child: const Row(children: [
+                Icon(Icons.auto_awesome, size: 16, color: _green),
+                SizedBox(width: 6),
+                Text('AI',
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -802,10 +681,10 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _greenM, style: BorderStyle.solid),
           ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.add_circle_outline, color: _green, size: 20),
-            const SizedBox(width: 8),
-            const Text('เพิ่มมื้ออาหารเอง',
+          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.add_circle_outline, color: _green, size: 20),
+            SizedBox(width: 8),
+            Text('เพิ่มมื้ออาหารเอง',
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -869,7 +748,7 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 12,
               offset: const Offset(0, 3))
         ],
@@ -1043,11 +922,11 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
           ));
           return;
         case HealthReadiness.needsInstall:
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: const Text(
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
                 'ยังไม่ได้ติดตั้ง Health Connect — แตะปุ่มติดตั้งเพื่อดาวน์โหลด'),
             backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 6),
+            duration: Duration(seconds: 6),
             action: SnackBarAction(
               label: 'ติดตั้ง',
               textColor: Colors.white,
@@ -1094,12 +973,12 @@ class _FoodLogScreenState extends ConsumerState<FoodLogScreen>
       } else {
         // Permissions are fine but no data — typically means Samsung Health
         // hasn't been linked to Health Connect yet.
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text(
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
               'ไม่พบข้อมูลกิจกรรมในวันนี้\n'
               'เปิด Samsung Health → ตั้งค่า → Health Connect และเปิดการซิงค์'),
           backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 6),
+          duration: Duration(seconds: 6),
           action: SnackBarAction(
             label: 'ติดตั้ง Samsung Health',
             textColor: Colors.white,
@@ -1256,7 +1135,6 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
   static const _greenL = Color(0xFFE8EFCF);
 
   List<Map<String, dynamic>> _dbResults = [];
-  List<Map<String, dynamic>> _units = [];
   bool _dbLoading = false;
   bool _showQuickAdd = false; // แสดง quick-add เมื่อค้นหาไม่เจอและกดปุ่ม
   final _searchCtrl = TextEditingController();
@@ -1288,11 +1166,8 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
 
   Future<void> _loadUnits() async {
     try {
-      final res = await ApiClient().get('/units');
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as List;
-        if (mounted) setState(() => _units = data.cast<Map<String, dynamic>>());
-      }
+      await ApiClient().get('/units');
+      // units data no longer stored (field removed)
     } catch (e, st) {
       ErrorReporter.report('record.load_units', e, st);
     }
@@ -1388,13 +1263,13 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
                 _nutriCol('พลังงาน', '${(cal * amount).toInt()}', 'kcal',
                     const Color(0xFF628141)),
                 _divider(),
-                _nutriCol('โปรตีน', '${(protein * amount).toStringAsFixed(1)}',
+                _nutriCol('โปรตีน', (protein * amount).toStringAsFixed(1),
                     'g', const Color(0xFF2563EB)),
                 _divider(),
-                _nutriCol('คาร์บ', '${(carbs * amount).toStringAsFixed(1)}',
+                _nutriCol('คาร์บ', (carbs * amount).toStringAsFixed(1),
                     'g', const Color(0xFFD97706)),
                 _divider(),
-                _nutriCol('ไขมัน', '${(fat * amount).toStringAsFixed(1)}', 'g',
+                _nutriCol('ไขมัน', (fat * amount).toStringAsFixed(1), 'g',
                     const Color(0xFFDC2626)),
               ]),
             ),
@@ -1867,11 +1742,11 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet>
         // ปุ่มย้อนกลับ
         GestureDetector(
           onTap: () => setState(() => _showQuickAdd = false),
-          child: Row(children: [
-            const Icon(Icons.arrow_back_ios_new_rounded,
+          child: const Row(children: [
+            Icon(Icons.arrow_back_ios_new_rounded,
                 size: 15, color: Color(0xFF628141)),
-            const SizedBox(width: 4),
-            const Text('กลับไปค้นหา',
+            SizedBox(width: 4),
+            Text('กลับไปค้นหา',
                 style: TextStyle(
                     fontSize: 13,
                     color: Color(0xFF628141),

@@ -81,12 +81,6 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
     }
   }
 
-  // gauge angle: BMI 10→40 maps to -π…0 (left to right half-circle)
-  double _bmiToAngle(double bmi) {
-    final clamped = bmi.clamp(10.0, 40.0);
-    return math.pi * (clamped - 10) / 30; // 0..π
-  }
-
   void _calculate() {
     final w = double.tryParse(_weightCtrl.text);
     final h = double.tryParse(_heightCtrl.text);
@@ -150,7 +144,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+                  color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
               child: const Icon(Icons.arrow_back_ios_new_rounded,
                   color: Colors.white, size: 18),
             ),
@@ -186,7 +180,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
               padding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(catData.label,
@@ -224,7 +218,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 12,
                 offset: const Offset(0, 3))
           ],
@@ -235,7 +229,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                  color: _green.withOpacity(0.1), shape: BoxShape.circle),
+                  color: _green.withValues(alpha: 0.1), shape: BoxShape.circle),
               child: const Icon(Icons.calculate_outlined,
                   size: 18, color: _green),
             ),
@@ -252,7 +246,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
             decoration: BoxDecoration(
               color: const Color(0xFFF0F7E8),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _green.withOpacity(0.3)),
+              border: Border.all(color: _green.withValues(alpha: 0.3)),
             ),
             child: Column(children: [
               const Text(
@@ -316,7 +310,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 12,
                 offset: const Offset(0, 3))
           ],
@@ -411,7 +405,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 12,
                 offset: const Offset(0, 3))
           ],
@@ -424,7 +418,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                    color: _green.withOpacity(0.1), shape: BoxShape.circle),
+                    color: _green.withValues(alpha: 0.1), shape: BoxShape.circle),
                 child: const Icon(Icons.table_chart_outlined,
                     size: 18, color: _green),
               ),
@@ -472,7 +466,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
                   vertical: 12, horizontal: 12),
               decoration: BoxDecoration(
                 color: isUser
-                    ? r.color.withOpacity(0.12)
+                    ? r.color.withValues(alpha: 0.12)
                     : Colors.grey.shade50,
                 borderRadius: BorderRadius.circular(10),
                 border: isUser
@@ -572,7 +566,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 12,
                 offset: const Offset(0, 3))
           ],
@@ -583,7 +577,7 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                  color: _green.withOpacity(0.1), shape: BoxShape.circle),
+                  color: _green.withValues(alpha: 0.1), shape: BoxShape.circle),
               child: const Icon(Icons.edit_note_rounded,
                   size: 18, color: _green),
             ),
@@ -624,10 +618,10 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _bmiColor(_calcBmi!).withOpacity(0.08),
+                color: _bmiColor(_calcBmi!).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                    color: _bmiColor(_calcBmi!).withOpacity(0.4)),
+                    color: _bmiColor(_calcBmi!).withValues(alpha: 0.4)),
               ),
               child: Column(children: [
                 Text(
@@ -691,17 +685,17 @@ class _BmiDetailScreenState extends State<BmiDetailScreen>
   _CatData _categoryData(_BmiCategory cat) {
     switch (cat) {
       case _BmiCategory.underweight:
-        return _CatData('น้ำหนักน้อยกว่าเกณฑ์', 'เสี่ยงโรคขาดสารอาหาร');
+        return const _CatData('น้ำหนักน้อยกว่าเกณฑ์', 'เสี่ยงโรคขาดสารอาหาร');
       case _BmiCategory.normal:
-        return _CatData('น้ำหนักสมส่วน', 'โอกาสเจ็บป่วยต่ำ');
+        return const _CatData('น้ำหนักสมส่วน', 'โอกาสเจ็บป่วยต่ำ');
       case _BmiCategory.overweight:
-        return _CatData('น้ำหนักเกินมาตรฐาน', 'ควรควบคุมน้ำหนัก');
+        return const _CatData('น้ำหนักเกินมาตรฐาน', 'ควรควบคุมน้ำหนัก');
       case _BmiCategory.obese1:
-        return _CatData('อ้วนระดับ 1', 'มีความเสี่ยงทางสุขภาพ');
+        return const _CatData('อ้วนระดับ 1', 'มีความเสี่ยงทางสุขภาพ');
       case _BmiCategory.obese2:
-        return _CatData('อ้วนระดับ 2', 'ความเสี่ยงสูงมาก');
+        return const _CatData('อ้วนระดับ 2', 'ความเสี่ยงสูงมาก');
       default:
-        return _CatData('ไม่ทราบ', '-');
+        return const _CatData('ไม่ทราบ', '-');
     }
   }
 }
@@ -745,7 +739,7 @@ class _BmiGaugePainter extends CustomPainter {
     final cx = size.width / 2;
     final cy = size.height * 0.85;
     final r = size.width * 0.42;
-    final strokeW = 22.0;
+    const strokeW = 22.0;
 
     final rect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
 
@@ -754,7 +748,7 @@ class _BmiGaugePainter extends CustomPainter {
       final startAngle = math.pi + math.pi * (zone.min - 10) / 30;
       final sweepAngle = math.pi * (zone.max - zone.min) / 30;
       final paint = Paint()
-        ..color = zone.color.withOpacity(0.3)
+        ..color = zone.color.withValues(alpha: 0.3)
         ..strokeWidth = strokeW
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.butt;

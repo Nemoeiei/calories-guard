@@ -100,11 +100,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             padding: const EdgeInsets.all(8.0),
             decoration: isActive
                 ? BoxDecoration(
-                    color: Colors.white.withOpacity(0.5),
+                    color: Colors.white.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF4C6414).withOpacity(0.4),
+                        color: const Color(0xFF4C6414).withValues(alpha: 0.4),
                         blurRadius: 12,
                         spreadRadius: 1,
                         offset: const Offset(0, 3),
@@ -180,7 +180,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                 final avatarUrl = ref.watch(userDataProvider).avatarUrl;
                 return CircleAvatar(
                   radius: 18,
-                  backgroundColor: Colors.white.withOpacity(0.25),
+                  backgroundColor: Colors.white.withValues(alpha: 0.25),
                   backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
                       ? NetworkImage(avatarUrl)
                       : null,

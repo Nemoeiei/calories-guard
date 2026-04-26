@@ -42,7 +42,6 @@ class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
     if (widget.selectedGoal == GoalOption.buildMuscle) {
       // สำหรับเพิ่มกล้ามเนื้อ ให้ไม่เกิน BMI ขั้นสูงสุด 30 หากมีความสูง
       if (heightCm > 0) {
-        final maxWeightByBMI = 30 * ((heightCm / 100) * (heightCm / 100));
         return currentWeight;
       }
       return currentWeight;
@@ -116,9 +115,10 @@ class _TargetWeightScreenState extends ConsumerState<TargetWeightScreen> {
             (route) => false);
       }
     } else {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('บันทึกไม่สำเร็จ')));
+      }
     }
   }
 

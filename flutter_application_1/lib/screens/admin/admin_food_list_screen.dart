@@ -43,7 +43,7 @@ class _AdminFoodListScreenState extends State<AdminFoodListScreen> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      print("Error fetching foods: $e");
+      debugPrint("Error fetching foods: $e");
     }
   }
 
@@ -142,7 +142,7 @@ class _AdminFoodListScreenState extends State<AdminFoodListScreen> {
                           borderRadius: BorderRadius.circular(15),
                           boxShadow: [
                             BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 5,
                                 offset: const Offset(0, 3))
                           ],

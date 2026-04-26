@@ -206,7 +206,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         child: Container(
           margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Icon(Icons.arrow_back_ios_new,
@@ -222,8 +222,8 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: _isFav
-                  ? Colors.red.withOpacity(0.3)
-                  : Colors.white.withOpacity(0.2),
+                  ? Colors.red.withValues(alpha: 0.3)
+                  : Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: _favLoading
@@ -241,7 +241,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           margin: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12),
           ),
           child:
@@ -272,9 +272,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.35),
+                    Colors.black.withValues(alpha: 0.35),
                     Colors.transparent,
-                    Colors.black.withOpacity(0.65),
+                    Colors.black.withValues(alpha: 0.65),
                   ],
                   stops: const [0, 0.4, 1],
                 ),
@@ -320,7 +320,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                             fontSize: 13)),
                   ],
                 ],
@@ -427,7 +427,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 6,
               offset: const Offset(0, 2))
         ],
@@ -495,7 +495,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
                 blurRadius: 6,
                 offset: const Offset(0, 2))
           ],
@@ -528,7 +528,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: const Color(0xFF2E7D52).withOpacity(0.3),
+              color: const Color(0xFF2E7D52).withValues(alpha: 0.3),
               blurRadius: 16,
               offset: const Offset(0, 6))
         ],
@@ -542,7 +542,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(14)),
               child: Column(children: [
                 Text('${r['calories']?.toStringAsFixed(0) ?? '0'}',
@@ -592,7 +592,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   Widget _nutItem(String label, dynamic val, String unit) {
     return Container(
       decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10)),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Text('${val?.toStringAsFixed(0) ?? '0'}',
@@ -612,7 +612,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10)),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -646,7 +646,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
+                  color: Colors.black.withValues(alpha: 0.06),
                   blurRadius: 6,
                   offset: const Offset(0, 2))
             ],
@@ -683,14 +683,14 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: isOpt ? Colors.white.withOpacity(0.6) : Colors.white,
+            color: isOpt ? Colors.white.withValues(alpha: 0.6) : Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: isOpt
                 ? Border.all(color: _greenMid, style: BorderStyle.solid)
                 : null,
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
+                  color: Colors.black.withValues(alpha: 0.06),
                   blurRadius: 6,
                   offset: const Offset(0, 2))
             ],
@@ -790,7 +790,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                        color: _green.withOpacity(0.3),
+                        color: _green.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 3))
                   ],
@@ -845,7 +845,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                              color: Colors.black.withOpacity(0.06),
+                              color: Colors.black.withValues(alpha: 0.06),
                               blurRadius: 6,
                               offset: const Offset(0, 2))
                         ],
@@ -910,7 +910,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 10,
               offset: const Offset(0, 3))
         ],
@@ -949,7 +949,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                 ],
               ),
             ),
-            if (!isLast) Divider(height: 1, color: _greenL),
+            if (!isLast) const Divider(height: 1, color: _greenL),
           ]);
         }).toList(),
       ),
@@ -969,7 +969,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           borderRadius: BorderRadius.circular(99),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
                 blurRadius: 6,
                 offset: const Offset(0, 2))
           ],
@@ -999,7 +999,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
               style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
         )
       else
-        ..._reviews.map((rv) => _buildReviewItem(rv)).toList(),
+        ..._reviews.map((rv) => _buildReviewItem(rv)),
     ]);
   }
 
@@ -1024,7 +1024,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 6,
               offset: const Offset(0, 2))
         ],
@@ -1144,6 +1144,8 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                       ? null
                       : () async {
                           setSheet(() => isSaving = true);
+                          final nav = Navigator.of(ctx);
+                          final messenger = ScaffoldMessenger.of(ctx);
                           try {
                             final res = await ApiClient().post(
                               '/recipes/${widget.foodId}/review',
@@ -1153,10 +1155,10 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                                 'comment': commentCtrl.text.trim(),
                               },
                             );
-                            if (res.statusCode == 200 && mounted) {
-                              Navigator.pop(ctx);
+                            if (res.statusCode == 200) {
                               _fetchRecipe(); // refresh
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              nav.pop();
+                              messenger.showSnackBar(
                                   const SnackBar(
                                       content: Text('✅ บันทึกรีวิวแล้ว!')));
                             }
@@ -1222,7 +1224,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: const Color(0xFF2E7D52).withOpacity(0.4),
+                color: const Color(0xFF2E7D52).withValues(alpha: 0.4),
                 blurRadius: 20,
                 offset: const Offset(0, 6))
           ],
@@ -1283,7 +1285,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
               child: Container(
                   height: 2,
                   decoration: BoxDecoration(
-                      gradient: LinearGradient(
+                      gradient: const LinearGradient(
                           colors: [_greenMid, Colors.transparent]),
                       borderRadius: BorderRadius.circular(99)))),
         ]),

@@ -189,7 +189,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
                 child: Container(
                   height: 43,
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.2),
+                    color: Colors.grey.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(100),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -240,7 +240,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         color: _hideAllergic
-                            ? const Color(0xFF628141).withOpacity(0.1)
+                            ? const Color(0xFF628141).withValues(alpha: 0.1)
                             : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
@@ -546,7 +546,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFFAFD198),
             borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 4, offset: const Offset(0, 3))],
           ),
           child: const Text('วิธีการทำ',
@@ -619,7 +619,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFFAFD198),
             borderRadius: BorderRadius.circular(10),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 4, offset: const Offset(0, 4))],
           ),
           child: const Text('วิธีการทำ',
@@ -721,7 +721,7 @@ class _RecommendedFoodScreenState extends ConsumerState<RecommendedFoodScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFF628141),
             borderRadius: BorderRadius.circular(100),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 4, offset: const Offset(0, 4))],
           ),
           child: const Row(
@@ -749,12 +749,12 @@ Widget _imagePlaceholder() {
     color: const Color(0xFFE8EFCF),
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Icon(Icons.restaurant_menu_rounded,
-          color: const Color(0xFF628141).withOpacity(0.55), size: 44),
+          color: const Color(0xFF628141).withValues(alpha: 0.55), size: 44),
       const SizedBox(height: 6),
       Text('ไม่มีรูปภาพ',
           style: TextStyle(
               fontSize: 11,
-              color: const Color(0xFF628141).withOpacity(0.6),
+              color: const Color(0xFF628141).withValues(alpha: 0.6),
               fontWeight: FontWeight.w500)),
     ]),
   );
@@ -770,7 +770,7 @@ Widget _imageLoading() {
         child: CircularProgressIndicator(
             strokeWidth: 2.5,
             valueColor: AlwaysStoppedAnimation<Color>(
-                const Color(0xFF628141).withOpacity(0.6))),
+                const Color(0xFF628141).withValues(alpha: 0.6))),
       ),
     ),
   );
@@ -821,7 +821,7 @@ class FoodCategoryScreen extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.arrow_back_ios_new_rounded,
@@ -839,7 +839,7 @@ class FoodCategoryScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -911,7 +911,7 @@ class FoodCategoryScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
                 blurRadius: 10,
                 offset: const Offset(0, 3))
           ],

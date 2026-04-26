@@ -80,9 +80,10 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                     TargetWeightScreen(selectedGoal: selectedGoal!)));
       }
     } else {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('บันทึกไม่สำเร็จ')));
+      }
     }
   }
 
@@ -94,7 +95,7 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4))
         ],
@@ -207,7 +208,7 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                                color: bmiColor.withOpacity(0.2),
+                                color: bmiColor.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(5)),
                             child: Text(bmiStatus,
                                 style: TextStyle(
@@ -360,7 +361,7 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.black.withOpacity(0.25),
+                            color: Colors.black.withValues(alpha: 0.25),
                             blurRadius: 4,
                             offset: const Offset(0, 4))
                       ],
@@ -411,7 +412,7 @@ class _GoalSelectionScreenState extends ConsumerState<GoalSelectionScreen> {
               gradient: isSelected ? selectedGradient : defaultGradient,
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2))
               ],

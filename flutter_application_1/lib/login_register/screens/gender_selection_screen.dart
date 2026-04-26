@@ -140,10 +140,10 @@ const SizedBox(height: 20),
       child: Container(
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
+          color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(20),
           border: isSelected ? Border.all(color: const Color(0xFF4C6414), width: 3) : Border.all(color: Colors.transparent, width: 3),
-          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)] : [],
+          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)] : [],
         ),
         child: Column(
           children: [

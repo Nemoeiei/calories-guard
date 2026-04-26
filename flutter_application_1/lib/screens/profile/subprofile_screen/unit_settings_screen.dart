@@ -11,7 +11,6 @@ class UnitSettingsScreen extends ConsumerStatefulWidget {
 
 class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
   static const _green = Color(0xFF628141);
-  static const _greenDark = Color(0xFF3D5A27);
 
   void _updateUnit(String key, String value) {
     if (key == 'unit_weight') ref.read(userDataProvider.notifier).updateUnit(weight: value);
@@ -43,7 +42,7 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     shape: BoxShape.circle),
                 child: const Icon(Icons.arrow_back_ios_new_rounded,
                     color: Colors.white, size: 18),
@@ -70,9 +69,9 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
                 icon: Icons.monitor_weight_outlined,
                 label: 'น้ำหนัก',
                 options: [
-                  _UnitOption('กิโลกรัม (kg)', 'kg'),
-                  _UnitOption('ปอนด์ (lbs)', 'lbs'),
-                  _UnitOption('สโตน (st)', 'st'),
+                  const _UnitOption('กิโลกรัม (kg)', 'kg'),
+                  const _UnitOption('ปอนด์ (lbs)', 'lbs'),
+                  const _UnitOption('สโตน (st)', 'st'),
                 ],
                 currentValue: userData.unitWeight,
                 dbKey: 'unit_weight',
@@ -82,9 +81,9 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
                 icon: Icons.height_rounded,
                 label: 'ส่วนสูง',
                 options: [
-                  _UnitOption('เซนติเมตร (cm)', 'cm'),
-                  _UnitOption('ฟุต (ft)', 'ft'),
-                  _UnitOption('นิ้ว (in)', 'in'),
+                  const _UnitOption('เซนติเมตร (cm)', 'cm'),
+                  const _UnitOption('ฟุต (ft)', 'ft'),
+                  const _UnitOption('นิ้ว (in)', 'in'),
                 ],
                 currentValue: userData.unitHeight,
                 dbKey: 'unit_height',
@@ -94,9 +93,9 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
                 icon: Icons.local_fire_department_outlined,
                 label: 'พลังงาน',
                 options: [
-                  _UnitOption('กิโลแคลอรี่ (kcal)', 'kcal'),
-                  _UnitOption('แคลอรี่ (cal)', 'cal'),
-                  _UnitOption('กิโลจูล (kJ)', 'kj'),
+                  const _UnitOption('กิโลแคลอรี่ (kcal)', 'kcal'),
+                  const _UnitOption('แคลอรี่ (cal)', 'cal'),
+                  const _UnitOption('กิโลจูล (kJ)', 'kj'),
                 ],
                 currentValue: userData.unitEnergy,
                 dbKey: 'unit_energy',
@@ -106,10 +105,10 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
                 icon: Icons.water_drop_outlined,
                 label: 'น้ำ',
                 options: [
-                  _UnitOption('มิลลิลิตร (ml)', 'ml'),
-                  _UnitOption('ลิตร (L)', 'L'),
-                  _UnitOption('ออนซ์ (fl oz)', 'floz'),
-                  _UnitOption('ขวด (bottle)', 'bottle'),
+                  const _UnitOption('มิลลิลิตร (ml)', 'ml'),
+                  const _UnitOption('ลิตร (L)', 'L'),
+                  const _UnitOption('ออนซ์ (fl oz)', 'floz'),
+                  const _UnitOption('ขวด (bottle)', 'bottle'),
                 ],
                 currentValue: userData.unitWater,
                 dbKey: 'unit_water',
@@ -151,7 +150,7 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 3))
           ],
@@ -182,7 +181,7 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: isSelected
-                ? _green.withOpacity(0.06)
+                ? _green.withValues(alpha: 0.06)
                 : Colors.transparent,
             borderRadius: BorderRadius.vertical(
               top: const Radius.circular(16),
@@ -222,7 +221,7 @@ class _UnitSettingsScreenState extends ConsumerState<UnitSettingsScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                    color: _green.withOpacity(0.1),
+                    color: _green.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20)),
                 child: const Text('ใช้งานอยู่',
                     style: TextStyle(

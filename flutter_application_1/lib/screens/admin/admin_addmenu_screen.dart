@@ -150,10 +150,10 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
                           alignment: Alignment.centerLeft,
                           child: GestureDetector(
                             onTap: () => Navigator.pop(context),
-                            child: Container(
+                            child: const SizedBox(
                               width: 40,
                               height: 40,
-                              child: const Icon(Icons.arrow_back_ios_new,
+                              child: Icon(Icons.arrow_back_ios_new,
                                   color: Colors.black, size: 24),
                             ),
                           ),
@@ -303,7 +303,7 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
         // Loading Overlay
         if (_isUploading)
           ModalBarrier(
-              dismissible: false, color: Colors.black.withOpacity(0.3)),
+              dismissible: false, color: Colors.black.withValues(alpha: 0.3)),
       ],
     );
   }
@@ -364,9 +364,9 @@ class _AdminAddMenuScreenState extends State<AdminAddMenuScreen> {
                         fit: BoxFit.cover) // โชว์รูปที่เลือก
                     : null),
             child: _selectedImage == null
-                ? Row(
+                ? const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
+                    children: [
                       Icon(Icons.add_photo_alternate_outlined,
                           size: 18, color: Colors.black54),
                       SizedBox(width: 5),

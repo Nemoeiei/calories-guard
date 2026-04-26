@@ -57,11 +57,12 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   // ─── Data Fetching ────────────────────────────────────────────────────────
 
   Future<void> _fetchAllData() async {
-    if (mounted)
+    if (mounted) {
       setState(() {
         _isLoading = true;
         _hasError = false;
       });
+    }
     try {
       await _fetchUserData();
       await _fetchDailyData(_viewDate);
@@ -165,7 +166,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       backgroundColor: Colors.white,
-      builder: (_) => DraggableScrollableSheet(
+      builder: (sheetCtx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.55,
         minChildSize: 0.35,
@@ -335,12 +336,12 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           // ── Action buttons ───────────────────────────────────────────────
           Padding(
             padding: EdgeInsets.fromLTRB(
-                16, 8, 16, MediaQuery.of(_).viewInsets.bottom + 16),
+                16, 8, 16, MediaQuery.of(sheetCtx).viewInsets.bottom + 16),
             child: Row(children: [
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    Navigator.pop(_);
+                    Navigator.pop(sheetCtx);
                     _confirmDeleteMeal(mealType, mealLabel);
                   },
                   icon: const Icon(Icons.delete_outline,
@@ -360,7 +361,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                 flex: 2,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.pop(_);
+                    Navigator.pop(sheetCtx);
                     ref.read(navIndexProvider.notifier).state = 1;
                   },
                   icon: const Icon(Icons.add_rounded, size: 18),
@@ -391,7 +392,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
   Widget _macroChip(String label, String value, Color color) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(6)),
       child: Text('$label $value g',
           style: TextStyle(
@@ -445,11 +446,13 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         if (mounted) {
           Navigator.pop(context);
           await _fetchAllData();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('ลบรายการเรียบร้อย'),
-                backgroundColor: Colors.green),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('ลบรายการเรียบร้อย'),
+                  backgroundColor: Colors.green),
+            );
+          }
         }
       } else {
         throw Exception('Failed to delete: ${response.body}');
@@ -683,7 +686,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               Text(
                 isToday ? 'วันนี้' : 'ดูข้อมูลย้อนหลัง',
                 style: TextStyle(
-                    fontSize: 13, color: Colors.white.withOpacity(0.75)),
+                    fontSize: 13, color: Colors.white.withValues(alpha: 0.75)),
               ),
               const SizedBox(height: 2),
               Text(
@@ -724,10 +727,10 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(50),
               border:
-                  Border.all(color: Colors.white.withOpacity(0.4), width: 1),
+                  Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.calendar_today_outlined,
@@ -751,7 +754,6 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
   Widget _buildCalorieCard(int currentCal, int targetCal, double progress,
       bool isOver, dynamic userData) {
-    final remaining = targetCal - currentCal;
     final ringColor = isOver ? Colors.red : _green;
     final advice = _getAdvice(currentCal, targetCal, isOver);
 
@@ -765,7 +767,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
                 blurRadius: 16,
                 offset: const Offset(0, 4))
           ],
@@ -812,13 +814,13 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               width: 140,
               height: 140,
               child: Stack(alignment: Alignment.center, children: [
-                SizedBox(
+                const SizedBox(
                   width: 130,
                   height: 130,
                   child: CircularProgressIndicator(
                     value: 1.0,
                     strokeWidth: 12,
-                    color: const Color(0xFFE8EFCF),
+                    color: Color(0xFFE8EFCF),
                     strokeCap: StrokeCap.round,
                   ),
                 ),
@@ -926,7 +928,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, size: 16, color: color),
@@ -1001,7 +1003,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 12,
                 offset: const Offset(0, 3))
           ],
@@ -1013,7 +1015,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Padding(
@@ -1078,7 +1080,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                  color: _green.withOpacity(0.3),
+                  color: _green.withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 4))
             ],
@@ -1112,14 +1114,15 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
 
     Color bmiColor = _green;
     if (bmi > 0) {
-      if (bmi < 18.5)
+      if (bmi < 18.5) {
         bmiColor = const Color(0xFF3498DB);
-      else if (bmi < 22.9)
+      } else if (bmi < 22.9) {
         bmiColor = _green;
-      else if (bmi < 25)
+      } else if (bmi < 25) {
         bmiColor = const Color(0xFFF39C12);
-      else
+      } else {
         bmiColor = const Color(0xFFE74C3C);
+      }
     }
 
     return Padding(
@@ -1134,7 +1137,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 12,
                     offset: const Offset(0, 3))
               ],
@@ -1146,7 +1149,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                      color: _green.withOpacity(0.1), shape: BoxShape.circle),
+                      color: _green.withValues(alpha: 0.1), shape: BoxShape.circle),
                   child: const Icon(Icons.monitor_weight_outlined,
                       size: 16, color: _green),
                 ),
@@ -1239,7 +1242,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 12,
                       offset: const Offset(0, 3))
                 ],
@@ -1252,7 +1255,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                            color: bmiColor.withOpacity(0.1),
+                            color: bmiColor.withValues(alpha: 0.1),
                             shape: BoxShape.circle),
                         child: Icon(Icons.speed_rounded,
                             size: 16, color: bmiColor),
@@ -1295,7 +1298,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: bmiColor.withOpacity(0.1),
+                        color: bmiColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -1351,7 +1354,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, 3))
               ],
@@ -1392,7 +1395,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 3))
         ],
@@ -1402,7 +1405,7 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
         leading: Container(
           width: 44,
           height: 44,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: _greenLight,
             shape: BoxShape.circle,
           ),
@@ -1430,8 +1433,8 @@ class _AppHomeScreenState extends ConsumerState<AppHomeScreen> {
                     child: Container(
                       width: 34,
                       height: 34,
-                      decoration: BoxDecoration(
-                          color: const Color(0xFFEAF0FF),
+                      decoration: const BoxDecoration(
+                          color: Color(0xFFEAF0FF),
                           shape: BoxShape.circle),
                       child: const Icon(Icons.edit_outlined,
                           size: 16, color: Color(0xFF3498DB)),

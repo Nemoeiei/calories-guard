@@ -138,12 +138,13 @@ class UserData {
   // --- Daily Target: TDEE + (kg_per_week * (7700/7)) = TDEE + (kg_per_week * 1100) ---
   // ใช้จาก DB (storedTargetCalories) ถ้ามี ไม่ใช่คำนวณจากสูตร
   double get targetCalories {
-    if (storedTargetCalories != null && storedTargetCalories! > 0)
+    if (storedTargetCalories != null && storedTargetCalories! > 0) {
       return storedTargetCalories!.toDouble();
+    }
     double kgPerWeek = 0;
-    if (goal == GoalOption.loseWeight)
+    if (goal == GoalOption.loseWeight) {
       kgPerWeek = -0.5;
-    else if (goal == GoalOption.buildMuscle) kgPerWeek = 0.5;
+    } else if (goal == GoalOption.buildMuscle) { kgPerWeek = 0.5; }
     final numWeeks = _effectiveWeeks;
     if (numWeeks > 0 && targetWeight > 0 && weight > 0) {
       kgPerWeek = (targetWeight - weight) / numWeeks;
@@ -181,20 +182,23 @@ class UserData {
   }
 
   int get targetProtein {
-    if (storedTargetProtein != null && storedTargetProtein! > 0)
+    if (storedTargetProtein != null && storedTargetProtein! > 0) {
       return storedTargetProtein!;
+    }
     return (targetCalories * _proteinRatio / 4).round();
   }
 
   int get targetCarbs {
-    if (storedTargetCarbs != null && storedTargetCarbs! > 0)
+    if (storedTargetCarbs != null && storedTargetCarbs! > 0) {
       return storedTargetCarbs!;
+    }
     return (targetCalories * _carbsRatio / 4).round();
   }
 
   int get targetFat {
-    if (storedTargetFat != null && storedTargetFat! > 0)
+    if (storedTargetFat != null && storedTargetFat! > 0) {
       return storedTargetFat!;
+    }
     return (targetCalories * _fatRatio / 9).round();
   }
 
@@ -391,8 +395,9 @@ class UserDataNotifier extends StateNotifier<UserData> {
     }
 
     GoalOption userGoal = GoalOption.loseWeight;
-    if (data['goal_type'] == 'maintain_weight')
+    if (data['goal_type'] == 'maintain_weight') {
       userGoal = GoalOption.maintainWeight;
+    }
     if (data['goal_type'] == 'gain_muscle') userGoal = GoalOption.buildMuscle;
 
     // Null-safe: ใช้ ?? และ default เพื่อไม่ให้เป็น null ที่แสดงผล

@@ -184,7 +184,7 @@ class _ExerciseRecommendationScreenState
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     shape: BoxShape.circle),
                 child: const Icon(Icons.refresh,
                     color: Colors.white, size: 22),
@@ -196,7 +196,7 @@ class _ExerciseRecommendationScreenState
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
+            color: Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(children: [
@@ -206,7 +206,7 @@ class _ExerciseRecommendationScreenState
             Text(
               'สะสมวันเข้าใช้งานต่อเนื่องเพื่อขึ้นอันดับ!',
               style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 13,
                   fontWeight: FontWeight.w500),
             ),
@@ -244,7 +244,7 @@ class _ExerciseRecommendationScreenState
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 20,
               offset: const Offset(0, 6))
         ],
@@ -312,7 +312,7 @@ class _ExerciseRecommendationScreenState
                     color: isMe ? _green : medalColor, width: isMe ? 3 : 2),
                 boxShadow: [
                   BoxShadow(
-                      color: medalColor.withOpacity(0.4),
+                      color: medalColor.withValues(alpha: 0.4),
                       blurRadius: 10,
                       offset: const Offset(0, 4))
                 ],
@@ -367,7 +367,7 @@ class _ExerciseRecommendationScreenState
             ),
             boxShadow: [
               BoxShadow(
-                  color: medalColor.withOpacity(0.3),
+                  color: medalColor.withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset: const Offset(0, -2))
             ],
@@ -377,7 +377,7 @@ class _ExerciseRecommendationScreenState
                 style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white.withOpacity(0.9))),
+                    color: Colors.white.withValues(alpha: 0.9))),
           ),
         ),
       ],
@@ -401,7 +401,7 @@ class _ExerciseRecommendationScreenState
             : null,
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 3))
         ],
@@ -455,7 +455,7 @@ class _ExerciseRecommendationScreenState
               const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: streak > 0
-                ? const Color(0xFFFF6B35).withOpacity(0.1)
+                ? const Color(0xFFFF6B35).withValues(alpha: 0.1)
                 : Colors.grey.shade100,
             borderRadius: BorderRadius.circular(20),
           ),

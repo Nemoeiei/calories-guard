@@ -26,7 +26,7 @@ class DurationSliderScreen extends StatefulWidget {
 
 class _DurationSliderScreenState extends State<DurationSliderScreen> {
   late int _selectedDurationDays;
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   @override
   void initState() {
@@ -93,10 +93,10 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
                     const SizedBox(height: 40),
 
                     // Header
-                    Center(
+                    const Center(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: const Text(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text(
                           'เป้าหมายของคุณคือ',
                           style: TextStyle(fontFamily: 'Inter', fontSize: 32, fontWeight: FontWeight.w400),
                         ),
@@ -163,7 +163,7 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
                               Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(color: _goalColor.withOpacity(0.54), borderRadius: BorderRadius.circular(10)),
+                                decoration: BoxDecoration(color: _goalColor.withValues(alpha: 0.54), borderRadius: BorderRadius.circular(10)),
                                 child: Text(
                                   _formatDate(widget.currentDate),
                                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
@@ -185,7 +185,7 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
                               Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(color: _goalColor.withOpacity(0.25), borderRadius: BorderRadius.circular(10)),
+                                decoration: BoxDecoration(color: _goalColor.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(10)),
                                 child: Text(
                                   _formatDate(_targetDate),
                                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _goalColor),
@@ -207,7 +207,7 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _goalColor.withOpacity(0.3), width: 1),
+                        border: Border.all(color: _goalColor.withValues(alpha: 0.3), width: 1),
                       ),
                       child: Row(
                         children: [
@@ -286,7 +286,7 @@ class _DurationSliderScreenState extends State<DurationSliderScreen> {
                   child: Container(
                     width: 259,
                     height: 54,
-                    decoration: BoxDecoration(color: const Color(0xFF628141), borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 4, offset: const Offset(0, 4))]),
+                    decoration: BoxDecoration(color: const Color(0xFF628141), borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 4, offset: const Offset(0, 4))]),
                     child: Center(child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('ถัดไป', style: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white))),
                   ),
                 ),

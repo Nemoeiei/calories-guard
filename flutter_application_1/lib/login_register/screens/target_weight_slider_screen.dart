@@ -97,10 +97,10 @@ class _TargetWeightSliderScreenState extends State<TargetWeightSliderScreen> {
                     const SizedBox(height: 40),
 
                     // Header
-                    Center(
+                    const Center(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: const Text(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text(
                           'เป้าหมายของคุณคือ',
                           style: TextStyle(
                               fontFamily: 'Inter',
@@ -179,7 +179,7 @@ class _TargetWeightSliderScreenState extends State<TargetWeightSliderScreen> {
                               height: 37,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                  color: _goalColor.withOpacity(0.54),
+                                  color: _goalColor.withValues(alpha: 0.54),
                                   borderRadius: BorderRadius.circular(10)),
                               child: Text(
                                 '${widget.currentWeight.toStringAsFixed(1)} กก.',
@@ -204,7 +204,7 @@ class _TargetWeightSliderScreenState extends State<TargetWeightSliderScreen> {
                               height: 37,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                  color: _goalColor.withOpacity(0.25),
+                                  color: _goalColor.withValues(alpha: 0.25),
                                   borderRadius: BorderRadius.circular(10)),
                               child: Text(
                                 '${widget.recommendedWeight.toStringAsFixed(1)} กก.',
@@ -295,7 +295,7 @@ class _TargetWeightSliderScreenState extends State<TargetWeightSliderScreen> {
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                              color: Colors.black.withOpacity(0.25),
+                              color: Colors.black.withValues(alpha: 0.25),
                               blurRadius: 4,
                               offset: const Offset(0, 4))
                         ]),

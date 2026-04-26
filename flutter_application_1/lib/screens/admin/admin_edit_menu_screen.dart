@@ -95,10 +95,11 @@ class _AdminEditMenuScreenState extends State<AdminEditMenuScreen> {
         throw Exception('Failed to update: ${res.body}');
       }
     } catch (e) {
-      print(e);
-      if (mounted)
+      debugPrint(e.toString());
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Error updating'), backgroundColor: Colors.red));
+      }
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }

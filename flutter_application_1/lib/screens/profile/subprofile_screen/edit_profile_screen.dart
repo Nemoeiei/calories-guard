@@ -14,7 +14,6 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   static const _green = Color(0xFF628141);
-  static const _greenDark = Color(0xFF3D5A27);
   bool _isUploadingAvatar = false;
 
   Future<void> _pickAndUploadAvatar() async {
@@ -242,7 +241,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withValues(alpha: 0.15),
                         shape: BoxShape.circle),
                     child: const Icon(Icons.arrow_back_ios_new_rounded,
                         color: Colors.white, size: 18),
@@ -393,7 +392,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 14,
               offset: const Offset(0, 4))
         ],

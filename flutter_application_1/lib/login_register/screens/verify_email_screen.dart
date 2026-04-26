@@ -54,11 +54,13 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
 
     if (result['success']) {
       // Use showSnackBar instead of _showError so it can be green if we want, or map _showError
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(result['message'] ?? 'ส่งรหัสใหม่สำเร็จ'),
-            backgroundColor: Colors.green),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(result['message'] ?? 'ส่งรหัสใหม่สำเร็จ'),
+              backgroundColor: Colors.green),
+        );
+      }
       _startTimer();
     } else {
       _showError(result['message'] ?? 'ส่งรหัสใหม่ไม่สำเร็จ');
